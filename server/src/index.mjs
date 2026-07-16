@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import path from 'node:path';
+import fs from 'node:fs';
 import multer from 'multer';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -18,8 +20,23 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve('uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const photoUpload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOAD_DIR,
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '.jpg') || '.jpg';
+      cb(null, `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
+});
+
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 const notify = () => io.emit('packages:changed');
 
@@ -107,7 +124,33 @@ app.get('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   if (!r.rows[0]) return res.status(404).json({ error: 'Paket tidak ditemukan' });
   const events = await pool.query(
     'SELECT * FROM package_events WHERE package_id=$1 ORDER BY id DESC', [r.rows[0].id]);
-  res.json({ ...r.rows[0], events: events.rows });
+  const photos = await pool.query(
+    'SELECT * FROM package_photos WHERE package_id=$1 ORDER BY id', [r.rows[0].id]);
+  res.json({ ...r.rows[0], events: events.rows, photos: photos.rows });
+}));
+
+// Upload bukti foto (wajah driver / barang) saat driver mengambil paket.
+app.post('/api/packages/:id/photos', requireAuth, requireRole('admin'),
+  photoUpload.single('photo'), wrap(async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'File foto tidak ada' });
+    const kind = req.body.kind === 'driver' ? 'driver' : 'barang';
+    const id = Number(req.params.id);
+    const r = await pool.query(
+      'INSERT INTO package_photos (package_id, kind, filename) VALUES ($1,$2,$3) RETURNING *',
+      [id, kind, req.file.filename]);
+    await logEvent(id, req.user, 'foto', kind);
+    notify();
+    res.status(201).json(r.rows[0]);
+  }));
+
+app.delete('/api/photos/:id', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+  const r = await pool.query(
+    'DELETE FROM package_photos WHERE id=$1 RETURNING *', [Number(req.params.id)]);
+  if (r.rows[0]) {
+    fs.rm(path.join(UPLOAD_DIR, r.rows[0].filename), () => {});
+    notify();
+  }
+  res.json({ ok: true });
 }));
 
 // Input manual (paket tidak ada di data import).
@@ -144,6 +187,23 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     }
   }
   if (!sets.length) return res.status(400).json({ error: 'Tidak ada field yang diubah' });
+
+  // Aturan kios: Done Pickup (alur gojek) wajib disertai bukti
+  // 1 foto wajah driver + 2 foto barang.
+  if (req.body.status === 'done_pickup') {
+    const cur = await pool.query('SELECT pickup_type FROM packages WHERE id=$1', [id]);
+    if (cur.rows[0]?.pickup_type === 'gojek') {
+      const counts = await pool.query(
+        `SELECT kind, count(*)::int AS n FROM package_photos
+         WHERE package_id=$1 GROUP BY kind`, [id]);
+      const n = Object.fromEntries(counts.rows.map((r2) => [r2.kind, r2.n]));
+      if ((n.driver || 0) < 1 || (n.barang || 0) < 2) {
+        return res.status(400).json({
+          error: `Belum bisa Done Pickup: butuh 1 foto wajah driver (ada ${n.driver || 0}) dan 2 foto barang (ada ${n.barang || 0}).`,
+        });
+      }
+    }
+  }
   if (req.body.status === 'selesai' || req.body.status === 'done_pickup') sets.push('done_at=now()');
   const r = await pool.query(
     `UPDATE packages SET ${sets.join(', ')}, updated_at=now() WHERE id=$1 RETURNING *`, values);

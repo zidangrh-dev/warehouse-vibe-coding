@@ -73,7 +73,38 @@ export const api = {
   arrive: (invoice_no) => req('POST', '/api/packages/arrive', { invoice_no }),
   generateCode: (id) => req('POST', `/api/packages/${id}/pickup-code`),
   redeem: (code, picker_name) => req('POST', '/api/packages/redeem', { code, picker_name }),
+  deletePhoto: (id) => req('DELETE', `/api/photos/${id}`),
 };
+
+// Upload bukti foto ('driver' = wajah driver, 'barang' = foto paket).
+export async function uploadPhoto(packageId, kind, asset) {
+  const form = new FormData();
+  form.append('kind', kind);
+  if (Platform.OS === 'web') {
+    const blob = asset.file || (await (await fetch(asset.uri)).blob());
+    form.append('photo', blob, asset.fileName || 'foto.jpg');
+  } else {
+    form.append('photo', {
+      uri: asset.uri,
+      name: asset.fileName || 'foto.jpg',
+      type: asset.mimeType || 'image/jpeg',
+    });
+  }
+  const res = await fetch(`${apiBase()}/api/packages/${packageId}/photos`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Upload foto gagal');
+  }
+  return res.json();
+}
+
+export function photoUrl(photo) {
+  return `${apiBase()}/uploads/${photo.filename}`;
+}
 
 export async function importCsv(fileAsset) {
   const form = new FormData();

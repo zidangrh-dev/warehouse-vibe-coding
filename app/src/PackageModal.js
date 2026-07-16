@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
+  Image, Platform, ActivityIndicator,
 } from 'react-native';
-import { api } from './api';
-import { colors, statusLabel, statusColor, NEXT_ACTIONS, notice } from './theme';
+import * as ImagePicker from 'expo-image-picker';
+import { api, uploadPhoto, photoUrl } from './api';
+import { colors, statusLabel, statusColor, NEXT_ACTIONS, notice, confirmAsync } from './theme';
 
 const Field = ({ label, children }) => (
   <View style={{ marginTop: 10 }}>
@@ -29,6 +31,69 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   const canAct = user.role === 'admin';
   const actions = NEXT_ACTIONS[pkg.status] || [];
+
+  const photos = pkg.photos || [];
+  const driverPhotos = photos.filter((p) => p.kind === 'driver');
+  const barangPhotos = photos.filter((p) => p.kind === 'barang');
+  // Aturan kios: Done Pickup gojek butuh 1 foto driver + 2 foto barang.
+  const needsPhotos = pkg.pickup_type === 'gojek' && pkg.status === 'driver_sampai_kios';
+  const photosOk = driverPhotos.length >= 1 && barangPhotos.length >= 2;
+
+  const addPhoto = async (kind, fromCamera) => {
+    const opts = { quality: 0.6 };
+    const result = fromCamera
+      ? await (async () => {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) return { canceled: true };
+          return ImagePicker.launchCameraAsync(opts);
+        })()
+      : await ImagePicker.launchImageLibraryAsync(opts);
+    if (result.canceled || !result.assets?.length) return;
+    setBusy(true);
+    try {
+      await uploadPhoto(pkg.id, kind, result.assets[0]);
+      onChanged();
+      await load();
+    } catch (e) { notice(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const removePhoto = async (photo) => {
+    if (!(await confirmAsync('Hapus foto?'))) return;
+    await api.deletePhoto(photo.id);
+    onChanged();
+    await load();
+  };
+
+  const PhotoStrip = ({ title, kind, list, need }) => (
+    <View style={{ marginTop: 8 }}>
+      <Text style={s.photoTitle}>
+        {title}{' '}
+        <Text style={{ color: list.length >= need ? colors.ok : colors.danger }}>
+          ({list.length}/{need})
+        </Text>
+      </Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {list.map((p) => (
+          <TouchableOpacity key={p.id} onLongPress={() => canAct && removePhoto(p)}>
+            <Image source={{ uri: photoUrl(p) }} style={s.photo} />
+          </TouchableOpacity>
+        ))}
+        {canAct && (
+          <>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity style={s.photoAdd} onPress={() => addPhoto(kind, true)} disabled={busy}>
+                <Text style={s.photoAddText}>📸{'\n'}Kamera</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={s.photoAdd} onPress={() => addPhoto(kind, false)} disabled={busy}>
+              <Text style={s.photoAddText}>🖼{'\n'}Galeri</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
 
   const setStatus = async (to) => {
     setBusy(true);
@@ -131,18 +196,40 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               )}
             </Field>
 
+            {(needsPhotos || photos.length > 0) && (
+              <Field label="Bukti foto pengambilan">
+                <PhotoStrip title="Wajah driver" kind="driver" list={driverPhotos} need={1} />
+                <PhotoStrip title="Foto barang" kind="barang" list={barangPhotos} need={2} />
+                {canAct && <Text style={s.hint}>Tekan lama foto untuk menghapus.</Text>}
+              </Field>
+            )}
+
+            {busy && <ActivityIndicator style={{ marginTop: 8 }} />}
+
             {canAct && actions.length > 0 && (
               <Field label="Aksi">
-                {actions.map((a) => (
-                  <TouchableOpacity
-                    key={a.to}
-                    style={[s.actionBtn, { backgroundColor: statusColor(a.to) }]}
-                    onPress={() => setStatus(a.to)}
-                    disabled={busy}
-                  >
-                    <Text style={s.btnText}>{a.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                {actions.map((a) => {
+                  const locked = a.to === 'done_pickup' && needsPhotos && !photosOk;
+                  return (
+                    <TouchableOpacity
+                      key={a.to}
+                      style={[
+                        s.actionBtn,
+                        { backgroundColor: locked ? colors.border : statusColor(a.to) },
+                      ]}
+                      onPress={() =>
+                        locked
+                          ? notice('Lengkapi dulu: 1 foto wajah driver + 2 foto barang.')
+                          : setStatus(a.to)
+                      }
+                      disabled={busy}
+                    >
+                      <Text style={[s.btnText, locked && { color: colors.sub }]}>
+                        {locked ? '🔒 ' : ''}{a.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </Field>
             )}
 
@@ -191,6 +278,18 @@ const s = StyleSheet.create({
   actionBtn: { borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 6 },
   btnText: { color: '#fff', fontWeight: '700' },
   event: { color: colors.sub, fontSize: 12, marginTop: 4 },
+  photoTitle: { fontWeight: '700', color: colors.ink, fontSize: 13, marginBottom: 6 },
+  photo: {
+    width: 84, height: 84, borderRadius: 12, marginRight: 8,
+    backgroundColor: colors.border,
+  },
+  photoAdd: {
+    width: 84, height: 84, borderRadius: 12, marginRight: 8,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary,
+    backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center',
+  },
+  photoAddText: { color: colors.primary, fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  hint: { color: colors.faint, fontSize: 11, marginTop: 6 },
   closeBtn: {
     backgroundColor: colors.sub, borderRadius: 8, padding: 12,
     alignItems: 'center', marginTop: 16,

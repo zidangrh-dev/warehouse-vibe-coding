@@ -218,6 +218,8 @@ export function GojekScreen({ user }) {
       <TouchableOpacity
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
         onPress={async () => {
+          // Done Pickup butuh bukti foto — arahkan ke detail, jangan langsung ubah.
+          if (next.to === 'done_pickup') return setOpenId(pkg.id);
           try { await api.updatePackage(pkg.id, { status: next.to }); }
           catch (e) { notice(e.message); }
         }}

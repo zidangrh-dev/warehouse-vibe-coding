@@ -58,6 +58,17 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS awb_no TEXT;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT '';
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS courier TEXT NOT NULL DEFAULT '';
 
+-- Bukti foto saat driver mengambil paket: 'driver' (wajah) dan 'barang'.
+-- Syarat Done Pickup (alur gojek): minimal 1 foto driver + 2 foto barang.
+CREATE TABLE IF NOT EXISTS package_photos (
+  id SERIAL PRIMARY KEY,
+  package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('driver', 'barang')),
+  filename TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_photos_package ON package_photos(package_id);
+
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
 CREATE INDEX IF NOT EXISTS idx_packages_pickup_code ON packages(pickup_code);
