@@ -1,11 +1,17 @@
 # 📦 Gudang Board
 
-Aplikasi manajemen task gudang ala Trello. Satu codebase React Native (Expo) untuk
-**Android** dan **Web**, backend **Express + PostgreSQL + Socket.IO**.
+Aplikasi manajemen paket **retail pickup**. Satu codebase React Native (Expo)
+untuk **Android** dan **Web**, backend **Express + PostgreSQL + Socket.IO**.
 
-Fitur: board multi-kolom, drag & drop kartu (pegangan ⠿), realtime sync antar
-perangkat, prioritas berwarna, tenggat, lampiran foto barang, dan scan barcode
-via kamera HP (di web: input manual).
+Alur (sesuai flowchart): Warehouse import CSV dari VEF → paket sampai kios
+discan admin → status otomatis "Absen Ambil Customer" / "Absen Gojek" →
+Sales generate pickup code (QR, bisa dikirim via WhatsApp) → customer datang,
+admin scan kode → selesai. Alur Gojek: cari driver → driver sampai kios →
+done pickup → (retur/cancel bila perlu). Semua realtime antar perangkat,
+dengan riwayat event per paket.
+
+**Login awal** (ganti password sebelum dipakai sungguhan):
+`gudang/gudang123` (warehouse), `admin/admin123` (admin kios), `sales/sales123` (sales).
 
 ## Struktur
 
