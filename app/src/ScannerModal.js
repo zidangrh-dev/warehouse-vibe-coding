@@ -70,7 +70,7 @@ export default function ScannerModal({ visible, onClose, onScanned }) {
           >
             <Text style={s.btnText}>Pakai</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.btn, { backgroundColor: colors.subtle }]} onPress={onClose}>
+          <TouchableOpacity style={[s.btn, { backgroundColor: colors.sub }]} onPress={onClose}>
             <Text style={s.btnText}>Tutup</Text>
           </TouchableOpacity>
         </View>
@@ -89,7 +89,7 @@ const s = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
   btn: {
-    backgroundColor: colors.accent, paddingVertical: 12, paddingHorizontal: 24,
+    backgroundColor: colors.primary, paddingVertical: 12, paddingHorizontal: 24,
     borderRadius: 8, alignItems: 'center', marginBottom: 8,
   },
   btnText: { color: '#fff', fontWeight: '700' },
