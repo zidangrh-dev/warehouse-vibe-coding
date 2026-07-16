@@ -53,6 +53,12 @@ CREATE TABLE IF NOT EXISTS package_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Kolom tambahan menyesuaikan export VEF asli (sales_invoice.csv).
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS awb_no TEXT;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT '';
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS courier TEXT NOT NULL DEFAULT '';
+
+CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
 CREATE INDEX IF NOT EXISTS idx_packages_pickup_code ON packages(pickup_code);
 CREATE INDEX IF NOT EXISTS idx_events_package ON package_events(package_id);

@@ -80,8 +80,17 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {pkg.customer_name || '-'} {pkg.customer_phone ? `· ${pkg.customer_phone}` : ''}
               </Text>
             </Field>
-            <Field label="Barang">
-              <Text style={s.value}>{pkg.item_desc || '-'}</Text>
+            {!!pkg.awb_no && (
+              <Field label="AWB / Resi">
+                <Text style={[s.value, { fontWeight: '700' }]}>{pkg.awb_no}</Text>
+              </Field>
+            )}
+            <Field label="Barang / Toko">
+              <Text style={s.value}>
+                {pkg.item_desc || '-'}
+                {pkg.platform ? ` · ${pkg.platform}` : ''}
+                {pkg.courier ? ` · ${pkg.courier}` : ''}
+              </Text>
             </Field>
             <Field label="Jenis ambilan">
               <View style={s.rowWrap}>

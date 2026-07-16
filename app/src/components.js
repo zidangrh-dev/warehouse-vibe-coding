@@ -12,7 +12,7 @@ export function PackageRow({ pkg, onPress, action }) {
       <View style={{ flex: 1 }}>
         <View style={s.rowTop}>
           <Text style={s.invoice}>
-            {pkg.invoice_no} {pkg.pickup_code ? '▮▯' : ''}
+            {pkg.awb_no || pkg.invoice_no} {pkg.pickup_code ? '▮▯' : ''}
           </Text>
           <Text style={[s.status, { color: statusColor(pkg.status) }]}>
             {statusLabel(pkg.status)}
@@ -20,7 +20,8 @@ export function PackageRow({ pkg, onPress, action }) {
         </View>
         <Text style={s.detail} numberOfLines={1}>
           {pkg.customer_name || '(tanpa nama)'}
-          {pkg.item_desc ? ` · ${pkg.item_desc}` : ''}
+          {pkg.platform ? ` · ${pkg.platform}` : ''}
+          {pkg.courier ? ` · ${pkg.courier}` : ''}
           {pkg.pickup_type === 'gojek' ? ' · 🛵' : ''}
         </Text>
       </View>
@@ -36,7 +37,10 @@ export function CodeModal({ pkg, onClose }) {
     `Halo ${pkg.customer_name || ''}, paket ${pkg.invoice_no} sudah siap diambil di kios. ` +
     `Tunjukkan kode pickup ini ke admin: ${pkg.pickup_code}`
   );
-  const phone = (pkg.customer_phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+  // Nomor dari marketplace sering disensor ("(+62)896******56") — jangan tampilkan
+  // tombol WA untuk nomor sensor, hasil bersihannya akan jadi nomor orang lain.
+  const masked = (pkg.customer_phone || '').includes('*');
+  const phone = masked ? '' : (pkg.customer_phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.backdrop}>

@@ -12,6 +12,9 @@ const pg = new EmbeddedPostgres({
   password: 'postgres',
   port: 5433,
   persistent: true,
+  // UTF8 agar sama dengan Postgres produksi; default Windows (WIN1252)
+  // menolak karakter unicode dari CSV marketplace.
+  initdbFlags: ['--encoding=UTF8', '--locale=C'],
 });
 
 if (!fs.existsSync(path.join(dataDir, 'PG_VERSION'))) {

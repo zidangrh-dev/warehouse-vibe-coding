@@ -94,7 +94,7 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   }
   if (q) {
     values.push(`%${q}%`);
-    cond.push(`(invoice_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length})`);
+    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length})`);
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
   const r = await pool.query(
@@ -158,7 +158,9 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 app.post('/api/packages/arrive', requireAuth, requireRole('admin'), wrap(async (req, res) => {
   const code = String(req.body.invoice_no || '').trim();
   if (!code) return res.status(400).json({ error: 'Invoice kosong' });
-  const found = await pool.query('SELECT * FROM packages WHERE invoice_no=$1', [code]);
+  // Label fisik paket biasanya memuat AWB/resi, kadang no order — cocokkan keduanya.
+  const found = await pool.query(
+    'SELECT * FROM packages WHERE invoice_no=$1 OR awb_no=$1', [code]);
   const pkg = found.rows[0];
   if (!pkg) return res.status(404).json({ error: 'Data paket tidak ditemukan. Tanya Sales, lalu input manual.' });
   if (pkg.status !== 'data_masuk') {
@@ -208,12 +210,17 @@ app.post('/api/packages/redeem', requireAuth, requireRole('admin'), wrap(async (
   res.json(r.rows[0]);
 }));
 
-// Import CSV dari VEF (warehouse). Nama kolom dideteksi fleksibel.
+// Import CSV dari VEF (warehouse). Nama kolom dideteksi fleksibel;
+// alias disusun berdasarkan export asli VEF/ERPNext (sales_invoice.csv).
 const COLUMN_ALIASES = {
-  invoice_no: ['invoice', 'no_invoice', 'no invoice', 'invoice_no', 'no. invoice', 'noinvoice', 'awb', 'resi', 'no_resi', 'no resi'],
-  customer_name: ['nama', 'nama_customer', 'nama customer', 'customer', 'name', 'penerima', 'customer_name'],
-  customer_phone: ['hp', 'no_hp', 'no hp', 'phone', 'telp', 'telepon', 'no_telp', 'whatsapp', 'wa'],
-  item_desc: ['item', 'barang', 'produk', 'product', 'deskripsi', 'description', 'sku', 'nama_barang', 'nama barang'],
+  invoice_no: ['no online order', 'no_online_order', 'id', 'invoice', 'no_invoice', 'no invoice', 'invoice_no', 'no. invoice', 'booking id'],
+  awb_no: ['awb no', 'awb_no', 'awb', 'resi', 'no resi', 'no_resi', 'tracking'],
+  customer_name: ['recipient', 'nama', 'nama_customer', 'nama customer', 'name', 'penerima', 'customer_name'],
+  customer_phone: ['recipient number', 'recipient_number', 'hp', 'no_hp', 'no hp', 'phone', 'telp', 'telepon', 'no_telp', 'whatsapp', 'wa'],
+  item_desc: ['item', 'barang', 'produk', 'product', 'deskripsi', 'description', 'nama_barang', 'nama barang', 'title'],
+  platform: ['commerce platform', 'marketplace', 'platform'],
+  courier: ['courier name', 'kurir', 'courier'],
+  pickup_code: ['pickup code', 'pickup_code', 'kode pickup'],
 };
 
 function mapRow(row) {
@@ -225,9 +232,13 @@ function mapRow(row) {
   };
   return {
     invoice_no: pick('invoice_no'),
+    awb_no: pick('awb_no'),
     customer_name: pick('customer_name'),
     customer_phone: pick('customer_phone'),
     item_desc: pick('item_desc'),
+    platform: pick('platform'),
+    courier: pick('courier'),
+    pickup_code: pick('pickup_code'),
     raw: row,
   };
 }
@@ -249,15 +260,20 @@ app.post('/api/packages/import', requireAuth, requireRole('warehouse', 'admin'),
       const m = mapRow(rawRow);
       if (!m.invoice_no) { skipped++; continue; }
       const r = await pool.query(
-        `INSERT INTO packages (invoice_no, customer_name, customer_phone, item_desc, raw, source)
-         VALUES ($1,$2,$3,$4,$5,'import')
+        `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_code, raw, source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9,'import')
          ON CONFLICT (invoice_no) DO UPDATE SET
+           awb_no = CASE WHEN EXCLUDED.awb_no <> '' THEN EXCLUDED.awb_no ELSE packages.awb_no END,
            customer_name = CASE WHEN EXCLUDED.customer_name <> '' THEN EXCLUDED.customer_name ELSE packages.customer_name END,
            customer_phone = CASE WHEN EXCLUDED.customer_phone <> '' THEN EXCLUDED.customer_phone ELSE packages.customer_phone END,
            item_desc = CASE WHEN EXCLUDED.item_desc <> '' THEN EXCLUDED.item_desc ELSE packages.item_desc END,
+           platform = CASE WHEN EXCLUDED.platform <> '' THEN EXCLUDED.platform ELSE packages.platform END,
+           courier = CASE WHEN EXCLUDED.courier <> '' THEN EXCLUDED.courier ELSE packages.courier END,
+           pickup_code = COALESCE(packages.pickup_code, EXCLUDED.pickup_code),
            raw = EXCLUDED.raw, updated_at = now()
          RETURNING (xmax = 0) AS is_new`,
-        [m.invoice_no, m.customer_name, m.customer_phone, m.item_desc, JSON.stringify(m.raw)]
+        [m.invoice_no, m.awb_no, m.customer_name, m.customer_phone, m.item_desc,
+         m.platform, m.courier, m.pickup_code, JSON.stringify(m.raw)]
       );
       r.rows[0].is_new ? inserted++ : updated++;
     }
