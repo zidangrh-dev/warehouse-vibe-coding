@@ -1,17 +1,37 @@
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView, StyleSheet } from 'react-native';
-import BoardScreen from './src/BoardScreen';
+import { SafeAreaView, StyleSheet, ActivityIndicator, View } from 'react-native';
+import { loadSession, logout, setUnauthorizedHandler } from './src/api';
+import LoginScreen from './src/LoginScreen';
+import MainTabs from './src/MainTabs';
 import { colors } from './src/theme';
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    loadSession().then((u) => { setUser(u); setReady(true); });
+    setUnauthorizedHandler(() => { logout(); setUser(null); });
+  }, []);
+
+  const doLogout = async () => { await logout(); setUser(null); };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-      <BoardScreen />
+      {!ready ? (
+        <View style={styles.center}><ActivityIndicator color="#fff" /></View>
+      ) : user ? (
+        <MainTabs user={user} onLogout={doLogout} />
+      ) : (
+        <LoginScreen onLogin={setUser} />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.header },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
