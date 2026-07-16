@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Gudang Board",
+    "slug": "gudang-board",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.gudangboard.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0b5394",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        { "cameraPermission": "Izinkan akses kamera untuk scan barcode" }
+      ],
+      [
+        "expo-image-picker",
+        { "photosPermission": "Izinkan akses galeri untuk melampirkan foto barang" }
+      ]
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+# Deploy produksi di VPS: docker compose up -d --build
+# Jalankan dari folder deploy/ ini.
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gudang
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD di file .env}
+      POSTGRES_DB: gudang
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+
+  api:
+    build: ../server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://gudang:${DB_PASSWORD}@db:5432/gudang
+      PORT: 4000
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:4000:4000"
+
+volumes:
+  dbdata:
+  uploads:

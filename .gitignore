@@ -1,0 +1,8 @@
+node_modules/
+server/pgdata/
+server/uploads/
+.env
+.expo/
+dist/
+web-build/
+*.log
