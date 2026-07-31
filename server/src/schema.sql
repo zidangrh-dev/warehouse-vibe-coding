@@ -58,16 +58,26 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS awb_no TEXT;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT '';
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS courier TEXT NOT NULL DEFAULT '';
 
--- Bukti foto saat driver mengambil paket: 'driver' (wajah) dan 'barang'.
--- Syarat Done Pickup (alur gojek): minimal 1 foto driver + 2 foto barang.
+-- Bukti foto konfirmasi pengambilan (gojek & self pick up):
+-- 'wajah' (wajah driver/pengambil), 'ktp' (KTP driver/pengambil), 'barang'.
+-- Syarat konfirmasi: 1 foto wajah + 1 foto KTP + 1 foto barang.
 CREATE TABLE IF NOT EXISTS package_photos (
   id SERIAL PRIMARY KEY,
   package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
-  kind TEXT NOT NULL CHECK (kind IN ('driver', 'barang')),
+  kind TEXT NOT NULL,
   filename TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_photos_package ON package_photos(package_id);
+
+-- Migrasi: perbarui jenis foto (dulu hanya driver/barang) -> wajah/ktp/barang.
+ALTER TABLE package_photos DROP CONSTRAINT IF EXISTS package_photos_kind_check;
+UPDATE package_photos SET kind='wajah' WHERE kind='driver';
+ALTER TABLE package_photos ADD CONSTRAINT package_photos_kind_check
+  CHECK (kind IN ('wajah', 'ktp', 'barang'));
+
+-- Waktu paket masuk ke antrian ambilan gojek (untuk kolom "Update" modul Gojek).
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS gojek_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);

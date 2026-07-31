@@ -51,6 +51,8 @@ export const STATUS_META = {
 };
 
 export const NEXT_ACTIONS = {
+  // Self pick up: konfirmasi pengambilan (butuh foto seperti gojek).
+  absen_ambil_customer: [{ to: 'selesai', label: '✅ Konfirmasi Pengambilan' }],
   absen_gojek: [{ to: 'mencari_driver', label: '🔍 Cari Driver' }],
   mencari_driver: [{ to: 'driver_sampai_kios', label: '🛵 Driver Sampai Kios' }],
   driver_sampai_kios: [{ to: 'done_pickup', label: '✅ Done Pickup' }],
@@ -59,7 +61,7 @@ export const NEXT_ACTIONS = {
     { to: 'retur', label: '↩️ Retur' },
   ],
   retur: [
-    { to: 'mencari_driver', label: '🔍 Cari Driver Lagi' },
+    { to: 'mencari_driver', label: '🔍 Cari Driver' },
     { to: 'cancel', label: '✖️ Cancel' },
   ],
 };

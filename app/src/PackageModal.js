@@ -35,11 +35,20 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const actions = NEXT_ACTIONS[pkg.status] || [];
 
   const photos = pkg.photos || [];
-  const driverPhotos = photos.filter((p) => p.kind === 'driver');
+  const isGojek = pkg.pickup_type === 'gojek';
+  const wajahPhotos = photos.filter((p) => p.kind === 'wajah');
+  const ktpPhotos = photos.filter((p) => p.kind === 'ktp');
   const barangPhotos = photos.filter((p) => p.kind === 'barang');
-  // Aturan kios: Done Pickup gojek butuh 1 foto driver + 2 foto barang.
-  const needsPhotos = pkg.pickup_type === 'gojek' && pkg.status === 'driver_sampai_kios';
-  const photosOk = driverPhotos.length >= 1 && barangPhotos.length >= 2;
+  // Konfirmasi butuh bukti foto (1 wajah + 1 KTP + 1 barang):
+  //   gojek        : saat status driver_sampai_kios (menuju done_pickup)
+  //   self pick up : saat status absen_ambil_customer (menuju selesai)
+  const needsPhotos =
+    (isGojek && pkg.status === 'driver_sampai_kios') ||
+    (!isGojek && pkg.status === 'absen_ambil_customer');
+  const photosOk = wajahPhotos.length >= 1 && ktpPhotos.length >= 1 && barangPhotos.length >= 1;
+  const orang = isGojek ? 'driver' : 'pengambil';
+  // Status yang dikunci foto sampai bukti lengkap.
+  const gatedStatus = isGojek ? 'done_pickup' : 'selesai';
 
   const addPhoto = async (kind, fromCamera) => {
     const opts = { quality: 0.6 };
@@ -183,9 +192,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             </Field>
 
             {(needsPhotos || photos.length > 0) && (
-              <Field label="Bukti foto pengambilan">
-                <PhotoStrip title="Wajah driver" kind="driver" list={driverPhotos} need={1} />
-                <PhotoStrip title="Foto barang" kind="barang" list={barangPhotos} need={2} />
+              <Field label="Bukti foto konfirmasi">
+                <PhotoStrip title={`Wajah ${orang}`} kind="wajah" list={wajahPhotos} need={1} />
+                <PhotoStrip title={`KTP ${orang}`} kind="ktp" list={ktpPhotos} need={1} />
+                <PhotoStrip title="Foto barang" kind="barang" list={barangPhotos} need={1} />
                 {canAct && <Text style={s.hint}>Tekan lama foto untuk menghapus.</Text>}
               </Field>
             )}
@@ -195,7 +205,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             {canAct && actions.length > 0 && (
               <Field label="Aksi">
                 {actions.map((a) => {
-                  const locked = a.to === 'done_pickup' && needsPhotos && !photosOk;
+                  const locked = a.to === gatedStatus && needsPhotos && !photosOk;
                   return (
                     <TouchableOpacity
                       key={a.to}
@@ -205,7 +215,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       ]}
                       onPress={() =>
                         locked
-                          ? notice('Lengkapi dulu: 1 foto wajah driver + 2 foto barang.')
+                          ? notice(`Lengkapi dulu: foto wajah ${orang}, KTP ${orang}, dan barang (masing-masing 1).`)
                           : setStatus(a.to)
                       }
                       disabled={busy}

@@ -93,12 +93,28 @@ const STATUSES = [
 ];
 
 // Tab di aplikasi -> kumpulan status yang ditampilkan.
+// retur & cancel kini punya modul sendiri (cancelretur), bukan di gojek.
 const TABS = {
   scan: ['data_masuk'],
-  customer: ['absen_ambil_customer'],
-  gojek: ['absen_gojek', 'mencari_driver', 'driver_sampai_kios', 'done_pickup', 'retur'],
-  selesai: ['selesai', 'cancel'],
+  selfpickup: ['absen_ambil_customer'],
+  gojek: ['absen_gojek', 'mencari_driver', 'driver_sampai_kios', 'done_pickup'],
+  cancelretur: ['cancel', 'retur'],
+  selesai: ['selesai'],
 };
+
+// Syarat foto konfirmasi pengambilan (gojek done_pickup & self-pickup selesai).
+const REQUIRED_PHOTOS = { wajah: 1, ktp: 1, barang: 1 };
+const PHOTO_KINDS = ['wajah', 'ktp', 'barang'];
+
+async function photoStatus(pkgId) {
+  const r = await pool.query(
+    `SELECT kind, count(*)::int n FROM package_photos WHERE package_id=$1 GROUP BY kind`, [pkgId]);
+  const n = Object.fromEntries(r.rows.map((x) => [x.kind, x.n]));
+  const missing = PHOTO_KINDS.filter((k) => (n[k] || 0) < REQUIRED_PHOTOS[k]);
+  return { ok: missing.length === 0, n, missing };
+}
+
+const PHOTO_LABEL = { wajah: 'wajah', ktp: 'KTP', barang: 'barang' };
 
 // ---- Packages ----
 // Mode daftar: paginasi (page/pageSize) supaya tabel besar tetap ringan.
@@ -155,7 +171,7 @@ app.get('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 app.post('/api/packages/:id/photos', requireAuth, requireRole('admin'),
   photoUpload.single('photo'), wrap(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'File foto tidak ada' });
-    const kind = req.body.kind === 'driver' ? 'driver' : 'barang';
+    const kind = PHOTO_KINDS.includes(req.body.kind) ? req.body.kind : 'barang';
     const id = Number(req.params.id);
     const r = await pool.query(
       'INSERT INTO package_photos (package_id, kind, filename) VALUES ($1,$2,$3) RETURNING *',
@@ -182,8 +198,8 @@ app.post('/api/packages', requireAuth, requireRole('admin', 'warehouse'), wrap(a
   const st = STATUSES.includes(status) ? status
     : pickup_type === 'gojek' ? 'absen_gojek' : 'absen_ambil_customer';
   const r = await pool.query(
-    `INSERT INTO packages (invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, source, received_at)
-     VALUES ($1,$2,$3,$4,$5,$6,'manual',now())
+    `INSERT INTO packages (invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, source, received_at, gojek_at)
+     VALUES ($1,$2,$3,$4,$5,$6,'manual',now(), CASE WHEN $6='absen_gojek' THEN now() ELSE NULL END)
      ON CONFLICT (invoice_no) DO NOTHING RETURNING *`,
     [invoice_no.trim(), customer_name || '', customer_phone || '', item_desc || '',
      pickup_type === 'gojek' ? 'gojek' : 'customer', st]
@@ -212,22 +228,23 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   }
   if (!sets.length) return res.status(400).json({ error: 'Tidak ada field yang diubah' });
 
-  // Aturan kios: Done Pickup (alur gojek) wajib disertai bukti
-  // 1 foto wajah driver + 2 foto barang.
-  if (req.body.status === 'done_pickup') {
-    const cur = await pool.query('SELECT pickup_type FROM packages WHERE id=$1', [id]);
-    if (cur.rows[0]?.pickup_type === 'gojek') {
-      const counts = await pool.query(
-        `SELECT kind, count(*)::int AS n FROM package_photos
-         WHERE package_id=$1 GROUP BY kind`, [id]);
-      const n = Object.fromEntries(counts.rows.map((r2) => [r2.kind, r2.n]));
-      if ((n.driver || 0) < 1 || (n.barang || 0) < 2) {
-        return res.status(400).json({
-          error: `Belum bisa Done Pickup: butuh 1 foto wajah driver (ada ${n.driver || 0}) dan 2 foto barang (ada ${n.barang || 0}).`,
-        });
-      }
+  const cur = await pool.query('SELECT pickup_type, status FROM packages WHERE id=$1', [id]);
+  const pt = cur.rows[0]?.pickup_type;
+  // Konfirmasi pengambilan wajib bukti foto (1 wajah + 1 KTP + 1 barang):
+  //   - gojek     : transisi ke done_pickup
+  //   - self pick up: transisi ke selesai
+  const isConfirm =
+    (req.body.status === 'done_pickup' && pt === 'gojek') ||
+    (req.body.status === 'selesai' && pt === 'customer');
+  if (isConfirm) {
+    const chk = await photoStatus(id);
+    if (!chk.ok) {
+      const need = chk.missing.map((k) => `foto ${PHOTO_LABEL[k]}`).join(', ');
+      return res.status(400).json({ error: `Belum bisa dikonfirmasi — lengkapi ${need} (1 masing-masing).` });
     }
   }
+  // Catat jam masuk antrian ambilan gojek.
+  if (req.body.status === 'absen_gojek') sets.push('gojek_at=now()');
   if (req.body.status === 'selesai' || req.body.status === 'done_pickup') sets.push('done_at=now()');
   const r = await pool.query(
     `UPDATE packages SET ${sets.join(', ')}, updated_at=now() WHERE id=$1 RETURNING *`, values);
@@ -252,10 +269,21 @@ app.post('/api/packages/arrive', requireAuth, requireRole('admin'), wrap(async (
   }
   const st = pkg.pickup_type === 'gojek' ? 'absen_gojek' : 'absen_ambil_customer';
   const r = await pool.query(
-    `UPDATE packages SET status=$2, received_at=now(), updated_at=now() WHERE id=$1 RETURNING *`,
+    `UPDATE packages SET status=$2, received_at=now(),
+       gojek_at = CASE WHEN $2='absen_gojek' THEN now() ELSE gojek_at END,
+       updated_at=now() WHERE id=$1 RETURNING *`,
     [pkg.id, st]);
   await logEvent(pkg.id, req.user, 'scan_sampai', `status -> ${st}`);
   notify();
+  res.json(r.rows[0]);
+}));
+
+// Cari paket berdasarkan pickup code (untuk konfirmasi self pick up).
+app.post('/api/packages/find-by-code', requireAuth, requireRole('admin', 'sales'), wrap(async (req, res) => {
+  const code = String(req.body.code || '').trim();
+  if (!code) return res.status(400).json({ error: 'Kode kosong' });
+  const r = await pool.query('SELECT * FROM packages WHERE pickup_code=$1', [code]);
+  if (!r.rows[0]) return res.status(404).json({ error: 'Pickup code tidak dikenal' });
   res.json(r.rows[0]);
 }));
 
@@ -276,22 +304,6 @@ app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales', 'adm
     }
   }
   res.status(500).json({ error: 'Gagal membuat kode unik, coba lagi' });
-}));
-
-// Admin scan pickup code milik customer -> paket selesai.
-app.post('/api/packages/redeem', requireAuth, requireRole('admin'), wrap(async (req, res) => {
-  const code = String(req.body.code || '').trim();
-  const found = await pool.query('SELECT * FROM packages WHERE pickup_code=$1', [code]);
-  const pkg = found.rows[0];
-  if (!pkg) return res.status(404).json({ error: 'Pickup code tidak dikenal' });
-  if (pkg.status === 'selesai') return res.status(409).json({ error: 'Paket ini sudah diambil', package: pkg });
-  const r = await pool.query(
-    `UPDATE packages SET status='selesai', picker_name=$2, done_at=now(), updated_at=now()
-     WHERE id=$1 RETURNING *`,
-    [pkg.id, String(req.body.picker_name || '')]);
-  await logEvent(pkg.id, req.user, 'diambil_customer', `kode ${code}`);
-  notify();
-  res.json(r.rows[0]);
 }));
 
 // Import CSV dari VEF (warehouse). Nama kolom dideteksi fleksibel;

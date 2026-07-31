@@ -80,7 +80,7 @@ export const api = {
   updatePackage: (id, data) => req('PATCH', `/api/packages/${id}`, data),
   arrive: (invoice_no) => req('POST', '/api/packages/arrive', { invoice_no }),
   generateCode: (id) => req('POST', `/api/packages/${id}/pickup-code`),
-  redeem: (code, picker_name) => req('POST', '/api/packages/redeem', { code, picker_name }),
+  findByCode: (code) => req('POST', '/api/packages/find-by-code', { code }),
   deletePhoto: (id) => req('DELETE', `/api/photos/${id}`),
   dashboardSummary: () => req('GET', '/api/dashboard/summary'),
   dashboardThroughput: (days = 14) => req('GET', `/api/dashboard/throughput?days=${days}`),

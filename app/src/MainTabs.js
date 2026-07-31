@@ -3,14 +3,15 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import { colors, shadow, spacing, confirmAsync } from './theme';
 import { useBreakpoint } from './responsive';
-import { ScanPaketScreen, CustomerScreen, GojekScreen, SemuaScreen } from './screens';
+import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen } from './screens';
 import DashboardScreen from './DashboardScreen';
 
 // Tab yang tampil menyesuaikan role user.
 const ALL_TABS = [
   { key: 'scan', icon: 'box', label: 'Scan', roles: ['admin', 'warehouse'], Screen: ScanPaketScreen },
-  { key: 'customer', icon: 'user', label: 'Customer', roles: ['admin', 'sales'], Screen: CustomerScreen },
+  { key: 'selfpickup', icon: 'user', label: 'Self Pick Up', roles: ['admin', 'sales'], Screen: SelfPickupScreen },
   { key: 'gojek', icon: 'scooter', label: 'Gojek', roles: ['admin', 'sales'], Screen: GojekScreen },
+  { key: 'cancelretur', icon: 'rotate', label: 'Cancel/Retur', roles: ['admin', 'sales'], Screen: CancelReturScreen },
   { key: 'semua', icon: 'list', label: 'Semua', roles: ['admin', 'sales', 'warehouse'], Screen: SemuaScreen },
   { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['admin'], Screen: DashboardScreen },
 ];

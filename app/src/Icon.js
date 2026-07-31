@@ -59,6 +59,14 @@ const ICONS = {
       <Line x1="21" y1="21" x2="15.5" y2="15.5" {...p} />
     </>
   ),
+  rotate: (p) => (
+    <>
+      <Path d="M3 12a9 9 0 0 1 15-6.7L21 8" {...p} fill="none" />
+      <Path d="M21 3v5h-5" {...p} fill="none" />
+      <Path d="M21 12a9 9 0 0 1-15 6.7L3 16" {...p} fill="none" />
+      <Path d="M3 21v-5h5" {...p} fill="none" />
+    </>
+  ),
   logout: (p) => (
     <>
       <Path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4" {...p} fill="none" />

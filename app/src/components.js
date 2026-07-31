@@ -19,6 +19,16 @@ export function StatusPill({ status }) {
   );
 }
 
+// Format sel "Update": untuk paket gojek tampilkan JAM masuk antrian ambilan
+// gojek (gojek_at); selain itu tanggal update terakhir.
+function fmtUpdate(pkg) {
+  if (pkg.gojek_at) {
+    const d = new Date(pkg.gojek_at);
+    return `${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  return new Date(pkg.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+}
+
 export function PackageRow({ pkg, onPress, action }) {
   return (
     <TouchableOpacity style={s.card} onPress={() => onPress(pkg)} activeOpacity={0.7}>
@@ -29,7 +39,6 @@ export function PackageRow({ pkg, onPress, action }) {
         <View style={{ flex: 1 }}>
           <Text style={s.awb} numberOfLines={1}>
             {pkg.awb_no || pkg.invoice_no}
-            {pkg.pickup_code ? '  ▮▯' : ''}
           </Text>
           <Text style={s.detail} numberOfLines={1}>
             {pkg.customer_name || '(tanpa nama)'}
@@ -41,11 +50,8 @@ export function PackageRow({ pkg, onPress, action }) {
       </View>
       <View style={s.cardBottom}>
         <StatusPill status={pkg.status} />
-        <Text style={s.time}>
-          {new Date(pkg.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-          {' · '}
-          {new Date(pkg.updated_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-        </Text>
+        <Text style={s.codeChip}>🔑 {pkg.pickup_code || '—'}</Text>
+        <Text style={s.time}>{fmtUpdate(pkg)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -59,8 +65,9 @@ export function PackageTable({ items, onPress, renderAction }) {
       <View style={s.tableHeadRow}>
         <Text style={[s.th, { width: 36 }]} />
         <Text style={[s.th, { flex: 1.3 }]}>AWB / Invoice</Text>
-        <Text style={[s.th, { flex: 1.4 }]}>Customer</Text>
+        <Text style={[s.th, { flex: 1.3 }]}>Customer</Text>
         <Text style={[s.th, { flex: 1.1 }]}>Platform / Kurir</Text>
+        <Text style={[s.th, { flex: 0.8 }]}>Pickup Code</Text>
         <Text style={[s.th, { flex: 1 }]}>Status</Text>
         <Text style={[s.th, { flex: 0.9 }]}>Update</Text>
         <Text style={[s.th, { flex: 1, textAlign: 'right' }]}>Aksi</Text>
@@ -73,13 +80,16 @@ export function PackageTable({ items, onPress, renderAction }) {
           <Text style={[s.td, { flex: 1.3, fontWeight: '700', fontFamily: font.mono }]} numberOfLines={1}>
             {pkg.awb_no || pkg.invoice_no}
           </Text>
-          <Text style={[s.td, { flex: 1.4 }]} numberOfLines={1}>{pkg.customer_name || '(tanpa nama)'}</Text>
+          <Text style={[s.td, { flex: 1.3 }]} numberOfLines={1}>{pkg.customer_name || '(tanpa nama)'}</Text>
           <Text style={[s.td, { flex: 1.1, color: colors.sub }]} numberOfLines={1}>
             {[pkg.platform, pkg.courier].filter(Boolean).join(' · ') || '—'}
           </Text>
+          <Text style={[s.td, { flex: 0.8, fontFamily: font.mono, fontWeight: '700', color: pkg.pickup_code ? colors.ink : colors.faint }]} numberOfLines={1}>
+            {pkg.pickup_code || '—'}
+          </Text>
           <View style={{ flex: 1 }}><StatusPill status={pkg.status} /></View>
-          <Text style={[s.td, { flex: 0.9, color: colors.faint, fontSize: 12 }]}>
-            {new Date(pkg.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+          <Text style={[s.td, { flex: 0.9, color: colors.faint, fontSize: 12 }]} numberOfLines={1}>
+            {fmtUpdate(pkg)}
           </Text>
           <View style={{ flex: 1, alignItems: 'flex-end' }}>
             {renderAction ? renderAction(pkg) : null}
@@ -330,6 +340,7 @@ export const s = StyleSheet.create({
     marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border,
   },
   time: { color: colors.faint, fontSize: 12, fontWeight: '600' },
+  codeChip: { color: colors.sub, fontSize: 12, fontWeight: '700', fontFamily: font.mono },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,
     borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 9,

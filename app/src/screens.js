@@ -6,7 +6,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { api, importCsv, getSocket } from './api';
 import { colors, radius, shadow, notice, statusColor, NEXT_ACTIONS } from './theme';
-import { PackageRow, PackageTable, CodeModal, PickerNameModal } from './components';
+import { PackageRow, PackageTable, CodeModal } from './components';
 import { useBreakpoint } from './responsive';
 import ScannerModal from './ScannerModal';
 import PackageModal from './PackageModal';
@@ -209,11 +209,11 @@ export function ScanPaketScreen({ user }) {
   );
 }
 
-// ---- Tab 2: Absen Ambil Customer ----
-export function CustomerScreen({ user }) {
-  const { items, total, page, setPage, loading, refetch } = usePackages('customer');
+// ---- Tab 2: Self Pick Up (dulu "Customer") ----
+// Konfirmasi pengambilan kini lewat detail (wajib foto seperti gojek).
+export function SelfPickupScreen({ user }) {
+  const { items, total, page, setPage, loading, refetch } = usePackages('selfpickup');
   const [scanOpen, setScanOpen] = useState(false);
-  const [pendingCode, setPendingCode] = useState(null);
   const [codePkg, setCodePkg] = useState(null);
   const [openId, setOpenId] = useState(null);
   const isAdmin = user.role === 'admin';
@@ -226,12 +226,12 @@ export function CustomerScreen({ user }) {
     } catch (e) { notice(e.message); }
   };
 
-  const redeem = async (pickerName) => {
+  // Scan pickup code dari customer -> buka detail paket untuk konfirmasi foto.
+  const onScanned = async (code) => {
     try {
-      const p = await api.redeem(pendingCode, pickerName);
-      notice(`✅ ${p.invoice_no} selesai — diambil ${pickerName || 'customer'}`);
+      const p = await api.findByCode(code.trim());
+      setOpenId(p.id);
     } catch (e) { notice(e.message); }
-    finally { setPendingCode(null); }
   };
 
   return (
@@ -239,11 +239,11 @@ export function CustomerScreen({ user }) {
       {isAdmin && (
         <View style={s.topBar}>
           <TouchableOpacity style={[s.bigBtn, { flex: 1, backgroundColor: colors.ok }]} onPress={() => setScanOpen(true)}>
-            <Text style={s.btnText}>📷 Scan Pickup Code Customer</Text>
+            <Text style={s.btnText}>📷 Scan Pickup Code</Text>
           </TouchableOpacity>
         </View>
       )}
-      <Text style={s.sectionTitle}>Menunggu diambil customer ({total})</Text>
+      <Text style={s.sectionTitle}>Menunggu diambil (self pick up) ({total})</Text>
       <List
         items={items}
         loading={loading}
@@ -260,12 +260,7 @@ export function CustomerScreen({ user }) {
       <ScannerModal
         visible={scanOpen}
         onClose={() => setScanOpen(false)}
-        onScanned={(code) => setPendingCode(code)}
-      />
-      <PickerNameModal
-        visible={!!pendingCode}
-        onSubmit={redeem}
-        onClose={() => setPendingCode(null)}
+        onScanned={onScanned}
       />
       <CodeModal pkg={codePkg} onClose={() => setCodePkg(null)} />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
@@ -306,6 +301,43 @@ export function GojekScreen({ user }) {
         onOpen={(p) => setOpenId(p.id)}
         pagination={{ page, total, onPage: setPage }}
         rowAction={quickAction}
+      />
+      <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
+    </View>
+  );
+}
+
+// ---- Tab: Cancel / Retur (tampung semua cancel & retur) ----
+export function CancelReturScreen({ user }) {
+  const { items, total, page, setPage, loading, refetch } = usePackages('cancelretur');
+  const [openId, setOpenId] = useState(null);
+  const isAdmin = user.role === 'admin';
+
+  // Paket retur (instant) bisa dicarikan driver lagi -> kembali ke pipeline gojek.
+  const rowAction = (pkg) => {
+    if (!isAdmin || pkg.status !== 'retur') return null;
+    return (
+      <TouchableOpacity
+        style={[s.rowBtn, { backgroundColor: statusColor('mencari_driver') }]}
+        onPress={async () => {
+          try { await api.updatePackage(pkg.id, { status: 'mencari_driver' }); }
+          catch (e) { notice(e.message); }
+        }}
+      >
+        <Text style={s.rowBtnText}>🔍 Cari Driver</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <View style={s.screen}>
+      <Text style={s.sectionTitle}>Cancel / Retur ({total})</Text>
+      <List
+        items={items}
+        loading={loading}
+        onOpen={(p) => setOpenId(p.id)}
+        pagination={{ page, total, onPage: setPage }}
+        rowAction={rowAction}
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
     </View>
