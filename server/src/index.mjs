@@ -92,14 +92,15 @@ const STATUSES = [
   'driver_sampai_kios', 'done_pickup', 'retur', 'selesai', 'cancel',
 ];
 
-// Tab di aplikasi -> kumpulan status yang ditampilkan.
-// retur & cancel kini punya modul sendiri (cancelretur), bukan di gojek.
-const TABS = {
-  scan: ['data_masuk'],
-  selfpickup: ['absen_ambil_customer'],
-  gojek: ['absen_gojek', 'mencari_driver', 'driver_sampai_kios', 'done_pickup'],
-  cancelretur: ['cancel', 'retur'],
-  selesai: ['selesai'],
+// Tab di aplikasi -> status + (opsional) pickup_type. selfpickup & gojek
+// berbagi status done_pickup, jadi dibedakan lewat pickup_type agar tidak
+// saling loncat modul. retur & cancel punya modul sendiri (cancelretur).
+const TAB_FILTERS = {
+  scan: { statuses: ['data_masuk'] },
+  selfpickup: { statuses: ['absen_ambil_customer', 'done_pickup'], pickup_type: 'customer' },
+  gojek: { statuses: ['absen_gojek', 'mencari_driver', 'driver_sampai_kios', 'done_pickup'], pickup_type: 'gojek' },
+  cancelretur: { statuses: ['cancel', 'retur'] },
+  selesai: { statuses: ['selesai'] },
 };
 
 // Syarat foto konfirmasi pengambilan (gojek done_pickup & self-pickup selesai).
@@ -125,9 +126,14 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   const { tab, q } = req.query;
   const cond = [];
   const values = [];
-  if (tab && TABS[tab]) {
-    values.push(TABS[tab]);
+  const filter = tab && TAB_FILTERS[tab];
+  if (filter) {
+    values.push(filter.statuses);
     cond.push(`status = ANY($${values.length})`);
+    if (filter.pickup_type) {
+      values.push(filter.pickup_type);
+      cond.push(`pickup_type = $${values.length}`);
+    }
   }
   const searching = !!(q && String(q).trim());
   if (searching) {
@@ -228,15 +234,9 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   }
   if (!sets.length) return res.status(400).json({ error: 'Tidak ada field yang diubah' });
 
-  const cur = await pool.query('SELECT pickup_type, status FROM packages WHERE id=$1', [id]);
-  const pt = cur.rows[0]?.pickup_type;
-  // Konfirmasi pengambilan wajib bukti foto (1 wajah + 1 KTP + 1 barang):
-  //   - gojek     : transisi ke done_pickup
-  //   - self pick up: transisi ke selesai
-  const isConfirm =
-    (req.body.status === 'done_pickup' && pt === 'gojek') ||
-    (req.body.status === 'selesai' && pt === 'customer');
-  if (isConfirm) {
+  // Konfirmasi pengambilan (transisi ke done_pickup) wajib bukti foto
+  // 1 wajah + 1 KTP + 1 barang — berlaku untuk gojek maupun self pick up.
+  if (req.body.status === 'done_pickup') {
     const chk = await photoStatus(id);
     if (!chk.ok) {
       const need = chk.missing.map((k) => `foto ${PHOTO_LABEL[k]}`).join(', ');

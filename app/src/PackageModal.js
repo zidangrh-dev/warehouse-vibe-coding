@@ -47,8 +47,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     (!isGojek && pkg.status === 'absen_ambil_customer');
   const photosOk = wajahPhotos.length >= 1 && ktpPhotos.length >= 1 && barangPhotos.length >= 1;
   const orang = isGojek ? 'driver' : 'pengambil';
-  // Status yang dikunci foto sampai bukti lengkap.
-  const gatedStatus = isGojek ? 'done_pickup' : 'selesai';
+  // Konfirmasi (gojek & self pick up) sama-sama menuju done_pickup, dikunci foto.
+  const gatedStatus = 'done_pickup';
 
   const addPhoto = async (kind, fromCamera) => {
     const opts = { quality: 0.6 };
