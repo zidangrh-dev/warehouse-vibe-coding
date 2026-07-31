@@ -341,6 +341,45 @@ app.post('/api/packages/import', requireAuth, requireRole('warehouse', 'admin'),
     res.json({ inserted, updated, skipped, total: rows.length });
   }));
 
+// ---- Dashboard/laporan (admin only) — agregasi untuk memantau kinerja role lain ----
+
+app.get('/api/dashboard/summary', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+  const byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages GROUP BY status`);
+  const totals = await pool.query(`
+    SELECT
+      count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
+      count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS week,
+      count(*) FILTER (WHERE status NOT IN ('selesai','cancel'))::int AS pending,
+      count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur'))::int AS gojek_active,
+      round(extract(epoch FROM avg(done_at - received_at) FILTER (WHERE done_at IS NOT NULL AND received_at IS NOT NULL)))::int AS avg_pickup_seconds
+    FROM packages`);
+  res.json({ by_status: byStatus.rows, ...totals.rows[0] });
+}));
+
+app.get('/api/dashboard/throughput', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+  const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
+  const r = await pool.query(`
+    SELECT d::date AS day,
+      (SELECT count(*) FROM packages WHERE received_at::date = d::date)::int AS received,
+      (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
+      (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
+    FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day') d
+    ORDER BY d`, [days]);
+  res.json(r.rows);
+}));
+
+app.get('/api/dashboard/activity', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+  const days = Math.min(180, Math.max(1, Number(req.query.days) || 30));
+  const r = await pool.query(`
+    SELECT pe.user_name, u.role, pe.action, count(*)::int AS n
+    FROM package_events pe
+    LEFT JOIN users u ON u.id = pe.user_id
+    WHERE pe.created_at >= now() - ($1::int * interval '1 day')
+    GROUP BY pe.user_name, u.role, pe.action
+    ORDER BY pe.user_name, pe.action`, [days]);
+  res.json(r.rows);
+}));
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 await migrate();

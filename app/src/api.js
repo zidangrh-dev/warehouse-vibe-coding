@@ -74,6 +74,9 @@ export const api = {
   generateCode: (id) => req('POST', `/api/packages/${id}/pickup-code`),
   redeem: (code, picker_name) => req('POST', '/api/packages/redeem', { code, picker_name }),
   deletePhoto: (id) => req('DELETE', `/api/photos/${id}`),
+  dashboardSummary: () => req('GET', '/api/dashboard/summary'),
+  dashboardThroughput: (days = 14) => req('GET', `/api/dashboard/throughput?days=${days}`),
+  dashboardActivity: (days = 30) => req('GET', `/api/dashboard/activity?days=${days}`),
 };
 
 // Upload bukti foto ('driver' = wajah driver, 'barang' = foto paket).

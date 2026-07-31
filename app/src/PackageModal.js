@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { api, uploadPhoto, photoUrl } from './api';
-import { colors, statusLabel, statusColor, NEXT_ACTIONS, notice, confirmAsync } from './theme';
+import { colors, radius, shadow, statusLabel, statusColor, NEXT_ACTIONS, notice, confirmAsync } from './theme';
+import { useBreakpoint } from './responsive';
 
 const Field = ({ label, children }) => (
   <View style={{ marginTop: 10 }}>
@@ -15,6 +16,7 @@ const Field = ({ label, children }) => (
 );
 
 export default function PackageModal({ pkgId, user, onClose, onChanged }) {
+  const { isWide } = useBreakpoint();
   const [pkg, setPkg] = useState(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -133,7 +135,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.backdrop}>
-        <View style={s.sheet}>
+        <View style={[s.sheet, isWide && { maxWidth: 640 }]}>
           <ScrollView>
             <Text style={s.invoice}>{pkg.invoice_no}</Text>
             <Text style={[s.status, { color: statusColor(pkg.status) }]}>
@@ -243,7 +245,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             </Field>
 
             <TouchableOpacity style={s.closeBtn} onPress={onClose}>
-              <Text style={s.btnText}>Tutup</Text>
+              <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -254,44 +256,46 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
 const s = StyleSheet.create({
   backdrop: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.55)',
     justifyContent: 'center', alignItems: 'center', padding: 16,
   },
   sheet: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 18,
+    backgroundColor: colors.surface, borderRadius: radius.sheet, padding: 18,
+    borderWidth: 1, borderColor: colors.border, ...shadow.float,
     width: '100%', maxWidth: 520, maxHeight: '90%',
   },
-  invoice: { fontSize: 20, fontWeight: '800', color: colors.ink },
-  status: { fontWeight: '700', marginTop: 2 },
-  label: { fontWeight: '700', color: colors.sub, fontSize: 12, textTransform: 'uppercase' },
+  invoice: { fontSize: 18, fontWeight: '700', color: colors.ink, fontFamily: undefined },
+  status: { fontWeight: '600', marginTop: 2 },
+  label: { fontWeight: '700', color: colors.sub, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 },
   value: { color: colors.ink, fontSize: 15, marginTop: 2 },
   rowWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   link: { color: colors.primary, fontWeight: '700' },
   input: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 10,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.input, padding: 10,
     minHeight: 60, textAlignVertical: 'top', color: colors.ink, marginTop: 4,
+    backgroundColor: colors.bg,
   },
   saveNote: {
-    backgroundColor: colors.primary, borderRadius: 8, padding: 10,
+    backgroundColor: colors.primary, borderRadius: radius.pill, padding: 10,
     alignItems: 'center', marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 16,
   },
-  actionBtn: { borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 6 },
+  actionBtn: { borderRadius: radius.input, padding: 12, alignItems: 'center', marginTop: 6 },
   btnText: { color: '#fff', fontWeight: '700' },
   event: { color: colors.sub, fontSize: 12, marginTop: 4 },
   photoTitle: { fontWeight: '700', color: colors.ink, fontSize: 13, marginBottom: 6 },
   photo: {
-    width: 84, height: 84, borderRadius: 12, marginRight: 8,
+    width: 84, height: 84, borderRadius: radius.input, marginRight: 8,
     backgroundColor: colors.border,
   },
   photoAdd: {
-    width: 84, height: 84, borderRadius: 12, marginRight: 8,
+    width: 84, height: 84, borderRadius: radius.input, marginRight: 8,
     borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary,
     backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center',
   },
   photoAddText: { color: colors.primary, fontWeight: '700', fontSize: 12, textAlign: 'center' },
   hint: { color: colors.faint, fontSize: 11, marginTop: 6 },
   closeBtn: {
-    backgroundColor: colors.sub, borderRadius: 8, padding: 12,
-    alignItems: 'center', marginTop: 16,
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, padding: 12,
+    alignItems: 'center', marginTop: 16, borderWidth: 1, borderColor: colors.border,
   },
 });

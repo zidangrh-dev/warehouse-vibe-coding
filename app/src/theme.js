@@ -1,32 +1,39 @@
 import { Alert, Platform } from 'react-native';
 
-// Design tokens — gaya courier app modern: bersih, membulat, satu warna utama.
+// Design tokens — gaya WMS: netral, data-dense, satu aksen fungsional.
 export const colors = {
-  bg: '#F4F6FB',
+  bg: '#F7F8FA',
   surface: '#FFFFFF',
-  ink: '#101828',
-  sub: '#667085',
-  faint: '#98A2B3',
-  border: '#EAECF0',
-  primary: '#4F46E5',
-  primaryDark: '#3730A3',
-  primarySoft: '#EEF0FE',
+  surfaceAlt: '#F1F3F6',
+  ink: '#0F172A',
+  sub: '#5A6472',
+  faint: '#93A0AF',
+  border: '#E2E6EB',
+  primary: '#2E5AAC',
+  primaryDark: '#1E3F80',
+  primarySoft: '#E8EFFA',
   danger: '#E5484D',
   ok: '#16A34A',
   warn: '#F59E0B',
-  header: '#3730A3', // dipakai SafeArea/StatusBar
+  header: '#FFFFFF', // dipakai SafeArea/StatusBar (flat, bukan gradien)
 };
 
-export const radius = { card: 18, pill: 999, input: 12, sheet: 24 };
+export const radius = { card: 12, pill: 8, input: 8, sheet: 16 };
+
+export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
+
+export const font = {
+  mono: Platform.select({ web: 'ui-monospace, SFMono-Regular, Menlo, monospace', default: undefined }),
+};
 
 export const shadow = {
   card: {
-    shadowColor: '#101828', shadowOpacity: 0.06, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 }, elevation: 3,
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   float: {
-    shadowColor: '#101828', shadowOpacity: 0.14, shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 }, elevation: 10,
+    shadowColor: '#0F172A', shadowOpacity: 0.10, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 }, elevation: 6,
   },
 };
 
@@ -56,6 +63,9 @@ export const NEXT_ACTIONS = {
     { to: 'cancel', label: '✖️ Cancel' },
   ],
 };
+
+// Palet chart dashboard — reuse warna status supaya legend konsisten se-app.
+export const chartPalette = Object.values(STATUS_META).map((m) => m.color);
 
 export const statusLabel = (s) => STATUS_META[s]?.label || s;
 export const statusColor = (s) => STATUS_META[s]?.color || colors.sub;

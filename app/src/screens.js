@@ -5,7 +5,8 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { api, importCsv, getSocket } from './api';
 import { colors, radius, shadow, notice, statusColor, NEXT_ACTIONS } from './theme';
-import { PackageRow, CodeModal, PickerNameModal } from './components';
+import { PackageRow, PackageTable, CodeModal, PickerNameModal } from './components';
+import { useBreakpoint } from './responsive';
 import ScannerModal from './ScannerModal';
 import PackageModal from './PackageModal';
 
@@ -32,12 +33,20 @@ function usePackages(tab, q) {
 }
 
 function List({ items, loading, onOpen, rowAction }) {
+  const { isDesktop } = useBreakpoint();
   if (loading) return <ActivityIndicator style={{ marginTop: 30 }} />;
+  if (isDesktop) {
+    return (
+      <View style={{ padding: 14, paddingBottom: 24 }}>
+        <PackageTable items={items} onPress={onOpen} renderAction={rowAction} />
+      </View>
+    );
+  }
   return (
     <FlatList
       data={items}
       keyExtractor={(p) => String(p.id)}
-      contentContainerStyle={{ padding: 14, paddingBottom: 92 }}
+      contentContainerStyle={{ padding: 14, paddingBottom: 24 }}
       ListEmptyComponent={<Text style={s.empty}>Tidak ada paket.</Text>}
       renderItem={({ item }) => (
         <PackageRow pkg={item} onPress={onOpen} action={rowAction?.(item)} />
@@ -285,30 +294,31 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   topBar: { flexDirection: 'row', gap: 10, padding: 14, paddingBottom: 0 },
   bigBtn: {
-    borderRadius: 999, paddingVertical: 14, paddingHorizontal: 18,
+    borderRadius: radius.pill, paddingVertical: 13, paddingHorizontal: 18,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.primary, ...shadow.card,
   },
-  btnText: { color: '#fff', fontWeight: '800' },
+  btnText: { color: '#fff', fontWeight: '700' },
   sectionTitle: {
-    color: colors.sub, fontWeight: '800', paddingHorizontal: 16, paddingTop: 16,
-    fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.8,
+    color: colors.sub, fontWeight: '700', paddingHorizontal: 16, paddingTop: 16,
+    fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6,
   },
   empty: { color: colors.faint, textAlign: 'center', marginTop: 40, fontWeight: '600' },
   rowBtn: {
-    backgroundColor: colors.primary, borderRadius: 999,
-    paddingVertical: 9, paddingHorizontal: 14,
+    backgroundColor: colors.primary, borderRadius: radius.pill,
+    paddingVertical: 8, paddingHorizontal: 13,
   },
-  rowBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  rowBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   backdrop: {
-    flex: 1, backgroundColor: 'rgba(16,24,40,0.5)',
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.5)',
     justifyContent: 'center', alignItems: 'center', padding: 16,
   },
   box: {
     backgroundColor: colors.surface, borderRadius: radius.sheet, padding: 22,
+    borderWidth: 1, borderColor: colors.border,
     width: '100%', maxWidth: 420, ...shadow.float,
   },
-  boxTitle: { fontSize: 19, fontWeight: '800', color: colors.ink, marginBottom: 12 },
+  boxTitle: { fontSize: 17, fontWeight: '700', color: colors.ink, marginBottom: 12 },
   input: {
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.input,
     backgroundColor: colors.surface, padding: 12, fontSize: 15,
@@ -316,10 +326,10 @@ const s = StyleSheet.create({
   },
   typeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   typeChip: {
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: 999,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill,
     paddingVertical: 8, paddingHorizontal: 15, backgroundColor: colors.bg,
   },
   typeChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  typeText: { color: colors.sub, fontWeight: '700' },
-  typeTextActive: { color: colors.primary, fontWeight: '800' },
+  typeText: { color: colors.sub, fontWeight: '600' },
+  typeTextActive: { color: colors.primary, fontWeight: '700' },
 });

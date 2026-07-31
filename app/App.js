@@ -19,9 +19,9 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       {!ready ? (
-        <View style={styles.center}><ActivityIndicator color="#fff" /></View>
+        <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
       ) : user ? (
         <MainTabs user={user} onLogout={doLogout} />
       ) : (
