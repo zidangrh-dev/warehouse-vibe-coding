@@ -117,21 +117,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     finally { setBusy(false); }
   };
 
-  const togglePickupType = async () => {
-    const to = pkg.pickup_type === 'gojek' ? 'customer' : 'gojek';
-    // Jenis ambilan menentukan jalur status setelah paket sampai kios.
-    const patch = { pickup_type: to };
-    if (pkg.status === 'absen_ambil_customer' && to === 'gojek') patch.status = 'absen_gojek';
-    if (pkg.status === 'absen_gojek' && to === 'customer') patch.status = 'absen_ambil_customer';
-    setBusy(true);
-    try {
-      await api.updatePackage(pkg.id, patch);
-      onChanged();
-      await load();
-    } catch (e) { notice(e.message); }
-    finally { setBusy(false); }
-  };
-
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.backdrop}>
@@ -160,15 +145,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               </Text>
             </Field>
             <Field label="Jenis ambilan">
+              {/* Dikunci: ditentukan oleh data dari admin gudang, tidak bisa diganti. */}
               <View style={s.rowWrap}>
                 <Text style={s.value}>
                   {pkg.pickup_type === 'gojek' ? '🛵 Gojek' : '🧍 Customer datang'}
                 </Text>
-                {canAct && (
-                  <TouchableOpacity onPress={togglePickupType} disabled={busy}>
-                    <Text style={s.link}>ganti</Text>
-                  </TouchableOpacity>
-                )}
+                <Text style={s.lockTag}>🔒 terkunci</Text>
               </View>
             </Field>
             {!!pkg.pickup_code && (
@@ -269,7 +251,7 @@ const s = StyleSheet.create({
   label: { fontWeight: '700', color: colors.sub, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 },
   value: { color: colors.ink, fontSize: 15, marginTop: 2 },
   rowWrap: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  link: { color: colors.primary, fontWeight: '700' },
+  lockTag: { color: colors.faint, fontWeight: '700', fontSize: 11 },
   input: {
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.input, padding: 10,
     minHeight: 60, textAlignVertical: 'top', color: colors.ink, marginTop: 4,

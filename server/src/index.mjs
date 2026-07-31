@@ -196,7 +196,9 @@ app.post('/api/packages', requireAuth, requireRole('admin', 'warehouse'), wrap(a
 
 app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const id = Number(req.params.id);
-  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'pickup_type', 'status', 'admin_note', 'picker_name'];
+  // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
+  // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
+  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name'];
   const sets = [];
   const values = [id];
   for (const key of allowed) {
