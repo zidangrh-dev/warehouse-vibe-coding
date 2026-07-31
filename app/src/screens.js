@@ -313,18 +313,23 @@ export function CancelReturScreen({ user }) {
   const [openId, setOpenId] = useState(null);
   const isAdmin = user.role === 'admin';
 
-  // Paket retur (instant) bisa dicarikan driver lagi -> kembali ke pipeline gojek.
+  // Aksi retur menyesuaikan jenis ambilan:
+  //   gojek        -> Cari Driver (kembali ke pipeline gojek: mencari_driver)
+  //   self pick up -> kembali ke antrian Self Pick Up (absen_ambil_customer)
   const rowAction = (pkg) => {
     if (!isAdmin || pkg.status !== 'retur') return null;
+    const isGojek = pkg.pickup_type === 'gojek';
+    const to = isGojek ? 'mencari_driver' : 'absen_ambil_customer';
+    const label = isGojek ? '🔍 Cari Driver' : '↩️ Kembali ke Antrian';
     return (
       <TouchableOpacity
-        style={[s.rowBtn, { backgroundColor: statusColor('mencari_driver') }]}
+        style={[s.rowBtn, { backgroundColor: statusColor(to) }]}
         onPress={async () => {
-          try { await api.updatePackage(pkg.id, { status: 'mencari_driver' }); }
+          try { await api.updatePackage(pkg.id, { status: to }); }
           catch (e) { notice(e.message); }
         }}
       >
-        <Text style={s.rowBtnText}>🔍 Cari Driver</Text>
+        <Text style={s.rowBtnText}>{label}</Text>
       </TouchableOpacity>
     );
   };
