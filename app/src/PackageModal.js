@@ -148,7 +148,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               {/* Dikunci: ditentukan oleh data dari admin gudang, tidak bisa diganti. */}
               <View style={s.rowWrap}>
                 <Text style={s.value}>
-                  {pkg.pickup_type === 'gojek' ? '🛵 Gojek' : '🧍 Customer datang'}
+                  {pkg.pickup_type === 'gojek'
+                    ? `🛵 ${pkg.courier || 'Driver'}`
+                    : '🧍 Ambil Customer'}
                 </Text>
                 <Text style={s.lockTag}>🔒 terkunci</Text>
               </View>

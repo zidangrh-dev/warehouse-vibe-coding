@@ -327,6 +327,19 @@ function mapRow(row) {
   };
 }
 
+// Jenis ambilan ditentukan dari nama kurir (kolom "Courier Name" VEF):
+//   - "Ambil Customer Langsung" (mengandung "ambil")   -> 'customer'
+//   - Gojek / Grab / SPX / GoSend (kurir instant)       -> 'gojek'
+//   - selain itu (J&T, JNE, Anteraja, Paxel, Kurir Internal, kosong) -> null = tidak diimpor
+// Nama kurir asli tetap disimpan apa adanya (tidak diseragamkan jadi "Gojek").
+function classifyPickup(courierName) {
+  const c = (courierName || '').toLowerCase();
+  if (!c) return null;
+  if (c.includes('ambil')) return 'customer';
+  if (/(gojek|grab|spx|gosend)/.test(c)) return 'gojek';
+  return null;
+}
+
 app.post('/api/packages/import', requireAuth, requireRole('warehouse', 'admin'),
   upload.single('file'), wrap(async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'File CSV tidak ada' });
@@ -339,13 +352,17 @@ app.post('/api/packages/import', requireAuth, requireRole('warehouse', 'admin'),
     } catch (e) {
       return res.status(400).json({ error: `CSV tidak bisa dibaca: ${e.message}` });
     }
-    let inserted = 0, updated = 0, skipped = 0;
+    let inserted = 0, updated = 0, skipped = 0, skippedCourier = 0;
     for (const rawRow of rows) {
       const m = mapRow(rawRow);
       if (!m.invoice_no) { skipped++; continue; }
+      const ptype = classifyPickup(m.courier);
+      // Hanya paket Gojek/Grab/SPX (driver) & Ambil Customer yang diimpor.
+      // Ekspedisi reguler / kurir internal / tanpa kurir dilewati.
+      if (!ptype) { skippedCourier++; continue; }
       const r = await pool.query(
-        `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_code, raw, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9,'import')
+        `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_type, pickup_code, raw, source)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,'import')
          ON CONFLICT (invoice_no) DO UPDATE SET
            awb_no = CASE WHEN EXCLUDED.awb_no <> '' THEN EXCLUDED.awb_no ELSE packages.awb_no END,
            customer_name = CASE WHEN EXCLUDED.customer_name <> '' THEN EXCLUDED.customer_name ELSE packages.customer_name END,
@@ -353,16 +370,17 @@ app.post('/api/packages/import', requireAuth, requireRole('warehouse', 'admin'),
            item_desc = CASE WHEN EXCLUDED.item_desc <> '' THEN EXCLUDED.item_desc ELSE packages.item_desc END,
            platform = CASE WHEN EXCLUDED.platform <> '' THEN EXCLUDED.platform ELSE packages.platform END,
            courier = CASE WHEN EXCLUDED.courier <> '' THEN EXCLUDED.courier ELSE packages.courier END,
+           pickup_type = EXCLUDED.pickup_type,
            pickup_code = COALESCE(packages.pickup_code, EXCLUDED.pickup_code),
            raw = EXCLUDED.raw, updated_at = now()
          RETURNING (xmax = 0) AS is_new`,
         [m.invoice_no, m.awb_no, m.customer_name, m.customer_phone, m.item_desc,
-         m.platform, m.courier, m.pickup_code, JSON.stringify(m.raw)]
+         m.platform, m.courier, ptype, m.pickup_code, JSON.stringify(m.raw)]
       );
       r.rows[0].is_new ? inserted++ : updated++;
     }
     notify();
-    res.json({ inserted, updated, skipped, total: rows.length });
+    res.json({ inserted, updated, skipped: skipped + skippedCourier, skippedCourier, total: rows.length });
   }));
 
 // ---- Dashboard/laporan (admin only) — agregasi untuk memantau kinerja role lain ----
