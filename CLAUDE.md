@@ -42,12 +42,19 @@ cd app && npm install && npx expo start      # tekan 'w' untuk web; scan QR untu
 2. **Admin kios** scan paket datang (tab Scan Paket). **Barcode paket = AWB/resi**, jadi
    `arrive` mencocokkan ke `awb_no` ATAU `invoice_no`. Cocok → status `absen_ambil_customer`
    atau `absen_gojek` (sesuai pickup_type). Tidak cocok → form input manual.
-3. **Alur customer**: Sales generate pickup code (QR + kirim WA bila nomor tidak tersensor);
-   customer datang → admin scan kode → isi nama pengambil → `selesai`.
-4. **Alur Gojek**: `absen_gojek` → `mencari_driver` → `driver_sampai_kios` → `done_pickup`.
-   **ATURAN PENTING**: transisi ke `done_pickup` untuk paket gojek WAJIB ada bukti
-   **1 foto wajah driver + 2 foto barang** (tabel `package_photos`). Ditegakkan di server
-   (tolak PATCH bila kurang) DAN di UI (tombol terkunci). Retur/cancel tersedia untuk kasus khusus.
+3. **Self Pick Up** (modul `selfpickup`, dulu "Customer"): Sales generate pickup code
+   (QR + kirim WA bila nomor tak tersensor); customer datang → admin scan kode (membuka
+   detail paket) → konfirmasi WAJIB **1 foto wajah + 1 KTP + 1 barang** → `selesai`.
+4. **Gojek**: `absen_gojek` → `mencari_driver` → `driver_sampai_kios` → `done_pickup`.
+   Transisi ke `done_pickup` WAJIB **1 foto wajah driver + 1 KTP driver + 1 barang**.
+5. **Cancel/Retur** (modul `cancelretur`): menampung status `cancel` & `retur`; baris
+   `retur` punya opsi "Cari Driver" (→ `mencari_driver`, kembali ke pipeline gojek).
+
+**Aturan foto** (tabel `package_photos`, kind: `wajah`/`ktp`/`barang`): konfirmasi
+pengambilan (gojek `done_pickup` & self-pickup `selesai`) butuh 1 masing-masing.
+Ditegakkan server (tolak PATCH bila kurang) DAN UI (tombol terkunci). Endpoint lama
+`redeem` dihapus → diganti `find-by-code`. Kolom `gojek_at` mencatat jam masuk antrian
+gojek (dipakai di kolom "Update" tabel). Setiap datatable/kartu wajib tampilkan pickup code.
 
 ## Keputusan produk (jangan diubah tanpa konfirmasi user)
 
