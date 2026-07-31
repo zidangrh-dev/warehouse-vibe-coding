@@ -65,8 +65,16 @@ async function req(method, path, body, skipAuth = false) {
 }
 
 export const api = {
-  listPackages: (tab, q) =>
-    req('GET', `/api/packages?${tab ? `tab=${tab}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+  // Mengembalikan { items, total, page, pageSize, searching }.
+  // page null → server memakai default; saat q diisi, server bypass paginasi.
+  listPackages: (tab, q, page, pageSize = 50) => {
+    const p = new URLSearchParams();
+    if (tab) p.set('tab', tab);
+    if (q) p.set('q', q);
+    if (page) p.set('page', String(page));
+    p.set('pageSize', String(pageSize));
+    return req('GET', `/api/packages?${p.toString()}`);
+  },
   getPackage: (id) => req('GET', `/api/packages/${id}`),
   createPackage: (data) => req('POST', '/api/packages', data),
   updatePackage: (id, data) => req('PATCH', `/api/packages/${id}`, data),

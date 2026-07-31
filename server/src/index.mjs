@@ -101,6 +101,10 @@ const TABS = {
 };
 
 // ---- Packages ----
+// Mode daftar: paginasi (page/pageSize) supaya tabel besar tetap ringan.
+// Mode cari: bila ada `q`, paginasi dibypass — cari ke seluruh data (dibatasi
+// SEARCH_CAP demi keamanan), sehingga hasil tidak terpotong per halaman.
+const SEARCH_CAP = 1000;
 app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   const { tab, q } = req.query;
   const cond = [];
@@ -109,14 +113,32 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
     values.push(TABS[tab]);
     cond.push(`status = ANY($${values.length})`);
   }
-  if (q) {
-    values.push(`%${q}%`);
+  const searching = !!(q && String(q).trim());
+  if (searching) {
+    values.push(`%${String(q).trim()}%`);
     cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length})`);
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+
+  const countRes = await pool.query(`SELECT count(*)::int AS n FROM packages ${where}`, values);
+  const total = countRes.rows[0].n;
+
+  if (searching) {
+    const r = await pool.query(
+      `SELECT * FROM packages ${where} ORDER BY updated_at DESC LIMIT ${SEARCH_CAP}`, values);
+    return res.json({ items: r.rows, total, page: 1, pageSize: r.rows.length, searching: true });
+  }
+
+  const pageSize = Math.min(200, Math.max(10, parseInt(req.query.pageSize, 10) || 50));
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(pages, Math.max(1, parseInt(req.query.page, 10) || 1));
+  values.push(pageSize);
+  const limIdx = values.length;
+  values.push((page - 1) * pageSize);
+  const offIdx = values.length;
   const r = await pool.query(
-    `SELECT * FROM packages ${where} ORDER BY updated_at DESC LIMIT 500`, values);
-  res.json(r.rows);
+    `SELECT * FROM packages ${where} ORDER BY updated_at DESC LIMIT $${limIdx} OFFSET $${offIdx}`, values);
+  res.json({ items: r.rows, total, page, pageSize, searching: false });
 }));
 
 app.get('/api/packages/:id', requireAuth, wrap(async (req, res) => {

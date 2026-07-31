@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Modal, ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, ScrollView,
+  Modal, ActivityIndicator,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { api, importCsv, getSocket } from './api';
@@ -10,48 +11,100 @@ import { useBreakpoint } from './responsive';
 import ScannerModal from './ScannerModal';
 import PackageModal from './PackageModal';
 
+const PAGE_SIZE = 50;
+
 // Ambil daftar paket untuk sebuah tab + auto-refresh saat ada perubahan (realtime).
+// Paginasi aktif untuk mode daftar; saat `q` diisi, server bypass paginasi
+// sehingga pencarian menjangkau seluruh data.
 function usePackages(tab, q) {
   const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const searching = !!(q && q.trim());
+
   const refetch = useCallback(async () => {
     try {
-      setItems(await api.listPackages(tab, q));
+      const res = await api.listPackages(tab, q, searching ? null : page, PAGE_SIZE);
+      setItems(res.items);
+      setTotal(res.total);
     } catch (e) {
       notice(`Gagal memuat: ${e.message}`);
     } finally {
       setLoading(false);
     }
-  }, [tab, q]);
+  }, [tab, q, page, searching]);
+
+  // Kembali ke halaman 1 setiap ganti tab atau kata kunci berubah.
+  useEffect(() => { setPage(1); }, [tab, q]);
+
   useEffect(() => {
     refetch();
     const socket = getSocket();
     socket.on('packages:changed', refetch);
     return () => socket.off('packages:changed', refetch);
   }, [refetch]);
-  return { items, loading, refetch };
+
+  return { items, total, page, setPage, loading, refetch, searching };
 }
 
-function List({ items, loading, onOpen, rowAction }) {
-  const { isDesktop } = useBreakpoint();
-  if (loading) return <ActivityIndicator style={{ marginTop: 30 }} />;
-  if (isDesktop) {
-    return (
-      <View style={{ padding: 14, paddingBottom: 24 }}>
-        <PackageTable items={items} onPress={onOpen} renderAction={rowAction} />
-      </View>
-    );
-  }
+function PaginationBar({ page, total, pageSize, onPage }) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (pages <= 1) return null;
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
   return (
+    <View style={s.pageBar}>
+      <Text style={s.pageInfo}>{from}–{to} dari {total}</Text>
+      <View style={s.pageCtrls}>
+        <TouchableOpacity
+          style={[s.pageBtn, page <= 1 && s.pageBtnDisabled]}
+          disabled={page <= 1}
+          onPress={() => onPage(page - 1)}
+        >
+          <Text style={[s.pageBtnText, page <= 1 && s.pageBtnTextDisabled]}>‹ Sebelumnya</Text>
+        </TouchableOpacity>
+        <Text style={s.pageNum}>Hal {page}/{pages}</Text>
+        <TouchableOpacity
+          style={[s.pageBtn, page >= pages && s.pageBtnDisabled]}
+          disabled={page >= pages}
+          onPress={() => onPage(page + 1)}
+        >
+          <Text style={[s.pageBtnText, page >= pages && s.pageBtnTextDisabled]}>Berikutnya ›</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function List({ items, loading, onOpen, rowAction, pagination }) {
+  const { isDesktop } = useBreakpoint();
+  if (loading && !items.length) return <ActivityIndicator style={{ marginTop: 30 }} color={colors.primary} />;
+
+  const body = isDesktop ? (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 24 }}>
+      {items.length
+        ? <PackageTable items={items} onPress={onOpen} renderAction={rowAction} />
+        : <Text style={s.empty}>Tidak ada paket.</Text>}
+    </ScrollView>
+  ) : (
     <FlatList
+      style={{ flex: 1 }}
       data={items}
       keyExtractor={(p) => String(p.id)}
-      contentContainerStyle={{ padding: 14, paddingBottom: 24 }}
+      contentContainerStyle={{ padding: 14, paddingBottom: 24, flexGrow: 1 }}
       ListEmptyComponent={<Text style={s.empty}>Tidak ada paket.</Text>}
       renderItem={({ item }) => (
         <PackageRow pkg={item} onPress={onOpen} action={rowAction?.(item)} />
       )}
     />
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      {body}
+      {pagination && <PaginationBar {...pagination} pageSize={PAGE_SIZE} />}
+    </View>
   );
 }
 
@@ -105,7 +158,7 @@ function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
 
 // ---- Tab 1: Scan Paket (paket datang dari kurir) ----
 export function ScanPaketScreen({ user }) {
-  const { items, loading, refetch } = usePackages('scan');
+  const { items, total, page, setPage, loading, refetch } = usePackages('scan');
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualInvoice, setManualInvoice] = useState('');
@@ -137,8 +190,13 @@ export function ScanPaketScreen({ user }) {
           </TouchableOpacity>
         </View>
       )}
-      <Text style={s.sectionTitle}>Data pickup dari VEF — belum sampai kios ({items.length})</Text>
-      <List items={items} loading={loading} onOpen={(p) => setOpenId(p.id)} />
+      <Text style={s.sectionTitle}>Data pickup dari VEF — belum sampai kios ({total})</Text>
+      <List
+        items={items}
+        loading={loading}
+        onOpen={(p) => setOpenId(p.id)}
+        pagination={{ page, total, onPage: setPage }}
+      />
       <ScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
       <ManualInputModal
         visible={manualOpen}
@@ -153,7 +211,7 @@ export function ScanPaketScreen({ user }) {
 
 // ---- Tab 2: Absen Ambil Customer ----
 export function CustomerScreen({ user }) {
-  const { items, loading, refetch } = usePackages('customer');
+  const { items, total, page, setPage, loading, refetch } = usePackages('customer');
   const [scanOpen, setScanOpen] = useState(false);
   const [pendingCode, setPendingCode] = useState(null);
   const [codePkg, setCodePkg] = useState(null);
@@ -185,11 +243,12 @@ export function CustomerScreen({ user }) {
           </TouchableOpacity>
         </View>
       )}
-      <Text style={s.sectionTitle}>Menunggu diambil customer ({items.length})</Text>
+      <Text style={s.sectionTitle}>Menunggu diambil customer ({total})</Text>
       <List
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
+        pagination={{ page, total, onPage: setPage }}
         rowAction={(p) =>
           (isSales || isAdmin) ? (
             <TouchableOpacity style={s.rowBtn} onPress={() => generate(p)}>
@@ -216,7 +275,7 @@ export function CustomerScreen({ user }) {
 
 // ---- Tab 3: Gojek ----
 export function GojekScreen({ user }) {
-  const { items, loading, refetch } = usePackages('gojek');
+  const { items, total, page, setPage, loading, refetch } = usePackages('gojek');
   const [openId, setOpenId] = useState(null);
   const isAdmin = user.role === 'admin';
 
@@ -240,8 +299,14 @@ export function GojekScreen({ user }) {
 
   return (
     <View style={s.screen}>
-      <Text style={s.sectionTitle}>Ambilan Gojek ({items.length})</Text>
-      <List items={items} loading={loading} onOpen={(p) => setOpenId(p.id)} rowAction={quickAction} />
+      <Text style={s.sectionTitle}>Ambilan Gojek ({total})</Text>
+      <List
+        items={items}
+        loading={loading}
+        onOpen={(p) => setOpenId(p.id)}
+        pagination={{ page, total, onPage: setPage }}
+        rowAction={quickAction}
+      />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
     </View>
   );
@@ -250,7 +315,7 @@ export function GojekScreen({ user }) {
 // ---- Tab 4: Semua paket + import CSV ----
 export function SemuaScreen({ user }) {
   const [q, setQ] = useState('');
-  const { items, loading, refetch } = usePackages(null, q);
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages(null, q);
   const [openId, setOpenId] = useState(null);
   const [importing, setImporting] = useState(false);
   const canImport = user.role === 'warehouse' || user.role === 'admin';
@@ -284,7 +349,15 @@ export function SemuaScreen({ user }) {
           </TouchableOpacity>
         )}
       </View>
-      <List items={items} loading={loading} onOpen={(p) => setOpenId(p.id)} />
+      <Text style={s.sectionTitle}>
+        {searching ? `Hasil pencarian "${q.trim()}" (${total})` : `Semua paket (${total})`}
+      </Text>
+      <List
+        items={items}
+        loading={loading}
+        onOpen={(p) => setOpenId(p.id)}
+        pagination={searching ? null : { page, total, onPage: setPage }}
+      />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
     </View>
   );
@@ -304,6 +377,21 @@ const s = StyleSheet.create({
     fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6,
   },
   empty: { color: colors.faint, textAlign: 'center', marginTop: 40, fontWeight: '600' },
+  pageBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 10, gap: 12, flexWrap: 'wrap',
+    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  pageInfo: { color: colors.sub, fontSize: 12.5, fontWeight: '600' },
+  pageCtrls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pageBtn: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill,
+    paddingVertical: 7, paddingHorizontal: 13, backgroundColor: colors.surface,
+  },
+  pageBtnDisabled: { opacity: 0.45 },
+  pageBtnText: { color: colors.primary, fontWeight: '700', fontSize: 12.5 },
+  pageBtnTextDisabled: { color: colors.faint },
+  pageNum: { color: colors.ink, fontWeight: '700', fontSize: 12.5, minWidth: 68, textAlign: 'center' },
   rowBtn: {
     backgroundColor: colors.primary, borderRadius: radius.pill,
     paddingVertical: 8, paddingHorizontal: 13,
