@@ -2,7 +2,12 @@ node_modules/
 server/pgdata/
 server/uploads/
 .env
+.env.local
 .expo/
 dist/
 web-build/
 *.log
+.claude/
+.gemini/
+.DS_Store
+Thumbs.db

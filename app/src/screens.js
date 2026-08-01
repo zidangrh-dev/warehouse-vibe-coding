@@ -157,13 +157,15 @@ function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
 }
 
 // ---- Tab 1: Scan Paket (paket datang dari kurir) ----
+// ---- Tab 1: Scan Paket (paket datang dari kurir) ----
 export function ScanPaketScreen({ user }) {
-  const { items, total, page, setPage, loading, refetch } = usePackages('scan');
+  const [q, setQ] = useState('');
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('scan', q);
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualInvoice, setManualInvoice] = useState('');
   const [openId, setOpenId] = useState(null);
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
 
   const onScanned = async (code) => {
     try {
@@ -180,22 +182,32 @@ export function ScanPaketScreen({ user }) {
 
   return (
     <View style={s.screen}>
-      {isAdmin && (
-        <View style={s.topBar}>
-          <TouchableOpacity style={[s.bigBtn, { flex: 1, backgroundColor: colors.primary }]} onPress={() => setScanOpen(true)}>
-            <Text style={s.btnText}>📷 Scan Paket Sampai</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[s.bigBtn, { backgroundColor: colors.sub }]} onPress={() => { setManualInvoice(''); setManualOpen(true); }}>
-            <Text style={s.btnText}>＋ Manual</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <Text style={s.sectionTitle}>Data pickup dari VEF — belum sampai kios ({total})</Text>
+      <View style={s.topBar}>
+        <TextInput
+          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          placeholder="🔍 Cari invoice / nama / kode..."
+          value={q}
+          onChangeText={setQ}
+        />
+        {isAdmin && (
+          <>
+            <TouchableOpacity style={[s.bigBtn, { backgroundColor: colors.primary }]} onPress={() => setScanOpen(true)}>
+              <Text style={s.btnText}>📷 Scan Paket Sampai</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.bigBtn, { backgroundColor: colors.sub }]} onPress={() => { setManualInvoice(''); setManualOpen(true); }}>
+              <Text style={s.btnText}>＋ Manual</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+      <Text style={s.sectionTitle}>
+        {searching ? `Hasil pencarian "${q.trim()}" (${total})` : `Data pickup dari VEF — belum sampai kios (${total})`}
+      </Text>
       <List
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={{ page, total, onPage: setPage }}
+        pagination={searching ? null : { page, total, onPage: setPage }}
       />
       <ScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
       <ManualInputModal
@@ -210,13 +222,13 @@ export function ScanPaketScreen({ user }) {
 }
 
 // ---- Tab 2: Self Pick Up (dulu "Customer") ----
-// Konfirmasi pengambilan kini lewat detail (wajib foto seperti gojek).
 export function SelfPickupScreen({ user }) {
-  const { items, total, page, setPage, loading, refetch } = usePackages('selfpickup');
+  const [q, setQ] = useState('');
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('selfpickup', q);
   const [scanOpen, setScanOpen] = useState(false);
   const [codePkg, setCodePkg] = useState(null);
   const [openId, setOpenId] = useState(null);
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
   const isSales = user.role === 'sales';
 
   const generate = async (pkg) => {
@@ -226,7 +238,6 @@ export function SelfPickupScreen({ user }) {
     } catch (e) { notice(e.message); }
   };
 
-  // Scan pickup code dari customer -> buka detail paket untuk konfirmasi foto.
   const onScanned = async (code) => {
     try {
       const p = await api.findByCode(code.trim());
@@ -236,19 +247,27 @@ export function SelfPickupScreen({ user }) {
 
   return (
     <View style={s.screen}>
-      {isAdmin && (
-        <View style={s.topBar}>
-          <TouchableOpacity style={[s.bigBtn, { flex: 1, backgroundColor: colors.ok }]} onPress={() => setScanOpen(true)}>
+      <View style={s.topBar}>
+        <TextInput
+          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          placeholder="🔍 Cari invoice / nama / kode..."
+          value={q}
+          onChangeText={setQ}
+        />
+        {isAdmin && (
+          <TouchableOpacity style={[s.bigBtn, { backgroundColor: colors.ok }]} onPress={() => setScanOpen(true)}>
             <Text style={s.btnText}>📷 Scan Pickup Code</Text>
           </TouchableOpacity>
-        </View>
-      )}
-      <Text style={s.sectionTitle}>Menunggu diambil (self pick up) ({total})</Text>
+        )}
+      </View>
+      <Text style={s.sectionTitle}>
+        {searching ? `Hasil pencarian "${q.trim()}" (${total})` : `Menunggu diambil (self pick up) (${total})`}
+      </Text>
       <List
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={{ page, total, onPage: setPage }}
+        pagination={searching ? null : { page, total, onPage: setPage }}
         rowAction={(p) =>
           (isSales || isAdmin) ? (
             <TouchableOpacity style={s.rowBtn} onPress={() => generate(p)}>
@@ -270,9 +289,10 @@ export function SelfPickupScreen({ user }) {
 
 // ---- Tab 3: Gojek ----
 export function GojekScreen({ user }) {
-  const { items, total, page, setPage, loading, refetch } = usePackages('gojek');
+  const [q, setQ] = useState('');
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('gojek', q);
   const [openId, setOpenId] = useState(null);
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
 
   const quickAction = (pkg) => {
     const next = (NEXT_ACTIONS[pkg.status] || [])[0];
@@ -281,7 +301,6 @@ export function GojekScreen({ user }) {
       <TouchableOpacity
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
         onPress={async () => {
-          // Done Pickup butuh bukti foto — arahkan ke detail, jangan langsung ubah.
           if (next.to === 'done_pickup') return setOpenId(pkg.id);
           try { await api.updatePackage(pkg.id, { status: next.to }); }
           catch (e) { notice(e.message); }
@@ -294,12 +313,22 @@ export function GojekScreen({ user }) {
 
   return (
     <View style={s.screen}>
-      <Text style={s.sectionTitle}>Ambilan Gojek ({total})</Text>
+      <View style={s.topBar}>
+        <TextInput
+          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          placeholder="🔍 Cari invoice / nama / kode..."
+          value={q}
+          onChangeText={setQ}
+        />
+      </View>
+      <Text style={s.sectionTitle}>
+        {searching ? `Hasil pencarian "${q.trim()}" (${total})` : `Ambilan Gojek (${total})`}
+      </Text>
       <List
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={{ page, total, onPage: setPage }}
+        pagination={searching ? null : { page, total, onPage: setPage }}
         rowAction={quickAction}
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
@@ -307,15 +336,13 @@ export function GojekScreen({ user }) {
   );
 }
 
-// ---- Tab: Cancel / Retur (tampung semua cancel & retur) ----
+// ---- Tab 4: Cancel / Retur ----
 export function CancelReturScreen({ user }) {
-  const { items, total, page, setPage, loading, refetch } = usePackages('cancelretur');
+  const [q, setQ] = useState('');
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('cancelretur', q);
   const [openId, setOpenId] = useState(null);
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
 
-  // Aksi retur menyesuaikan jenis ambilan:
-  //   gojek        -> Cari Driver (kembali ke pipeline gojek: mencari_driver)
-  //   self pick up -> kembali ke antrian Self Pick Up (absen_ambil_customer)
   const rowAction = (pkg) => {
     if (!isAdmin || pkg.status !== 'retur') return null;
     const isGojek = pkg.pickup_type === 'gojek';
@@ -336,12 +363,22 @@ export function CancelReturScreen({ user }) {
 
   return (
     <View style={s.screen}>
-      <Text style={s.sectionTitle}>Cancel / Retur ({total})</Text>
+      <View style={s.topBar}>
+        <TextInput
+          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          placeholder="🔍 Cari invoice / nama / kode..."
+          value={q}
+          onChangeText={setQ}
+        />
+      </View>
+      <Text style={s.sectionTitle}>
+        {searching ? `Hasil pencarian "${q.trim()}" (${total})` : `Cancel / Retur (${total})`}
+      </Text>
       <List
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={{ page, total, onPage: setPage }}
+        pagination={searching ? null : { page, total, onPage: setPage }}
         rowAction={rowAction}
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
@@ -355,7 +392,7 @@ export function SemuaScreen({ user }) {
   const { items, total, page, setPage, loading, searching, refetch } = usePackages(null, q);
   const [openId, setOpenId] = useState(null);
   const [importing, setImporting] = useState(false);
-  const canImport = user.role === 'warehouse' || user.role === 'admin';
+  const canImport = user.role === 'warehouse';
 
   const doImport = async () => {
     const res = await DocumentPicker.getDocumentAsync({

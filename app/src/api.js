@@ -8,7 +8,7 @@ import { io } from 'socket.io-client';
 // - Web production        -> origin yang sama (nginx mem-proxy /api)
 // - Android dev (Expo Go) -> IP laptop diambil dari hostUri Metro
 // - APK production        -> isi PROD_API di bawah saat deploy
-const PROD_API = 'https://GANTI-DENGAN-DOMAIN-VPS-ANDA';
+const PROD_API = 'http://202.10.44.147';
 
 export function apiBase() {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -85,11 +85,14 @@ export const api = {
   dashboardSummary: () => req('GET', '/api/dashboard/summary'),
   dashboardThroughput: (days = 14) => req('GET', `/api/dashboard/throughput?days=${days}`),
   dashboardActivity: (days = 30) => req('GET', `/api/dashboard/activity?days=${days}`),
+  listUsers: () => req('GET', '/api/users'),
+  createUser: (data) => req('POST', '/api/users', data),
+  updateUser: (id, data) => req('PATCH', `/api/users/${id}`, data),
+  deleteUser: (id) => req('DELETE', `/api/users/${id}`),
 };
 
 // Upload bukti foto (kind: 'wajah' | 'ktp' | 'barang').
-// Web: FormData + blob. Native: FileSystem.uploadAsync (fetch bawaan Expo SDK
-// baru menolak objek file {uri,...} di FormData -> "unsupported ... datapart").
+// Web: FormData + fetch browser. Native: FileSystem.uploadAsync dari expo-file-system/legacy.
 export async function uploadPhoto(packageId, kind, asset) {
   const url = `${apiBase()}/api/packages/${packageId}/photos`;
   if (Platform.OS === 'web') {
@@ -108,7 +111,8 @@ export async function uploadPhoto(packageId, kind, asset) {
     }
     return res.json();
   }
-  // Native (Android/iOS)
+
+  // Native (Android/iOS) — gunakan FileSystem.uploadAsync (OKHttp Native, bebas dari bug FormData JS)
   const FileSystem = await import('expo-file-system/legacy');
   const res = await FileSystem.uploadAsync(url, asset.uri, {
     httpMethod: 'POST',
@@ -118,6 +122,7 @@ export async function uploadPhoto(packageId, kind, asset) {
     parameters: { kind },
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
+
   if (res.status < 200 || res.status >= 300) {
     let err = {};
     try { err = JSON.parse(res.body); } catch {}
@@ -131,27 +136,39 @@ export function photoUrl(photo) {
 }
 
 export async function importCsv(fileAsset) {
-  const form = new FormData();
+  const url = `${apiBase()}/api/packages/import`;
   if (Platform.OS === 'web') {
+    const form = new FormData();
     const blob = fileAsset.file || (await (await fetch(fileAsset.uri)).blob());
     form.append('file', blob, fileAsset.name || 'import.csv');
-  } else {
-    form.append('file', {
-      uri: fileAsset.uri,
-      name: fileAsset.name || 'import.csv',
-      type: 'text/csv',
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Import gagal');
+    }
+    return res.json();
   }
-  const res = await fetch(`${apiBase()}/api/packages/import`, {
-    method: 'POST',
+
+  // Native (Android/iOS) — gunakan FileSystem.uploadAsync
+  const FileSystem = await import('expo-file-system/legacy');
+  const res = await FileSystem.uploadAsync(url, fileAsset.uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+    fieldName: 'file',
+    mimeType: 'text/csv',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Import gagal');
+
+  if (res.status < 200 || res.status >= 300) {
+    let err = {};
+    try { err = JSON.parse(res.body); } catch {}
+    throw new Error(err.error || `Import gagal (${res.status})`);
   }
-  return res.json();
+  return JSON.parse(res.body);
 }
 
 let socket;

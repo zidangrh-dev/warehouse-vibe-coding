@@ -74,6 +74,16 @@ const ICONS = {
       <Path d="m16 7 5 5-5 5" {...p} fill="none" />
     </>
   ),
+  edit: (p) => (
+    <Path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" {...p} fill="none" />
+  ),
+  download: (p) => (
+    <>
+      <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" {...p} fill="none" />
+      <Path d="m7 10 5 5 5-5" {...p} fill="none" />
+      <Line x1="12" y1="15" x2="12" y2="3" {...p} />
+    </>
+  ),
 };
 
 export default function Icon({ name, size = 20, color = '#0F172A', strokeWidth = 1.8 }) {

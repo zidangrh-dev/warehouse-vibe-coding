@@ -125,9 +125,12 @@ const ROLE_TINT = {
   warehouse: "#0891B2",
 };
 
-export default function DashboardScreen() {
+import UserManagementModal from "./UserManagementModal";
+
+export default function DashboardScreen({ user }) {
   const { columns } = useBreakpoint();
   const [days, setDays] = useState(14);
+  const [userModalOpen, setUserModalOpen] = useState(false);
   const { summary, throughput, activity, loading } = useDashboard(days);
 
   if (loading && !summary) {
@@ -223,20 +226,36 @@ export default function DashboardScreen() {
             Pantau proses paket & kinerja tim secara realtime.
           </Text>
         </View>
-        <View style={s.daySwitch}>
-          {DAY_OPTIONS.map((d) => (
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+          {user?.role === 'superadmin' && (
             <TouchableOpacity
-              key={d}
-              style={[s.dayBtn, days === d && s.dayBtnActive]}
-              onPress={() => setDays(d)}
+              style={[s.dayBtn, { backgroundColor: colors.primary, paddingVertical: 8, paddingHorizontal: 14 }]}
+              onPress={() => setUserModalOpen(true)}
             >
-              <Text style={[s.dayBtnText, days === d && s.dayBtnTextActive]}>
-                {d} hari
-              </Text>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>👥 Kelola Karyawan</Text>
             </TouchableOpacity>
-          ))}
+          )}
+          <View style={s.daySwitch}>
+            {DAY_OPTIONS.map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[s.dayBtn, days === d && s.dayBtnActive]}
+                onPress={() => setDays(d)}
+              >
+                <Text style={[s.dayBtnText, days === d && s.dayBtnTextActive]}>
+                  {d} hari
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
+
+      <UserManagementModal
+        visible={userModalOpen}
+        user={user}
+        onClose={() => setUserModalOpen(false)}
+      />
 
       <View style={s.statGrid}>
         {stats.map((st) => (

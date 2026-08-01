@@ -15,10 +15,16 @@ export const pool = new pg.Pool({
 export async function migrate() {
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(sql);
+  // Pastikan constraint role mendukung superadmin jika DB sudah ada
+  await pool.query(`
+    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+    ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin', 'warehouse', 'admin', 'sales'));
+  `).catch(() => {});
 }
 
 // Akun awal — WAJIB ganti password setelah aplikasi dipakai sungguhan.
 const SEED_USERS = [
+  { username: 'superadmin', password: 'superadmin123', display_name: 'Super Admin', role: 'superadmin' },
   { username: 'gudang', password: 'gudang123', display_name: 'Tim Warehouse', role: 'warehouse' },
   { username: 'admin', password: 'admin123', display_name: 'Admin Kios', role: 'admin' },
   { username: 'sales', password: 'sales123', display_name: 'Sales', role: 'sales' },
@@ -34,5 +40,5 @@ export async function seedIfEmpty() {
       [u.username, bcrypt.hashSync(u.password, 10), u.display_name, u.role]
     );
   }
-  console.log('User awal dibuat: gudang/gudang123, admin/admin123, sales/sales123');
+  console.log('User awal dibuat: superadmin/superadmin123, gudang/gudang123, admin/admin123, sales/sales123');
 }

@@ -1,5 +1,6 @@
 # Deploy produksi di VPS: docker compose up -d --build
 # Jalankan dari folder deploy/ ini.
+# Pastikan file .env sudah ada (salin dari ../.env.example)
 services:
   db:
     image: postgres:17
@@ -16,6 +17,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://gudang:${DB_PASSWORD}@db:5432/gudang
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-gudang-board}
       PORT: 4000
     volumes:
       - uploads:/app/uploads

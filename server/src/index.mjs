@@ -78,6 +78,114 @@ app.post('/api/login', wrap(async (req, res) => {
 
 app.get('/api/me', requireAuth, (req, res) => res.json(req.user));
 
+// ---- User Management (Super Admin Only) ----
+const ALLOWED_ROLES = ['superadmin', 'admin', 'sales', 'warehouse'];
+
+app.get('/api/users', requireAuth, requireRole('superadmin'), wrap(async (_req, res) => {
+  const r = await pool.query('SELECT id, username, display_name, role, created_at FROM users ORDER BY id ASC');
+  res.json(r.rows);
+}));
+
+app.post('/api/users', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const { username, password, display_name, role } = req.body;
+  const uname = String(username || '').trim().toLowerCase();
+  const name = String(display_name || '').trim();
+  const pass = String(password || '').trim();
+  const rRole = String(role || '').trim().toLowerCase();
+
+  if (!uname || !pass || !name || !rRole) {
+    return res.status(400).json({ error: 'Username, nama, password, dan role wajib diisi' });
+  }
+  if (pass.length < 6) {
+    return res.status(400).json({ error: 'Password minimal 6 karakter' });
+  }
+  if (!ALLOWED_ROLES.includes(rRole)) {
+    return res.status(400).json({ error: 'Role tidak valid' });
+  }
+
+  const existing = await pool.query('SELECT id FROM users WHERE username=$1', [uname]);
+  if (existing.rows.length > 0) {
+    return res.status(409).json({ error: 'Username sudah digunakan' });
+  }
+
+  const hash = bcrypt.hashSync(pass, 10);
+  const r = await pool.query(
+    `INSERT INTO users (username, password_hash, display_name, role)
+     VALUES ($1, $2, $3, $4) RETURNING id, username, display_name, role, created_at`,
+    [uname, hash, name, rRole]
+  );
+  res.status(201).json(r.rows[0]);
+}));
+
+app.patch('/api/users/:id', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const targetId = Number(req.params.id);
+  const { display_name, role, password } = req.body;
+
+  const targetRes = await pool.query('SELECT * FROM users WHERE id=$1', [targetId]);
+  const targetUser = targetRes.rows[0];
+  if (!targetUser) return res.status(404).json({ error: 'User tidak ditemukan' });
+
+  const sets = [];
+  const values = [targetId];
+
+  if (display_name && String(display_name).trim()) {
+    values.push(String(display_name).trim());
+    sets.push(`display_name=$${values.length}`);
+  }
+  if (role && String(role).trim()) {
+    const rRole = String(role).trim().toLowerCase();
+    if (!ALLOWED_ROLES.includes(rRole)) return res.status(400).json({ error: 'Role tidak valid' });
+
+    // Proteksi: jangan sampai role Super Admin terakhir diturunkan jabatannya
+    if (targetUser.role === 'superadmin' && rRole !== 'superadmin') {
+      const superRes = await pool.query("SELECT count(*)::int AS n FROM users WHERE role='superadmin'");
+      if (superRes.rows[0].n <= 1) {
+        return res.status(400).json({ error: 'Gagal: Minimal harus ada 1 akun Super Admin di sistem' });
+      }
+    }
+
+    values.push(rRole);
+    sets.push(`role=$${values.length}`);
+  }
+  if (password && String(password).trim()) {
+    const pass = String(password).trim();
+    if (pass.length < 6) {
+      return res.status(400).json({ error: 'Password minimal 6 karakter' });
+    }
+    values.push(bcrypt.hashSync(pass, 10));
+    sets.push(`password_hash=$${values.length}`);
+  }
+
+  if (!sets.length) return res.status(400).json({ error: 'Tidak ada data yang diubah' });
+
+  const r = await pool.query(
+    `UPDATE users SET ${sets.join(', ')} WHERE id=$1 RETURNING id, username, display_name, role, created_at`,
+    values
+  );
+  res.json(r.rows[0]);
+}));
+
+app.delete('/api/users/:id', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const targetId = Number(req.params.id);
+  if (targetId === req.user.id) {
+    return res.status(400).json({ error: 'Tidak bisa menghapus akun Anda sendiri' });
+  }
+  const targetRes = await pool.query('SELECT * FROM users WHERE id=$1', [targetId]);
+  const targetUser = targetRes.rows[0];
+  if (!targetUser) return res.status(404).json({ error: 'User tidak ditemukan' });
+
+  // Proteksi: jangan sampai akun Super Admin terakhir dihapus
+  if (targetUser.role === 'superadmin') {
+    const superRes = await pool.query("SELECT count(*)::int AS n FROM users WHERE role='superadmin'");
+    if (superRes.rows[0].n <= 1) {
+      return res.status(400).json({ error: 'Gagal: Minimal harus ada 1 akun Super Admin di sistem' });
+    }
+  }
+
+  await pool.query('DELETE FROM users WHERE id=$1', [targetId]);
+  res.json({ ok: true });
+}));
+
 // ---- Helpers ----
 async function logEvent(pkgId, user, action, detail = '') {
   await pool.query(
@@ -103,19 +211,30 @@ const TAB_FILTERS = {
   selesai: { statuses: ['selesai'] },
 };
 
-// Syarat foto konfirmasi pengambilan (gojek done_pickup & self-pickup selesai).
-const REQUIRED_PHOTOS = { wajah: 1, ktp: 1, barang: 1 };
+// Syarat foto konfirmasi pengambilan:
+//   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
+//   Self Pick Up : 1 foto pengambil + barang + 1 foto barang (2 foto)
 const PHOTO_KINDS = ['wajah', 'ktp', 'barang'];
 
 async function photoStatus(pkgId) {
+  const pkgRes = await pool.query('SELECT pickup_type FROM packages WHERE id=$1', [pkgId]);
+  const pkg = pkgRes.rows[0];
+  const isGojek = pkg?.pickup_type === 'gojek';
+
+  const requiredMap = isGojek
+    ? { wajah: 1, ktp: 1, barang: 1 }
+    : { wajah: 1, barang: 1 };
+
+  const photoKinds = Object.keys(requiredMap);
+
   const r = await pool.query(
     `SELECT kind, count(*)::int n FROM package_photos WHERE package_id=$1 GROUP BY kind`, [pkgId]);
   const n = Object.fromEntries(r.rows.map((x) => [x.kind, x.n]));
-  const missing = PHOTO_KINDS.filter((k) => (n[k] || 0) < REQUIRED_PHOTOS[k]);
-  return { ok: missing.length === 0, n, missing };
+  const missing = photoKinds.filter((k) => (n[k] || 0) < requiredMap[k]);
+  return { ok: missing.length === 0, n, missing, isGojek };
 }
 
-const PHOTO_LABEL = { wajah: 'wajah', ktp: 'KTP', barang: 'barang' };
+const PHOTO_LABEL = { wajah: 'pengambil/driver + barang', ktp: 'KTP', barang: 'barang' };
 
 // ---- Packages ----
 // Mode daftar: paginasi (page/pageSize) supaya tabel besar tetap ringan.
@@ -174,26 +293,70 @@ app.get('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 }));
 
 // Upload bukti foto (wajah driver / barang) saat driver mengambil paket.
-app.post('/api/packages/:id/photos', requireAuth, requireRole('admin'),
-  photoUpload.single('photo'), wrap(async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'File foto tidak ada' });
-    const kind = PHOTO_KINDS.includes(req.body.kind) ? req.body.kind : 'barang';
+// Mendukung multipart/form-data DAN JSON base64 agar aman dari bug FormData native.
+app.post('/api/packages/:id/photos', requireAuth, requireRole('superadmin', 'admin'),
+  (req, res, next) => {
+    if (req.is('json') || (req.headers['content-type'] && req.headers['content-type'].includes('application/json'))) {
+      return next();
+    }
+    photoUpload.single('photo')(req, res, next);
+  },
+  wrap(async (req, res) => {
     const id = Number(req.params.id);
+
+    // KUNCI KEAMANAN: Cegah manipulasi foto pada transaksi yang sudah dikonfirmasi (fraud protection)
+    const pkgCheck = await pool.query('SELECT status FROM packages WHERE id=$1', [id]);
+    const pkg = pkgCheck.rows[0];
+    if (!pkg) return res.status(404).json({ error: 'Paket tidak ditemukan' });
+    if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status)) {
+      return res.status(400).json({ error: 'Foto terkunci! Tidak dapat menambah foto pada transaksi yang sudah dikonfirmasi.' });
+    }
+
+    const kind = PHOTO_KINDS.includes(req.body?.kind) ? req.body.kind : 'barang';
+    let filename = '';
+
+    if (req.file) {
+      filename = req.file.filename;
+    } else if (req.body?.base64 || req.body?.photoBase64) {
+      const rawBase64 = req.body.base64 || req.body.photoBase64;
+      const cleanBase64 = rawBase64.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      const ext = req.body.ext || '.jpg';
+      filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+      fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
+    } else {
+      return res.status(400).json({ error: 'File foto atau data base64 tidak ada' });
+    }
+
     const r = await pool.query(
       'INSERT INTO package_photos (package_id, kind, filename) VALUES ($1,$2,$3) RETURNING *',
-      [id, kind, req.file.filename]);
+      [id, kind, filename]);
     await logEvent(id, req.user, 'foto', kind);
     notify();
     res.status(201).json(r.rows[0]);
   }));
 
-app.delete('/api/photos/:id', requireAuth, requireRole('admin'), wrap(async (req, res) => {
-  const r = await pool.query(
-    'DELETE FROM package_photos WHERE id=$1 RETURNING *', [Number(req.params.id)]);
-  if (r.rows[0]) {
-    fs.rm(path.join(UPLOAD_DIR, r.rows[0].filename), () => {});
-    notify();
+app.delete('/api/photos/:id', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
+  const photoId = Number(req.params.id);
+
+  // KUNCI KEAMANAN: Periksa status paket induk untuk mencegah penghapusan foto bukti
+  const photoRes = await pool.query(
+    `SELECT p.id, p.filename, pkg.status
+     FROM package_photos p
+     JOIN packages pkg ON pkg.id = p.package_id
+     WHERE p.id = $1`,
+    [photoId]
+  );
+  const photo = photoRes.rows[0];
+  if (!photo) return res.status(404).json({ error: 'Foto tidak ditemukan' });
+
+  if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(photo.status)) {
+    return res.status(400).json({ error: 'Foto terkunci! Tidak dapat menghapus foto pada transaksi yang sudah dikonfirmasi.' });
   }
+
+  await pool.query('DELETE FROM package_photos WHERE id=$1', [photoId]);
+  fs.rm(path.join(UPLOAD_DIR, photo.filename), () => {});
+  notify();
   res.json({ ok: true });
 }));
 
@@ -352,10 +515,22 @@ function classifyPickup(courierName) {
   return null;
 }
 
-app.post('/api/packages/import', requireAuth, requireRole('warehouse', 'admin'),
-  upload.single('file'), wrap(async (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'File CSV tidak ada' });
-    const text = req.file.buffer.toString('utf8');
+app.post('/api/packages/import', requireAuth, requireRole('warehouse'),
+  (req, res, next) => {
+    if (req.is('json') || (req.headers['content-type'] && req.headers['content-type'].includes('application/json'))) {
+      return next();
+    }
+    upload.single('file')(req, res, next);
+  },
+  wrap(async (req, res) => {
+    let text = '';
+    if (req.file) {
+      text = req.file.buffer.toString('utf8');
+    } else if (req.body?.text || req.body?.csvText) {
+      text = req.body.text || req.body.csvText;
+    } else {
+      return res.status(400).json({ error: 'File CSV atau data teks tidak ada' });
+    }
     const delimiter = (text.split('\n')[0].match(/;/g) || []).length >
       (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
     let rows;
@@ -397,7 +572,7 @@ app.post('/api/packages/import', requireAuth, requireRole('warehouse', 'admin'),
 
 // ---- Dashboard/laporan (admin only) — agregasi untuk memantau kinerja role lain ----
 
-app.get('/api/dashboard/summary', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages GROUP BY status`);
   const totals = await pool.query(`
     SELECT
@@ -410,7 +585,7 @@ app.get('/api/dashboard/summary', requireAuth, requireRole('admin'), wrap(async 
   res.json({ by_status: byStatus.rows, ...totals.rows[0] });
 }));
 
-app.get('/api/dashboard/throughput', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+app.get('/api/dashboard/throughput', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
   const r = await pool.query(`
     SELECT d::date AS day,
@@ -422,7 +597,7 @@ app.get('/api/dashboard/throughput', requireAuth, requireRole('admin'), wrap(asy
   res.json(r.rows);
 }));
 
-app.get('/api/dashboard/activity', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+app.get('/api/dashboard/activity', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const days = Math.min(180, Math.max(1, Number(req.query.days) || 30));
   const r = await pool.query(`
     SELECT pe.user_name, u.role, pe.action, count(*)::int AS n

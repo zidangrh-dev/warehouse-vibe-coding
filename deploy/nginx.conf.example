@@ -3,7 +3,7 @@
 # Ganti gudang.contoh.com dengan domainmu, lalu pasang HTTPS dengan certbot.
 server {
     listen 80;
-    server_name gudang.contoh.com;
+    server_name 202.10.44.147;
 
     root /var/www/gudang-board;   # isi dengan folder dist hasil expo export
     index index.html;

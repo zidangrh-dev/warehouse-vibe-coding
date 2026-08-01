@@ -25,12 +25,17 @@
     "plugins": [
       [
         "expo-camera",
-        { "cameraPermission": "Izinkan akses kamera untuk scan barcode" }
+        {
+          "cameraPermission": "Izinkan akses kamera untuk scan barcode"
+        }
       ],
       [
         "expo-image-picker",
-        { "photosPermission": "Izinkan akses galeri untuk melampirkan foto barang" }
-      ]
+        {
+          "photosPermission": "Izinkan akses galeri untuk melampirkan foto barang"
+        }
+      ],
+      "expo-sharing"
     ]
   }
 }

@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   display_name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('warehouse', 'admin', 'sales')),
+  role TEXT NOT NULL CHECK (role IN ('superadmin', 'warehouse', 'admin', 'sales')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

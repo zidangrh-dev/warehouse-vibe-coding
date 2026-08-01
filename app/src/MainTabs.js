@@ -8,15 +8,15 @@ import DashboardScreen from './DashboardScreen';
 
 // Tab yang tampil menyesuaikan role user.
 const ALL_TABS = [
-  { key: 'scan', icon: 'box', label: 'Scan', roles: ['admin', 'warehouse'], Screen: ScanPaketScreen },
-  { key: 'selfpickup', icon: 'user', label: 'Self Pick Up', roles: ['admin', 'sales'], Screen: SelfPickupScreen },
-  { key: 'gojek', icon: 'scooter', label: 'Gojek', roles: ['admin', 'sales'], Screen: GojekScreen },
-  { key: 'cancelretur', icon: 'rotate', label: 'Cancel/Retur', roles: ['admin', 'sales'], Screen: CancelReturScreen },
-  { key: 'semua', icon: 'list', label: 'Semua', roles: ['admin', 'sales', 'warehouse'], Screen: SemuaScreen },
-  { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['admin'], Screen: DashboardScreen },
+  { key: 'scan', icon: 'box', label: 'Scan', roles: ['superadmin', 'admin', 'warehouse'], Screen: ScanPaketScreen },
+  { key: 'selfpickup', icon: 'user', label: 'Self Pick Up', roles: ['superadmin', 'admin', 'sales'], Screen: SelfPickupScreen },
+  { key: 'gojek', icon: 'scooter', label: 'Gojek', roles: ['superadmin', 'admin', 'sales'], Screen: GojekScreen },
+  { key: 'cancelretur', icon: 'rotate', label: 'Cancel/Retur', roles: ['superadmin', 'admin', 'sales'], Screen: CancelReturScreen },
+  { key: 'semua', icon: 'list', label: 'Semua', roles: ['superadmin', 'admin', 'sales', 'warehouse'], Screen: SemuaScreen },
+  { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['superadmin', 'admin'], Screen: DashboardScreen },
 ];
 
-const ROLE_LABEL = { admin: 'Admin Kios', sales: 'Sales', warehouse: 'Warehouse' };
+const ROLE_LABEL = { superadmin: 'Super Admin', admin: 'Admin Kios', sales: 'Sales', warehouse: 'Warehouse' };
 
 function greeting() {
   const h = new Date().getHours();
