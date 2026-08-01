@@ -1,4 +1,4 @@
-# 📦 Gudang Board
+# 📦 PickHub
 
 Aplikasi manajemen paket **retail pickup**. Satu codebase React Native (Expo)
 untuk **Android** dan **Web**, backend **Express + PostgreSQL + Socket.IO**.

@@ -1,4 +1,4 @@
-# Gudang Board — Aplikasi Manajemen Paket Retail Pickup (Kios Roxy)
+# PickHub — Aplikasi Manajemen Paket Retail Pickup (Kios Roxy)
 
 Aplikasi tracking paket untuk kios retail pickup. Satu codebase React Native (Expo)
 untuk **Android** dan **Web**, backend **Express + PostgreSQL + Socket.IO**.

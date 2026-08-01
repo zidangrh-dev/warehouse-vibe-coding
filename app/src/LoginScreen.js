@@ -62,7 +62,7 @@ export default function LoginScreen({ onLogin }) {
       <View style={s.wrapDesktop}>
         <View style={s.brandPanel}>
           <View style={s.logoBox}><Icon name="box" size={30} color="#fff" /></View>
-          <Text style={s.titleDark}>Gudang Board</Text>
+          <Text style={s.titleDark}>PickHub</Text>
           <Text style={s.subtitleDark}>Kelola paket retail pickup — cepat, rapi, realtime.</Text>
         </View>
         <View style={s.formPanel}>{form}</View>
@@ -74,7 +74,7 @@ export default function LoginScreen({ onLogin }) {
     <View style={s.wrap}>
       <View style={s.brand}>
         <View style={[s.logoBox, { backgroundColor: colors.primary }]}><Icon name="box" size={28} color="#fff" /></View>
-        <Text style={s.title}>Gudang Board</Text>
+        <Text style={s.title}>PickHub</Text>
         <Text style={s.subtitle}>Kelola paket retail pickup — cepat, rapi, realtime</Text>
       </View>
       {form}

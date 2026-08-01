@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  Image, Platform, ActivityIndicator,
+  Image, Platform, ActivityIndicator, Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { api, uploadPhoto, photoUrl } from './api';
@@ -76,6 +76,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     await load();
   };
 
+  // Satu tombol -> pilih sumber (Kamera / File). Di web langsung buka file.
+  const pickPhoto = (kind) => {
+    if (Platform.OS === 'web') return addPhoto(kind, false);
+    Alert.alert('Tambah Foto', 'Pilih sumber foto', [
+      { text: '📸 Kamera', onPress: () => addPhoto(kind, true) },
+      { text: '🗂 File / Galeri', onPress: () => addPhoto(kind, false) },
+      { text: 'Batal', style: 'cancel' },
+    ]);
+  };
+
   const PhotoStrip = ({ title, kind, list, need }) => (
     <View style={{ marginTop: 8 }}>
       <Text style={s.photoTitle}>
@@ -91,16 +101,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           </TouchableOpacity>
         ))}
         {canAct && (
-          <>
-            {Platform.OS !== 'web' && (
-              <TouchableOpacity style={s.photoAdd} onPress={() => addPhoto(kind, true)} disabled={busy}>
-                <Text style={s.photoAddText}>📸{'\n'}Kamera</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={s.photoAdd} onPress={() => addPhoto(kind, false)} disabled={busy}>
-              <Text style={s.photoAddText}>🖼{'\n'}Galeri</Text>
-            </TouchableOpacity>
-          </>
+          <TouchableOpacity style={s.photoAdd} onPress={() => pickPhoto(kind)} disabled={busy}>
+            <Text style={s.photoAddText}>＋{'\n'}Tambah</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>

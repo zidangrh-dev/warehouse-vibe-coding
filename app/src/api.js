@@ -87,30 +87,43 @@ export const api = {
   dashboardActivity: (days = 30) => req('GET', `/api/dashboard/activity?days=${days}`),
 };
 
-// Upload bukti foto ('driver' = wajah driver, 'barang' = foto paket).
+// Upload bukti foto (kind: 'wajah' | 'ktp' | 'barang').
+// Web: FormData + blob. Native: FileSystem.uploadAsync (fetch bawaan Expo SDK
+// baru menolak objek file {uri,...} di FormData -> "unsupported ... datapart").
 export async function uploadPhoto(packageId, kind, asset) {
-  const form = new FormData();
-  form.append('kind', kind);
+  const url = `${apiBase()}/api/packages/${packageId}/photos`;
   if (Platform.OS === 'web') {
+    const form = new FormData();
+    form.append('kind', kind);
     const blob = asset.file || (await (await fetch(asset.uri)).blob());
     form.append('photo', blob, asset.fileName || 'foto.jpg');
-  } else {
-    form.append('photo', {
-      uri: asset.uri,
-      name: asset.fileName || 'foto.jpg',
-      type: asset.mimeType || 'image/jpeg',
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Upload foto gagal');
+    }
+    return res.json();
   }
-  const res = await fetch(`${apiBase()}/api/packages/${packageId}/photos`, {
-    method: 'POST',
+  // Native (Android/iOS)
+  const FileSystem = await import('expo-file-system/legacy');
+  const res = await FileSystem.uploadAsync(url, asset.uri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+    fieldName: 'photo',
+    mimeType: asset.mimeType || 'image/jpeg',
+    parameters: { kind },
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Upload foto gagal');
+  if (res.status < 200 || res.status >= 300) {
+    let err = {};
+    try { err = JSON.parse(res.body); } catch {}
+    throw new Error(err.error || `Upload foto gagal (${res.status})`);
   }
-  return res.json();
+  return JSON.parse(res.body);
 }
 
 export function photoUrl(photo) {

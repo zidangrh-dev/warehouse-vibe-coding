@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Gudang Board",
-    "slug": "gudang-board",
+    "name": "PickHub",
+    "slug": "pickhub",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.gudangboard.app",
+      "package": "com.pickhub.app",
       "adaptiveIcon": {
         "backgroundColor": "#0b5394",
         "foregroundImage": "./assets/android-icon-foreground.png",
