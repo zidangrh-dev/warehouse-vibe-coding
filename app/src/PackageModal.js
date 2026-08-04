@@ -281,6 +281,20 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     }
   };
 
+  const handleUnarchive = async () => {
+    setBusy(true);
+    try {
+      await api.unarchivePackage(pkg.id);
+      notice("✅ Berhasil mengembalikan paket dari arsip ke data aktif!");
+      onChanged();
+      onClose();
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.backdrop}>
@@ -295,8 +309,21 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               <View style={s.archivedBanner}>
                 <Text style={s.archivedBannerTitle}>📦 PAKET TELAH DIARSIP</Text>
                 <Text style={s.archivedBannerText}>
-                  Data ini telah dikunci secara permanen dan tidak dapat diubah oleh siapapun.
+                  {user.role === 'superadmin'
+                    ? 'Data ini sedang dikunci. Sebagai Super Admin, Anda dapat mengembalikan paket ini ke data aktif.'
+                    : 'Data ini telah dikunci secara permanen dan tidak dapat diubah oleh siapapun.'}
                 </Text>
+                {user.role === 'superadmin' && (
+                  <TouchableOpacity
+                    style={s.unarchiveBtn}
+                    onPress={handleUnarchive}
+                    disabled={busy}
+                  >
+                    <Text style={s.unarchiveBtnText}>
+                      {busy ? 'Processing...' : '🔄 Pulihkan Paket ke Data Aktif'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
@@ -737,5 +764,18 @@ const s = StyleSheet.create({
     fontSize: 11,
     color: '#991B1B',
     marginTop: 2,
+  },
+  unarchiveBtn: {
+    backgroundColor: '#10B981',
+    borderRadius: radius.pill,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  unarchiveBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

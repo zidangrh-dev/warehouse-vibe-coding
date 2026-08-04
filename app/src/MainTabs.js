@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import { colors, shadow, spacing, confirmAsync } from './theme';
 import { useBreakpoint } from './responsive';
-import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen } from './screens';
+import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, ArsipScreen } from './screens';
 import DashboardScreen from './DashboardScreen';
 
 // Tab yang tampil menyesuaikan role user.
@@ -13,6 +13,7 @@ const ALL_TABS = [
   { key: 'gojek', icon: 'scooter', label: 'Gojek', roles: ['superadmin', 'admin', 'sales'], Screen: GojekScreen },
   { key: 'cancelretur', icon: 'rotate', label: 'Cancel/Retur', roles: ['superadmin', 'admin', 'sales'], Screen: CancelReturScreen },
   { key: 'semua', icon: 'list', label: 'Semua', roles: ['superadmin', 'admin', 'sales', 'warehouse'], Screen: SemuaScreen },
+  { key: 'arsip', icon: 'box', label: 'Arsip Data', roles: ['superadmin'], Screen: ArsipScreen },
   { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['superadmin', 'admin', 'warehouse', 'sales'], Screen: DashboardScreen },
 ];
 

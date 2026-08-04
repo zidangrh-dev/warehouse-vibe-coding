@@ -439,6 +439,63 @@ export function SemuaScreen({ user }) {
   );
 }
 
+// ---- Tab 6: Datatable Arsip Paket (Khusus Super Admin) ----
+export function ArsipScreen({ user }) {
+  const [q, setQ] = useState('');
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('arsip', q);
+  const [openId, setOpenId] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+
+  const handleUnarchive = async (pkg) => {
+    setBusyId(pkg.id);
+    try {
+      await api.unarchivePackage(pkg.id);
+      notice(`✅ Berhasil mengembalikan paket ${pkg.invoice_no} ke data aktif!`);
+      refetch();
+    } catch (e) {
+      notice(`Gagal: ${e.message}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const rowAction = (pkg) => (
+    <TouchableOpacity
+      style={[s.rowBtn, { backgroundColor: '#10B981' }]}
+      onPress={() => handleUnarchive(pkg)}
+      disabled={busyId === pkg.id}
+    >
+      <Text style={s.rowBtnText}>
+        {busyId === pkg.id ? '...' : '🔄 Pulihkan'}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={s.screen}>
+      <View style={s.topBar}>
+        <TextInput
+          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          placeholder="🔍 Cari di data arsip (invoice / customer / resi)..."
+          value={q}
+          onChangeText={setQ}
+        />
+      </View>
+      <Text style={s.sectionTitle}>
+        {searching ? `Hasil pencarian arsip "${q.trim()}" (${total})` : `📁 Datatable Arsip Paket (${total})`}
+      </Text>
+      <List
+        items={items}
+        loading={loading}
+        onOpen={(p) => setOpenId(p.id)}
+        pagination={searching ? null : { page, total, onPage: setPage }}
+        rowAction={rowAction}
+      />
+      <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   topBar: { flexDirection: 'row', gap: 10, padding: 14, paddingBottom: 0 },

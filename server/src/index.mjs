@@ -246,8 +246,14 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   const cond = [];
   const values = [];
 
-  // Data yang telah diarsip disembunyikan dari datatable siapapun KECUALI Super Admin
-  if (req.user.role !== 'superadmin') {
+  // Tab arsip khusus Super Admin (archived = true)
+  // Tab lain (scan, selfpickup, gojek, cancelretur, semua) hanya menampilkan data aktif (archived = false)
+  if (tab === 'arsip') {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengakses tabel arsip' });
+    }
+    cond.push('archived = true');
+  } else {
     cond.push('archived = false');
   }
 
@@ -464,6 +470,33 @@ app.post('/api/packages/archive', requireAuth, requireRole('superadmin'), wrap(a
     [beforeDate]
   );
   await logEvent(null, req.user, 'archive_packages', `Mengarsip ${r.rowCount} paket (mode: ${mode}, cutoff: ${beforeDate})`);
+  notify();
+  res.json({ ok: true, count: r.rowCount });
+}));
+
+// Pulihkan / Batalkan arsip paket (Khusus Super Admin)
+app.post('/api/packages/:id/unarchive', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const { id } = req.params;
+  const r = await pool.query(
+    `UPDATE packages SET archived = false, archived_at = NULL WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  if (!r.rows[0]) return res.status(404).json({ error: 'Paket tidak ditemukan' });
+  await logEvent(id, req.user, 'unarchive', 'Mengembalikan paket dari arsip ke data aktif');
+  notify();
+  res.json({ ok: true, package: r.rows[0] });
+}));
+
+app.post('/api/packages/unarchive-bulk', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Pilih minimal satu paket' });
+  }
+  const r = await pool.query(
+    `UPDATE packages SET archived = false, archived_at = NULL WHERE id = ANY($1::int[]) RETURNING id`,
+    [ids]
+  );
+  await logEvent(null, req.user, 'unarchive_bulk', `Mengembalikan ${r.rowCount} paket dari arsip ke data aktif`);
   notify();
   res.json({ ok: true, count: r.rowCount });
 }));
