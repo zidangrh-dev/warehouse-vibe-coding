@@ -11,3 +11,8 @@ web-build/
 .gemini/
 .DS_Store
 Thumbs.db
+
+# Dump database (berisi data customer — jangan pernah di-commit)
+gudang_dump.sql
+*_dump.sql
+*.dump

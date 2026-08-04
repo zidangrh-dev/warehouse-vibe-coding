@@ -655,7 +655,7 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
 
 // ---- Dashboard/laporan (admin only) — agregasi untuk memantau kinerja role lain ----
 
-app.get('/api/dashboard/summary', requireAuth, wrap(async (req, res) => {
+app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const { startDate, endDate } = req.query;
   let byStatus, totals;
   if (startDate && endDate) {
@@ -689,7 +689,7 @@ app.get('/api/dashboard/summary', requireAuth, wrap(async (req, res) => {
   res.json({ by_status: byStatus.rows, ...totals.rows[0] });
 }));
 
-app.get('/api/dashboard/throughput', requireAuth, wrap(async (req, res) => {
+app.get('/api/dashboard/throughput', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const { startDate, endDate } = req.query;
   let r;
   if (startDate && endDate) {
@@ -713,7 +713,7 @@ app.get('/api/dashboard/throughput', requireAuth, wrap(async (req, res) => {
   res.json(r.rows);
 }));
 
-app.get('/api/dashboard/activity', requireAuth, wrap(async (req, res) => {
+app.get('/api/dashboard/activity', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const isSuper = req.user.role === 'superadmin';
   const { startDate, endDate } = req.query;
 
