@@ -15,6 +15,26 @@ import { pool, migrate, seedIfEmpty } from './db.mjs';
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-gudang-board';
 
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'dev-secret-gudang-board') {
+  console.warn('⚠️ WARNING: JWT_SECRET belum diset di .env production! Menggunakan secret default.');
+}
+
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : ['https://apps-pickhub.cloud', 'http://localhost:8081', 'http://localhost:4000', 'http://localhost:19006'];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // izinkan request tanpa origin (seperti mobile app/APK atau curl) atau origin yang terdaftar
+    if (!origin || ALLOWED_ORIGINS.includes(origin) || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Akses diblokir oleh CORS policy'));
+    }
+  },
+  credentials: true,
+};
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -22,11 +42,19 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.resolve('uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const MIME_TO_EXT = {
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
 const photoUpload = multer({
   storage: multer.diskStorage({
     destination: UPLOAD_DIR,
     filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname || '.jpg') || '.jpg';
+      const ext = MIME_TO_EXT[file.mimetype] || '.jpg';
       cb(null, `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`);
     },
   }),
@@ -34,7 +62,7 @@ const photoUpload = multer({
   fileFilter: (_req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
 });
 
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/uploads', express.static(UPLOAD_DIR));
 
@@ -43,8 +71,33 @@ const notify = () => io.emit('packages:changed');
 const wrap = (fn) => (req, res) =>
   fn(req, res).catch((err) => {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    const safeError = process.env.NODE_ENV === 'production' ? 'Terjadi kesalahan pada server' : err.message;
+    res.status(500).json({ error: safeError });
   });
+
+// ---- In-Memory Rate Limiter untuk Login ----
+const loginAttempts = new Map();
+function rateLimitLogin(req, res, next) {
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 menit
+  const maxAttempts = 10;
+
+  const record = loginAttempts.get(ip) || { count: 0, resetTime: now + windowMs };
+
+  if (now > record.resetTime) {
+    record.count = 0;
+    record.resetTime = now + windowMs;
+  }
+
+  if (record.count >= maxAttempts) {
+    return res.status(429).json({ error: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.' });
+  }
+
+  record.count += 1;
+  loginAttempts.set(ip, record);
+  next();
+}
 
 // ---- Auth ----
 function requireAuth(req, res, next) {
@@ -64,7 +117,7 @@ const requireRole = (...roles) => (req, res, next) => {
   next();
 };
 
-app.post('/api/login', wrap(async (req, res) => {
+app.post('/api/login', rateLimitLogin, wrap(async (req, res) => {
   const { username, password } = req.body;
   const r = await pool.query('SELECT * FROM users WHERE username=$1', [String(username || '').toLowerCase()]);
   const user = r.rows[0];
