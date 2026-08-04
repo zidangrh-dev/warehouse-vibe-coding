@@ -463,7 +463,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 
   // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
   // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
-  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name'];
+  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code'];
   const sets = [];
   const values = [id];
   for (const key of allowed) {
@@ -694,7 +694,11 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
            platform = CASE WHEN EXCLUDED.platform <> '' THEN EXCLUDED.platform ELSE packages.platform END,
            courier = CASE WHEN EXCLUDED.courier <> '' THEN EXCLUDED.courier ELSE packages.courier END,
            pickup_type = EXCLUDED.pickup_type,
-           pickup_code = COALESCE(packages.pickup_code, EXCLUDED.pickup_code),
+           pickup_code = CASE
+             WHEN (packages.pickup_code IS NULL OR packages.pickup_code = '') AND (EXCLUDED.pickup_code IS NOT NULL AND EXCLUDED.pickup_code <> '')
+             THEN EXCLUDED.pickup_code
+             ELSE COALESCE(NULLIF(packages.pickup_code, ''), EXCLUDED.pickup_code)
+           END,
            raw = EXCLUDED.raw, updated_at = now()
          RETURNING (xmax = 0) AS is_new`,
         [m.invoice_no, m.awb_no, m.customer_name, m.customer_phone, m.item_desc,

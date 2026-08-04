@@ -45,11 +45,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [pendingStatus, setPendingStatus] = useState(null);
   const [viewingPhoto, setViewingPhoto] = useState(null);
 
+  const [codeVal, setCodeVal] = useState("");
+  const [editingCode, setEditingCode] = useState(false);
+
   const load = async () => {
     if (!pkgId) return;
     const p = await api.getPackage(pkgId);
     setPkg(p);
     setNote(p.admin_note || "");
+    setCodeVal(p.pickup_code || "");
+    setEditingCode(false);
   };
   useEffect(() => {
     load();
@@ -60,6 +65,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const isArchived = !!pkg.archived;
   const isPhotoLocked = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
+  const canEditCode = !isArchived && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin');
   const canEditPhotos = canAct && !isPhotoLocked;
 
   const actions = NEXT_ACTIONS[pkg.status] || [];
@@ -281,6 +287,20 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     }
   };
 
+  const saveCode = async () => {
+    setBusy(true);
+    try {
+      await api.updatePackage(pkg.id, { pickup_code: codeVal.trim() });
+      onChanged();
+      await load();
+      notice("✅ Pickup code berhasil disimpan!");
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleUnarchive = async () => {
     setBusy(true);
     try {
@@ -358,15 +378,52 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 <Text style={s.lockTag}>🔒 terkunci</Text>
               </View>
             </Field>
-            {!!pkg.pickup_code && (
-              <Field label="Pickup code">
-                <Text
-                  style={[s.value, { fontWeight: "800", letterSpacing: 2 }]}
-                >
-                  {pkg.pickup_code}
+            <Field label="Pickup Code / PIN">
+              {canEditCode ? (
+                editingCode || !pkg.pickup_code ? (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'center' }}>
+                    <TextInput
+                      style={[s.input, { flex: 1, marginBottom: 0, fontWeight: '700', letterSpacing: 1 }]}
+                      value={codeVal}
+                      onChangeText={setCodeVal}
+                      placeholder="Isi / Ubah Pickup Code..."
+                      autoCapitalize="characters"
+                    />
+                    <TouchableOpacity
+                      style={[s.saveNote, { marginTop: 0, paddingVertical: 10, paddingHorizontal: 14 }]}
+                      onPress={saveCode}
+                      disabled={busy}
+                    >
+                      <Text style={s.btnText}>{busy ? '...' : 'Simpan'}</Text>
+                    </TouchableOpacity>
+                    {!!pkg.pickup_code && (
+                      <TouchableOpacity
+                        style={[s.saveNote, { marginTop: 0, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, paddingHorizontal: 12 }]}
+                        onPress={() => { setCodeVal(pkg.pickup_code); setEditingCode(false); }}
+                      >
+                        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 12 }}>Batal</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                    <Text style={[s.value, { fontWeight: "800", letterSpacing: 2, fontSize: 15 }]}>
+                      {pkg.pickup_code}
+                    </Text>
+                    <TouchableOpacity
+                      style={{ backgroundColor: colors.primarySoft, borderRadius: 6, paddingVertical: 4, paddingHorizontal: 10 }}
+                      onPress={() => setEditingCode(true)}
+                    >
+                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>✏️ Edit Code</Text>
+                    </TouchableOpacity>
+                  </View>
+                )
+              ) : (
+                <Text style={[s.value, { fontWeight: "800", letterSpacing: 2 }]}>
+                  {pkg.pickup_code || "—"}
                 </Text>
-              </Field>
-            )}
+              )}
+            </Field>
             {!!pkg.picker_name && (
               <Field label="Diambil oleh">
                 <Text style={s.value}>{pkg.picker_name}</Text>
