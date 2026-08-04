@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from './Icon';
 import { colors, shadow, spacing, confirmAsync } from './theme';
 import { useBreakpoint } from './responsive';
-import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, ArsipScreen } from './screens';
+import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, ArsipScreen } from './screens/index';
 import DashboardScreen from './DashboardScreen';
 
 // Tab yang tampil menyesuaikan role user.
