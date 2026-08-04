@@ -445,12 +445,29 @@ export function ArsipScreen({ user }) {
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('arsip', q);
   const [openId, setOpenId] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [busyBulk, setBusyBulk] = useState(false);
 
-  const handleUnarchive = async (pkg) => {
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === items.length && items.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(items.map((i) => i.id));
+    }
+  };
+
+  const handleUnarchiveSingle = async (pkg) => {
     setBusyId(pkg.id);
     try {
       await api.unarchivePackage(pkg.id);
       notice(`✅ Berhasil mengembalikan paket ${pkg.invoice_no} ke data aktif!`);
+      setSelectedIds((prev) => prev.filter((i) => i !== pkg.id));
       refetch();
     } catch (e) {
       notice(`Gagal: ${e.message}`);
@@ -459,20 +476,82 @@ export function ArsipScreen({ user }) {
     }
   };
 
-  const rowAction = (pkg) => (
-    <TouchableOpacity
-      style={[s.rowBtn, { backgroundColor: '#10B981' }]}
-      onPress={() => handleUnarchive(pkg)}
-      disabled={busyId === pkg.id}
-    >
-      <Text style={s.rowBtnText}>
-        {busyId === pkg.id ? '...' : '🔄 Pulihkan'}
-      </Text>
-    </TouchableOpacity>
-  );
+  const handleUnarchiveBulk = async () => {
+    if (selectedIds.length === 0) return;
+    setBusyBulk(true);
+    try {
+      const res = await api.unarchiveBulkPackages(selectedIds);
+      notice(`✅ Berhasil mengembalikan ${res.count} paket dari arsip ke data aktif!`);
+      setSelectedIds([]);
+      refetch();
+    } catch (e) {
+      notice(`Gagal: ${e.message}`);
+    } finally {
+      setBusyBulk(false);
+    }
+  };
+
+  const isAllSelected = items.length > 0 && selectedIds.length === items.length;
+
+  const rowAction = (pkg) => {
+    const isSelected = selectedIds.includes(pkg.id);
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <TouchableOpacity
+          style={[
+            s.selectBox,
+            isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
+          ]}
+          onPress={() => toggleSelect(pkg.id)}
+        >
+          {isSelected && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>✓</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.rowBtn, { backgroundColor: '#10B981' }]}
+          onPress={() => handleUnarchiveSingle(pkg)}
+          disabled={busyId === pkg.id || busyBulk}
+        >
+          <Text style={s.rowBtnText}>
+            {busyId === pkg.id ? '...' : '🔄 Pulihkan'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   return (
     <View style={s.screen}>
+      {/* Bulk Action Banner */}
+      {selectedIds.length > 0 && (
+        <View style={s.bulkBanner}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={s.bulkBadge}>
+              <Text style={s.bulkBadgeText}>{selectedIds.length}</Text>
+            </View>
+            <Text style={s.bulkText}>Paket dipilih dari daftar arsip</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[s.bigBtn, { backgroundColor: '#10B981', paddingVertical: 8, paddingHorizontal: 16 }]}
+              onPress={handleUnarchiveBulk}
+              disabled={busyBulk}
+            >
+              {busyBulk ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={s.btnText}>🔄 Pulihkan {selectedIds.length} Paket Terpilih</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.bigBtn, { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, paddingVertical: 8, paddingHorizontal: 14 }]}
+              onPress={() => setSelectedIds([])}
+            >
+              <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 12 }}>Batal Pilih</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={s.topBar}>
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
@@ -480,10 +559,22 @@ export function ArsipScreen({ user }) {
           value={q}
           onChangeText={setQ}
         />
+        {items.length > 0 && (
+          <TouchableOpacity
+            style={[s.bigBtn, { backgroundColor: isAllSelected ? colors.primary : colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }]}
+            onPress={toggleSelectAll}
+          >
+            <Text style={{ color: isAllSelected ? '#fff' : colors.ink, fontWeight: '700', fontSize: 12 }}>
+              {isAllSelected ? '✓ Batalkan Pilih Semua' : '☑️ Pilih Semua di Halaman Ini'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
+
       <Text style={s.sectionTitle}>
         {searching ? `Hasil pencarian arsip "${q.trim()}" (${total})` : `📁 Datatable Arsip Paket (${total})`}
       </Text>
+
       <List
         items={items}
         loading={loading}
@@ -553,4 +644,42 @@ const s = StyleSheet.create({
   typeChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   typeText: { color: colors.sub, fontWeight: '600' },
   typeTextActive: { color: colors.primary, fontWeight: '700' },
+  bulkBanner: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: radius.card,
+    margin: 14,
+    marginBottom: 0,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bulkBadge: {
+    backgroundColor: '#10B981',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  bulkBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  bulkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  selectBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
 });
