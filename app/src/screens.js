@@ -160,7 +160,6 @@ function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
 }
 
 // ---- Tab 1: Scan Paket (paket datang dari kurir) ----
-// ---- Tab 1: Scan Paket (paket datang dari kurir) ----
 export function ScanPaketScreen({ user }) {
   const [q, setQ] = useState('');
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('scan', q);

@@ -82,7 +82,13 @@ export const api = {
   generateCode: (id) => req('POST', `/api/packages/${id}/pickup-code`),
   findByCode: (code) => req('POST', '/api/packages/find-by-code', { code }),
   deletePhoto: (id) => req('DELETE', `/api/photos/${id}`),
-  dashboardSummary: () => req('GET', '/api/dashboard/summary'),
+  dashboardSummary: (params) => {
+    if (params && typeof params === 'object') {
+      const p = new URLSearchParams(params);
+      return req('GET', `/api/dashboard/summary?${p.toString()}`);
+    }
+    return req('GET', '/api/dashboard/summary');
+  },
   dashboardThroughput: (params) => {
     if (params && typeof params === 'object') {
       const p = new URLSearchParams(params);

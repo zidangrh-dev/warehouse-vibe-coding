@@ -1,17 +1,15 @@
 import { useState } from 'react';
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { api } from './api';
-import { colors, radius, shadow, notice, confirmAsync } from './theme';
+import { colors, radius, shadow, notice } from './theme';
 import Icon from './Icon';
+import { CalendarInput } from './CalendarInput';
 
 export function ArchiveModal({ visible, onClose, onArchived }) {
-  const [beforeDate, setBeforeDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
+  const [beforeDate, setBeforeDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
   if (!visible) return null;
@@ -22,22 +20,20 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
     setBeforeDate(d.toISOString().split('T')[0]);
   };
 
-  const handleArchive = async () => {
+  const handleStartArchive = () => {
     if (!beforeDate || !beforeDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return notice('Format tanggal tidak valid. Gunakan format YYYY-MM-DD (contoh: 2026-07-01)');
+      return notice('Format tanggal tidak valid. Gunakan format YYYY-MM-DD');
     }
+    setConfirming(true);
+  };
 
-    const ok = await confirmAsync(
-      'Konfirmasi Pengarsipan Data',
-      `Apakah Anda yakin ingin mengarsip semua paket selesai/selesai pickup yang dibuat SEBELUM ${beforeDate}?\n\n🔒 CATATAN: Data yang sudah diarsip akan TERKUNCI PERMANEN dan tidak dapat diubah oleh siapapun.`
-    );
-    if (!ok) return;
-
+  const handleExecuteArchive = async () => {
     setBusy(true);
     try {
       const res = await api.archivePackages(beforeDate);
       notice(`✅ Berhasil mengarsip ${res.count} paket!`);
       if (onArchived) onArchived();
+      setConfirming(false);
       onClose();
     } catch (e) {
       notice(`Gagal pengarsipan: ${e.message}`);
@@ -46,76 +42,131 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
     }
   };
 
+  const handleClose = () => {
+    if (busy) return;
+    setConfirming(false);
+    onClose();
+  };
+
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
       <View style={s.backdrop}>
         <View style={s.card}>
+          {/* Header */}
           <View style={s.head}>
-            <View style={s.iconBadge}>
-              <Icon name="box" size={20} color={colors.primary} />
+            <View style={[s.iconBadge, confirming && { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
+              <Icon name="box" size={20} color={confirming ? colors.danger : colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.title}>📦 Arsip Data Paket</Text>
-              <Text style={s.sub}>Pengaturan Arsip Otomatis (Super Admin)</Text>
+              <Text style={s.title}>
+                {confirming ? '⚠️ Konfirmasi Pengarsipan Paket' : '📦 Arsip Data Paket'}
+              </Text>
+              <Text style={s.sub}>
+                {confirming ? 'Tindakan ini permanen & tidak dapat dibatalkan' : 'Pengaturan Arsip Otomatis (Super Admin)'}
+              </Text>
             </View>
-            <TouchableOpacity style={s.closeBtn} onPress={onClose}>
+            <TouchableOpacity style={s.closeBtn} onPress={handleClose} disabled={busy}>
               <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={s.alertBox}>
-            <Text style={s.alertTitle}>🔒 Proteksi Kunci Permanen</Text>
-            <Text style={s.alertText}>
-              Paket yang diarsip tidak akan lagi dapat diubah statusnya, ditambah/dihapus fotonya oleh siapapun.
-            </Text>
-          </View>
+          {confirming ? (
+            /* Step 2: Custom Professional Confirmation Card */
+            <View style={{ marginTop: 14 }}>
+              <View style={s.confirmWarningBox}>
+                <Text style={s.confirmWarningTitle}>🔒 PERINGATAN PENGARSIPAN PERMANEN</Text>
+                <Text style={s.confirmWarningText}>
+                  Apakah Anda yakin ingin mengarsip paket yang dibuat SEBELUM tanggal di bawah ini?
+                </Text>
+              </View>
 
-          <Text style={s.label}>Pilih Batas Waktu Tanggal (Cutoff Date):</Text>
-          <View style={s.presetRow}>
-            {[
-              [30, '30 Hari Lalu'],
-              [60, '60 Hari Lalu'],
-              [90, '90 Hari Lalu'],
-            ].map(([days, label]) => (
-              <TouchableOpacity
-                key={days}
-                style={s.presetChip}
-                onPress={() => setPreset(days)}
-              >
-                <Text style={s.presetText}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              <View style={s.summaryCard}>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLabel}>Batas Tanggal Cutoff:</Text>
+                  <Text style={s.summaryValHighlight}>{beforeDate}</Text>
+                </View>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLabel}>Status Yang Diarsip:</Text>
+                  <Text style={s.summaryVal}>Selesai, Done Pickup, Retur, Cancel</Text>
+                </View>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLabel}>Proteksi:</Text>
+                  <Text style={[s.summaryVal, { color: colors.danger, fontWeight: '700' }]}>
+                    🔒 Kunci Permanen (Tidak dapat diubah)
+                  </Text>
+                </View>
+              </View>
 
-          <Text style={s.label}>Atau Masukkan Tanggal Manual (YYYY-MM-DD):</Text>
-          <TextInput
-            style={s.input}
-            value={beforeDate}
-            onChangeText={setBeforeDate}
-            placeholder="YYYY-MM-DD (Contoh: 2026-07-01)"
-            maxLength={10}
-          />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+                <TouchableOpacity
+                  style={[s.btn, { flex: 1, backgroundColor: colors.danger }]}
+                  onPress={handleExecuteArchive}
+                  disabled={busy}
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={s.btnText}>Ya, Eksekusi Pengarsipan</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.btn, s.btnGhost]}
+                  onPress={() => setConfirming(false)}
+                  disabled={busy}
+                >
+                  <Text style={[s.btnText, { color: colors.ink }]}>Kembali</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            /* Step 1: Date Selection Form */
+            <View style={{ marginTop: 14 }}>
+              <View style={s.alertBox}>
+                <Text style={s.alertTitle}>🔒 Proteksi Kunci Permanen</Text>
+                <Text style={s.alertText}>
+                  Paket yang diarsip tidak akan lagi dapat diubah statusnya, ditambah/dihapus fotonya oleh siapapun.
+                </Text>
+              </View>
 
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
-            <TouchableOpacity
-              style={[s.btn, { flex: 1, backgroundColor: colors.danger }]}
-              onPress={handleArchive}
-              disabled={busy}
-            >
-              {busy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={s.btnText}>📦 Eksekusi Pengarsipan</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.btn, s.btnGhost]}
-              onPress={onClose}
-              disabled={busy}
-            >
-              <Text style={[s.btnText, { color: colors.ink }]}>Batal</Text>
-            </TouchableOpacity>
-          </View>
+              <Text style={s.label}>Pilih Batas Waktu Tanggal (Cutoff Date):</Text>
+              <View style={s.presetRow}>
+                {[
+                  [0, 'Hari Ini'],
+                  [7, '7 Hari Lalu'],
+                  [30, '30 Hari Lalu'],
+                  [60, '60 Hari Lalu'],
+                ].map(([days, label]) => (
+                  <TouchableOpacity
+                    key={days}
+                    style={s.presetChip}
+                    onPress={() => setPreset(days)}
+                  >
+                    <Text style={s.presetText}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={s.label}>Atau Pilih Tanggal dari Kalender Interaktif:</Text>
+              <View style={{ marginTop: 4 }}>
+                <CalendarInput value={beforeDate} onChange={setBeforeDate} />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+                <TouchableOpacity
+                  style={[s.btn, { flex: 1, backgroundColor: colors.danger }]}
+                  onPress={handleStartArchive}
+                >
+                  <Text style={s.btnText}>📦 Eksekusi Pengarsipan</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.btn, s.btnGhost]}
+                  onPress={handleClose}
+                >
+                  <Text style={[s.btnText, { color: colors.ink }]}>Batal</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -144,18 +195,22 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 14,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   iconBadge: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.ink,
   },
@@ -184,7 +239,7 @@ const s = StyleSheet.create({
   alertText: {
     fontSize: 12,
     color: '#991B1B',
-    lineHeight: 16,
+    lineHeight: 17,
   },
   label: {
     fontSize: 12.5,
@@ -196,7 +251,7 @@ const s = StyleSheet.create({
   presetRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   presetChip: {
     flex: 1,
@@ -212,22 +267,12 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: colors.ink,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.input,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.ink,
-    backgroundColor: colors.surface,
-  },
   btn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: radius.pill,
+    height: 42,
+    borderRadius: radius.input,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   btnGhost: {
     backgroundColor: colors.surfaceAlt,
@@ -235,8 +280,55 @@ const s = StyleSheet.create({
     borderColor: colors.border,
   },
   btnText: {
-    fontSize: 13.5,
+    color: '#fff',
     fontWeight: '700',
-    color: '#FFF',
+    fontSize: 13,
+  },
+  confirmWarningBox: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: radius.card,
+    padding: 14,
+    marginBottom: 12,
+  },
+  confirmWarningTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.danger,
+    marginBottom: 4,
+  },
+  confirmWarningText: {
+    fontSize: 12,
+    color: '#7F1D1D',
+    lineHeight: 17,
+  },
+  summaryCard: {
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    padding: 14,
+    gap: 8,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: colors.sub,
+    fontWeight: '600',
+  },
+  summaryVal: {
+    fontSize: 12,
+    color: colors.ink,
+    fontWeight: '600',
+  },
+  summaryValHighlight: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '800',
   },
 });

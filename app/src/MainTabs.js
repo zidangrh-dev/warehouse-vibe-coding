@@ -13,7 +13,7 @@ const ALL_TABS = [
   { key: 'gojek', icon: 'scooter', label: 'Gojek', roles: ['superadmin', 'admin', 'sales'], Screen: GojekScreen },
   { key: 'cancelretur', icon: 'rotate', label: 'Cancel/Retur', roles: ['superadmin', 'admin', 'sales'], Screen: CancelReturScreen },
   { key: 'semua', icon: 'list', label: 'Semua', roles: ['superadmin', 'admin', 'sales', 'warehouse'], Screen: SemuaScreen },
-  { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['superadmin', 'admin'], Screen: DashboardScreen },
+  { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['superadmin', 'admin', 'warehouse', 'sales'], Screen: DashboardScreen },
 ];
 
 const ROLE_LABEL = { superadmin: 'Super Admin', admin: 'Admin Kios', sales: 'Sales', warehouse: 'Warehouse' };

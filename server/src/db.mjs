@@ -20,6 +20,7 @@ export async function migrate() {
     ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin', 'warehouse', 'admin', 'sales'));
     ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+    ALTER TABLE package_events ALTER COLUMN package_id DROP NOT NULL;
   `).catch(() => {});
 }
 

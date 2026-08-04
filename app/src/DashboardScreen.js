@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { api, getSocket } from "./api";
 import {
   colors,
   spacing,
   radius,
+  shadow,
   STATUS_META,
   statusLabel,
   statusColor,
@@ -25,10 +27,11 @@ import {
   SimpleDonutChart,
 } from "./components";
 import { useBreakpoint } from "./responsive";
+import Icon from "./Icon";
 import UserManagementModal from "./UserManagementModal";
 import { ArchiveModal } from "./ArchiveModal";
+import { CalendarInput } from "./CalendarInput";
 
-const DAY_OPTIONS = [7, 14, 30];
 const GOJEK_FUNNEL = [
   "absen_gojek",
   "mencari_driver",
@@ -56,7 +59,7 @@ const ACTIVITY_LABEL = {
 
 // Data agregat untuk panel Dashboard — 3 endpoint terpisah supaya tiap
 // panel bisa loading independen dan query SQL tetap sederhana.
-function useDashboard(dateFilter) {
+function useDashboard(startDate, endDate) {
   const [summary, setSummary] = useState(null);
   const [throughput, setThroughput] = useState([]);
   const [activity, setActivity] = useState([]);
@@ -65,8 +68,9 @@ function useDashboard(dateFilter) {
 
   const refetch = useCallback(async () => {
     try {
+      const dateFilter = { startDate, endDate };
       const [sum, thr, act] = await Promise.all([
-        api.dashboardSummary(),
+        api.dashboardSummary(dateFilter),
         api.dashboardThroughput(dateFilter),
         api.dashboardActivity(dateFilter),
       ]);
@@ -78,12 +82,11 @@ function useDashboard(dateFilter) {
     } finally {
       setLoading(false);
     }
-  }, [dateFilter]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     refetch();
     const socket = getSocket();
-    // Debounce agar tidak membebani agregasi saat import CSV massal.
     const onChanged = () => {
       clearTimeout(timer.current);
       timer.current = setTimeout(refetch, 500);
@@ -95,7 +98,7 @@ function useDashboard(dateFilter) {
     };
   }, [refetch]);
 
-  return { summary, throughput, activity, loading };
+  return { summary, throughput, activity, loading, refetch };
 }
 
 function formatDuration(seconds) {
@@ -130,19 +133,16 @@ const ROLE_TINT = {
 
 export default function DashboardScreen({ user }) {
   const { columns } = useBreakpoint();
-  const [useCustomDate, setUseCustomDate] = useState(false);
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 14);
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [days, setDays] = useState(14);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
 
-  const dateFilter = useCustomDate ? { startDate, endDate } : days;
-  const { summary, throughput, activity, loading, refetch } = useDashboard(dateFilter);
+  const { summary, throughput, activity, loading, refetch } = useDashboard(startDate, endDate);
 
   if (loading && !summary) {
     return (
@@ -205,7 +205,7 @@ export default function DashboardScreen({ user }) {
       accent: colors.primary,
     },
     {
-      label: "Paket 7 hari terakhir",
+      label: "Paket di rentang tanggal",
       value: summary?.week ?? 0,
       icon: "chart",
       accent: "#7C3AED",
@@ -256,55 +256,19 @@ export default function DashboardScreen({ user }) {
             </>
           )}
 
-          <View style={s.daySwitch}>
-            {DAY_OPTIONS.map((d) => (
-              <TouchableOpacity
-                key={d}
-                style={[s.dayBtn, !useCustomDate && days === d && s.dayBtnActive]}
-                onPress={() => {
-                  setUseCustomDate(false);
-                  setDays(d);
-                }}
-              >
-                <Text style={[s.dayBtnText, !useCustomDate && days === d && s.dayBtnTextActive]}>
-                  {d} hari
-                </Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={[s.dayBtn, useCustomDate && s.dayBtnActive]}
-              onPress={() => setUseCustomDate(true)}
-            >
-              <Text style={[s.dayBtnText, useCustomDate && s.dayBtnTextActive]}>
-                🗓 Manual
-              </Text>
-            </TouchableOpacity>
+          {/* Filter Tanggal Langsung & Ringkas di Header */}
+          <View style={s.filterHeaderCard}>
+            {loading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Icon name="calendar" size={16} color={colors.primary} />
+            )}
+            <CalendarInput value={startDate} onChange={setStartDate} />
+            <Text style={s.filterDivider}>s/d</Text>
+            <CalendarInput value={endDate} onChange={setEndDate} />
           </View>
         </View>
       </View>
-
-      {useCustomDate && (
-        <View style={s.datePickerBox}>
-          <Text style={s.datePickerLabel}>Pengaturan Tanggal Manual:</Text>
-          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-            <TextInput
-              style={s.dateInput}
-              value={startDate}
-              onChangeText={setStartDate}
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
-            />
-            <Text style={{ color: colors.sub, fontWeight: '700' }}>s/d</Text>
-            <TextInput
-              style={s.dateInput}
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
-            />
-          </View>
-        </View>
-      )}
 
       <UserManagementModal
         visible={userModalOpen}
@@ -335,7 +299,7 @@ export default function DashboardScreen({ user }) {
         <View style={s.colWide}>
           <SectionCard
             title="Throughput paket masuk"
-            subtitle={`${days} hari terakhir`}
+            subtitle="Rentang tanggal terpilih"
             right={
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={s.bigNumber}>{throughputTotal}</Text>
@@ -430,7 +394,7 @@ export default function DashboardScreen({ user }) {
 
       <SectionCard
         title="Aktivitas per user"
-        subtitle={`${days} hari terakhir`}
+        subtitle="Rentang tanggal terpilih"
       >
         {activityRows.length > 0 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -493,7 +457,7 @@ export default function DashboardScreen({ user }) {
           </ScrollView>
         ) : (
           <Text style={s.empty}>
-            Belum ada aktivitas dalam {days} hari terakhir.
+            Belum ada aktivitas dalam rentang tanggal terpilih.
           </Text>
         )}
       </SectionCard>
@@ -655,36 +619,22 @@ const s = StyleSheet.create({
   },
 
   empty: { color: colors.faint, textAlign: "center", padding: 20 },
-  datePickerBox: {
+  filterHeaderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.card,
-    padding: 12,
-    marginTop: 10,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 8,
     ...shadow.card,
   },
-  datePickerLabel: {
-    fontSize: 13,
+  filterDivider: {
+    fontSize: 12,
     fontWeight: '700',
-    color: colors.ink,
-  },
-  dateInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.input,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    fontSize: 13,
-    color: colors.ink,
-    backgroundColor: colors.surfaceAlt,
-    width: 120,
-    textAlign: 'center',
+    color: colors.sub,
+    paddingHorizontal: 2,
   },
 });

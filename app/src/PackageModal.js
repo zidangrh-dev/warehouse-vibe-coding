@@ -57,7 +57,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   if (!pkgId || !pkg) return null;
 
-  const canAct = user.role === "admin" || user.role === "superadmin";
+  const isArchived = !!pkg.archived;
+  const isPhotoLocked = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
+  const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
+  const canEditPhotos = canAct && !isPhotoLocked;
+
   const actions = NEXT_ACTIONS[pkg.status] || [];
 
   const photos = pkg.photos || [];
@@ -110,11 +114,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       setBusy(false);
     }
   };
-
-  const isArchived = !!pkg.archived;
-  const isPhotoLocked = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
-  const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
-  const canEditPhotos = canAct && !isPhotoLocked;
 
   const removePhoto = async (photo) => {
     if (isPhotoLocked) {

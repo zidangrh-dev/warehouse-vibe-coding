@@ -191,7 +191,7 @@ async function logEvent(pkgId, user, action, detail = '') {
   await pool.query(
     `INSERT INTO package_events (package_id, user_id, user_name, action, detail)
      VALUES ($1,$2,$3,$4,$5)`,
-    [pkgId, user?.id || null, user?.name || 'sistem', action, detail]
+    [pkgId || null, user?.id || null, user?.name || 'sistem', action, detail]
   );
 }
 
@@ -245,6 +245,12 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   const { tab, q } = req.query;
   const cond = [];
   const values = [];
+
+  // Data yang telah diarsip disembunyikan dari datatable siapapun KECUALI Super Admin
+  if (req.user.role !== 'superadmin') {
+    cond.push('archived = false');
+  }
+
   const filter = tab && TAB_FILTERS[tab];
   if (filter) {
     values.push(filter.statuses);
@@ -441,7 +447,7 @@ app.post('/api/packages/archive', requireAuth, requireRole('superadmin'), wrap(a
   const r = await pool.query(
     `UPDATE packages
      SET archived = true, archived_at = now()
-     WHERE created_at <= $1::timestamptz AND archived = false AND status IN ('selesai', 'done_pickup', 'retur', 'cancel')
+     WHERE created_at <= ($1::date + interval '1 day') AND archived = false
      RETURNING id`,
     [beforeDate]
   );
@@ -605,15 +611,36 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
 // ---- Dashboard/laporan (admin only) — agregasi untuk memantau kinerja role lain ----
 
 app.get('/api/dashboard/summary', requireAuth, wrap(async (req, res) => {
-  const byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages GROUP BY status`);
-  const totals = await pool.query(`
-    SELECT
-      count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
-      count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS week,
-      count(*) FILTER (WHERE status NOT IN ('selesai','cancel'))::int AS pending,
-      count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur'))::int AS gojek_active,
-      round(extract(epoch FROM avg(done_at - received_at) FILTER (WHERE done_at IS NOT NULL AND received_at IS NOT NULL)))::int AS avg_pickup_seconds
-    FROM packages`);
+  const { startDate, endDate } = req.query;
+  let byStatus, totals;
+  if (startDate && endDate) {
+    byStatus = await pool.query(
+      `SELECT status, count(*)::int AS n FROM packages WHERE archived = false AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day') GROUP BY status`,
+      [startDate, endDate]
+    );
+    totals = await pool.query(
+      `SELECT
+        count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
+        count(*) FILTER (WHERE created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS week,
+        count(*) FILTER (WHERE status NOT IN ('selesai','cancel') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending,
+        count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS gojek_active,
+        round(extract(epoch FROM avg(done_at - received_at) FILTER (WHERE done_at IS NOT NULL AND received_at IS NOT NULL AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))))::int AS avg_pickup_seconds
+      FROM packages
+      WHERE archived = false`,
+      [startDate, endDate]
+    );
+  } else {
+    byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages WHERE archived = false GROUP BY status`);
+    totals = await pool.query(`
+      SELECT
+        count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
+        count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS week,
+        count(*) FILTER (WHERE status NOT IN ('selesai','cancel'))::int AS pending,
+        count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur'))::int AS gojek_active,
+        round(extract(epoch FROM avg(done_at - received_at) FILTER (WHERE done_at IS NOT NULL AND received_at IS NOT NULL)))::int AS avg_pickup_seconds
+      FROM packages
+      WHERE archived = false`);
+  }
   res.json({ by_status: byStatus.rows, ...totals.rows[0] });
 }));
 
@@ -623,18 +650,18 @@ app.get('/api/dashboard/throughput', requireAuth, wrap(async (req, res) => {
   if (startDate && endDate) {
     r = await pool.query(`
       SELECT d::date AS day,
-        (SELECT count(*) FROM packages WHERE received_at::date = d::date)::int AS received,
-        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
-        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
+        (SELECT count(*) FROM packages WHERE archived = false AND (received_at::date = d::date OR created_at::date = d::date))::int AS received,
+        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='selesai')::int AS completed,
+        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='retur')::int AS retur
       FROM generate_series($1::date, $2::date, interval '1 day') d
       ORDER BY d`, [startDate, endDate]);
   } else {
     const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
     r = await pool.query(`
       SELECT d::date AS day,
-        (SELECT count(*) FROM packages WHERE received_at::date = d::date)::int AS received,
-        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
-        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
+        (SELECT count(*) FROM packages WHERE archived = false AND (received_at::date = d::date OR created_at::date = d::date))::int AS received,
+        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='selesai')::int AS completed,
+        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='retur')::int AS retur
       FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day') d
       ORDER BY d`, [days]);
   }
@@ -664,7 +691,8 @@ app.get('/api/dashboard/activity', requireAuth, wrap(async (req, res) => {
     SELECT pe.user_name, u.role, pe.action, count(*)::int AS n
     FROM package_events pe
     LEFT JOIN users u ON u.id = pe.user_id
-    WHERE ${timeClause} ${userClause}
+    LEFT JOIN packages pkg ON pkg.id = pe.package_id
+    WHERE (pe.package_id IS NULL OR pkg.archived = false) AND ${timeClause} ${userClause}
     GROUP BY pe.user_name, u.role, pe.action
     ORDER BY pe.user_name, pe.action`, params);
 

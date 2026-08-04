@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS packages (
 
 CREATE TABLE IF NOT EXISTS package_events (
   id SERIAL PRIMARY KEY,
-  package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+  package_id INTEGER REFERENCES packages(id) ON DELETE CASCADE,
   user_id INTEGER,
   user_name TEXT NOT NULL DEFAULT '',
   action TEXT NOT NULL,
