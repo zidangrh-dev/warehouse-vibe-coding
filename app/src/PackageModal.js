@@ -111,7 +111,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     }
   };
 
-  const isPhotoLocked = ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
+  const isArchived = !!pkg.archived;
+  const isPhotoLocked = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
+  const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
   const canEditPhotos = canAct && !isPhotoLocked;
 
   const removePhoto = async (photo) => {
@@ -127,7 +129,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   // Satu tombol -> pilih sumber (Kamera / File). Di web langsung buka file.
   const pickPhoto = (kind) => {
     if (isPhotoLocked) {
-      return notice('🔒 Transaksi sudah dikonfirmasi. Foto telah dikunci.');
+      return notice('🔒 Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
     }
     if (Platform.OS === 'web') return addPhoto(kind, false);
     Alert.alert('Tambah Foto', 'Pilih sumber foto', [
@@ -289,6 +291,15 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Text style={[s.status, { color: statusColor(pkg.status) }]}>
               ● {statusLabel(pkg.status)}
             </Text>
+
+            {isArchived && (
+              <View style={s.archivedBanner}>
+                <Text style={s.archivedBannerTitle}>📦 PAKET TELAH DIARSIP</Text>
+                <Text style={s.archivedBannerText}>
+                  Data ini telah dikunci secara permanen dan tidak dapat diubah oleh siapapun.
+                </Text>
+              </View>
+            )}
 
             <Field label="Customer">
               <Text style={s.value}>
@@ -703,13 +714,29 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-  pvClose: {
-    padding: 6,
-  },
   pvImage: {
     width: '100%',
     height: 340,
     borderRadius: radius.card,
     backgroundColor: '#0F172A',
+  },
+  archivedBanner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: radius.card,
+    padding: 10,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  archivedBannerTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: colors.danger,
+  },
+  archivedBannerText: {
+    fontSize: 11,
+    color: '#991B1B',
+    marginTop: 2,
   },
 });

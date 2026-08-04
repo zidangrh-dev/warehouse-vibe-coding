@@ -110,7 +110,7 @@ function List({ items, loading, onOpen, rowAction, pagination }) {
 
 // Form input manual saat data paket tidak ditemukan.
 function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
-  const [f, setF] = useState({ invoice_no: '', customer_name: '', customer_phone: '', item_desc: '', pickup_type: 'customer' });
+  const [f, setF] = useState({ invoice_no: '', customer_name: '', customer_phone: '', item_desc: '', pickup_type: 'customer', pickup_code: '' });
   useEffect(() => {
     if (visible) setF((old) => ({ ...old, invoice_no: initialInvoice || '' }));
   }, [visible, initialInvoice]);
@@ -121,7 +121,7 @@ function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
       await api.createPackage(f);
       onSaved();
       onClose();
-      setF({ invoice_no: '', customer_name: '', customer_phone: '', item_desc: '', pickup_type: 'customer' });
+      setF({ invoice_no: '', customer_name: '', customer_phone: '', item_desc: '', pickup_type: 'customer', pickup_code: '' });
     } catch (e) { notice(e.message); }
   };
   return (
@@ -132,7 +132,8 @@ function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
           <TextInput style={s.input} placeholder="No Invoice *" value={f.invoice_no} onChangeText={set('invoice_no')} autoCapitalize="characters" />
           <TextInput style={s.input} placeholder="Nama customer" value={f.customer_name} onChangeText={set('customer_name')} />
           <TextInput style={s.input} placeholder="No HP" value={f.customer_phone} onChangeText={set('customer_phone')} keyboardType="phone-pad" />
-          <TextInput style={s.input} placeholder="Barang" value={f.item_desc} onChangeText={set('item_desc')} />
+          <TextInput style={s.input} placeholder="Barang / Deskripsi" value={f.item_desc} onChangeText={set('item_desc')} />
+          <TextInput style={s.input} placeholder="Kode Pickup / PIN (opsional)" value={f.pickup_code} onChangeText={set('pickup_code')} autoCapitalize="characters" />
           <View style={s.typeRow}>
             {[['customer', '🧍 Ambil Customer'], ['gojek', '🛵 Absen Gojek']].map(([val, label]) => (
               <TouchableOpacity
@@ -144,12 +145,14 @@ function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
               </TouchableOpacity>
             ))}
           </View>
-          <TouchableOpacity style={[s.bigBtn, { backgroundColor: colors.ok }]} onPress={save}>
-            <Text style={s.btnText}>Simpan</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[s.bigBtn, { backgroundColor: colors.sub }]} onPress={onClose}>
-            <Text style={s.btnText}>Batal</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <TouchableOpacity style={[s.bigBtn, { flex: 1, backgroundColor: colors.ok }]} onPress={save}>
+              <Text style={s.btnText}>Simpan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.bigBtn, { flex: 1, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border }]} onPress={onClose}>
+              <Text style={[s.btnText, { color: colors.ink }]}>Batal</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -392,7 +395,7 @@ export function SemuaScreen({ user }) {
   const { items, total, page, setPage, loading, searching, refetch } = usePackages(null, q);
   const [openId, setOpenId] = useState(null);
   const [importing, setImporting] = useState(false);
-  const canImport = user.role === 'warehouse';
+  const canImport = user.role === 'warehouse' || user.role === 'superadmin';
 
   const doImport = async () => {
     const res = await DocumentPicker.getDocumentAsync({

@@ -15,10 +15,11 @@ export const pool = new pg.Pool({
 export async function migrate() {
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(sql);
-  // Pastikan constraint role mendukung superadmin jika DB sudah ada
   await pool.query(`
     ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
     ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('superadmin', 'warehouse', 'admin', 'sales'));
+    ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
   `).catch(() => {});
 }
 

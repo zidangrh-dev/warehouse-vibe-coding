@@ -83,8 +83,21 @@ export const api = {
   findByCode: (code) => req('POST', '/api/packages/find-by-code', { code }),
   deletePhoto: (id) => req('DELETE', `/api/photos/${id}`),
   dashboardSummary: () => req('GET', '/api/dashboard/summary'),
-  dashboardThroughput: (days = 14) => req('GET', `/api/dashboard/throughput?days=${days}`),
-  dashboardActivity: (days = 30) => req('GET', `/api/dashboard/activity?days=${days}`),
+  dashboardThroughput: (params) => {
+    if (params && typeof params === 'object') {
+      const p = new URLSearchParams(params);
+      return req('GET', `/api/dashboard/throughput?${p.toString()}`);
+    }
+    return req('GET', `/api/dashboard/throughput?days=${params || 14}`);
+  },
+  dashboardActivity: (params) => {
+    if (params && typeof params === 'object') {
+      const p = new URLSearchParams(params);
+      return req('GET', `/api/dashboard/activity?${p.toString()}`);
+    }
+    return req('GET', `/api/dashboard/activity?days=${params || 30}`);
+  },
+  archivePackages: (beforeDate) => req('POST', '/api/packages/archive', { beforeDate }),
   listUsers: () => req('GET', '/api/users'),
   createUser: (data) => req('POST', '/api/users', data),
   updateUser: (id, data) => req('PATCH', `/api/users/${id}`, data),

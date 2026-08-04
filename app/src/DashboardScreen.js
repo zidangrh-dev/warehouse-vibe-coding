@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -24,6 +25,8 @@ import {
   SimpleDonutChart,
 } from "./components";
 import { useBreakpoint } from "./responsive";
+import UserManagementModal from "./UserManagementModal";
+import { ArchiveModal } from "./ArchiveModal";
 
 const DAY_OPTIONS = [7, 14, 30];
 const GOJEK_FUNNEL = [
@@ -53,7 +56,7 @@ const ACTIVITY_LABEL = {
 
 // Data agregat untuk panel Dashboard — 3 endpoint terpisah supaya tiap
 // panel bisa loading independen dan query SQL tetap sederhana.
-function useDashboard(days) {
+function useDashboard(dateFilter) {
   const [summary, setSummary] = useState(null);
   const [throughput, setThroughput] = useState([]);
   const [activity, setActivity] = useState([]);
@@ -64,8 +67,8 @@ function useDashboard(days) {
     try {
       const [sum, thr, act] = await Promise.all([
         api.dashboardSummary(),
-        api.dashboardThroughput(days),
-        api.dashboardActivity(days),
+        api.dashboardThroughput(dateFilter),
+        api.dashboardActivity(dateFilter),
       ]);
       setSummary(sum);
       setThroughput(thr);
@@ -75,7 +78,7 @@ function useDashboard(days) {
     } finally {
       setLoading(false);
     }
-  }, [days]);
+  }, [dateFilter]);
 
   useEffect(() => {
     refetch();
@@ -129,9 +132,19 @@ import UserManagementModal from "./UserManagementModal";
 
 export default function DashboardScreen({ user }) {
   const { columns } = useBreakpoint();
+  const [useCustomDate, setUseCustomDate] = useState(false);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 14);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [days, setDays] = useState(14);
   const [userModalOpen, setUserModalOpen] = useState(false);
-  const { summary, throughput, activity, loading } = useDashboard(days);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+
+  const dateFilter = useCustomDate ? { startDate, endDate } : days;
+  const { summary, throughput, activity, loading, refetch } = useDashboard(dateFilter);
 
   if (loading && !summary) {
     return (
@@ -226,35 +239,85 @@ export default function DashboardScreen({ user }) {
             Pantau proses paket & kinerja tim secara realtime.
           </Text>
         </View>
-        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {user?.role === 'superadmin' && (
-            <TouchableOpacity
-              style={[s.dayBtn, { backgroundColor: colors.primary, paddingVertical: 8, paddingHorizontal: 14 }]}
-              onPress={() => setUserModalOpen(true)}
-            >
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>👥 Kelola Karyawan</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[s.dayBtn, { backgroundColor: colors.primary, paddingVertical: 8, paddingHorizontal: 14 }]}
+                onPress={() => setUserModalOpen(true)}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>👥 Kelola Karyawan</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.dayBtn, { backgroundColor: colors.danger, paddingVertical: 8, paddingHorizontal: 14 }]}
+                onPress={() => setArchiveModalOpen(true)}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>📦 Arsip Data</Text>
+              </TouchableOpacity>
+            </>
           )}
+
           <View style={s.daySwitch}>
             {DAY_OPTIONS.map((d) => (
               <TouchableOpacity
                 key={d}
-                style={[s.dayBtn, days === d && s.dayBtnActive]}
-                onPress={() => setDays(d)}
+                style={[s.dayBtn, !useCustomDate && days === d && s.dayBtnActive]}
+                onPress={() => {
+                  setUseCustomDate(false);
+                  setDays(d);
+                }}
               >
-                <Text style={[s.dayBtnText, days === d && s.dayBtnTextActive]}>
+                <Text style={[s.dayBtnText, !useCustomDate && days === d && s.dayBtnTextActive]}>
                   {d} hari
                 </Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[s.dayBtn, useCustomDate && s.dayBtnActive]}
+              onPress={() => setUseCustomDate(true)}
+            >
+              <Text style={[s.dayBtnText, useCustomDate && s.dayBtnTextActive]}>
+                🗓 Manual
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
+
+      {useCustomDate && (
+        <View style={s.datePickerBox}>
+          <Text style={s.datePickerLabel}>Pengaturan Tanggal Manual:</Text>
+          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+            <TextInput
+              style={s.dateInput}
+              value={startDate}
+              onChangeText={setStartDate}
+              placeholder="YYYY-MM-DD"
+              maxLength={10}
+            />
+            <Text style={{ color: colors.sub, fontWeight: '700' }}>s/d</Text>
+            <TextInput
+              style={s.dateInput}
+              value={endDate}
+              onChangeText={setEndDate}
+              placeholder="YYYY-MM-DD"
+              maxLength={10}
+            />
+          </View>
+        </View>
+      )}
 
       <UserManagementModal
         visible={userModalOpen}
         user={user}
         onClose={() => setUserModalOpen(false)}
+      />
+
+      <ArchiveModal
+        visible={archiveModalOpen}
+        onClose={() => setArchiveModalOpen(false)}
+        onArchived={refetch}
       />
 
       <View style={s.statGrid}>
@@ -594,4 +657,36 @@ const s = StyleSheet.create({
   },
 
   empty: { color: colors.faint, textAlign: "center", padding: 20 },
+  datePickerBox: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 10,
+    ...shadow.card,
+  },
+  datePickerLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.ink,
+  },
+  dateInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.input,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 13,
+    color: colors.ink,
+    backgroundColor: colors.surfaceAlt,
+    width: 120,
+    textAlign: 'center',
+  },
 });

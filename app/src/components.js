@@ -19,14 +19,12 @@ export function StatusPill({ status }) {
   );
 }
 
-// Format sel "Update": untuk paket gojek tampilkan JAM masuk antrian ambilan
-// gojek (gojek_at); selain itu tanggal update terakhir.
+// Format sel "LAST UPDATE": tampilkan tanggal & waktu update terakhir secara lengkap.
 function fmtUpdate(pkg) {
-  if (pkg.gojek_at) {
-    const d = new Date(pkg.gojek_at);
-    return `${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
-  }
-  return new Date(pkg.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  const dt = pkg.updated_at || pkg.created_at;
+  if (!dt) return '—';
+  const d = new Date(dt);
+  return `${d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 export function PackageRow({ pkg, onPress, action }) {
@@ -69,7 +67,7 @@ export function PackageTable({ items, onPress, renderAction }) {
         <Text style={[s.th, { flex: 1.1 }]}>Platform / Kurir</Text>
         <Text style={[s.th, { flex: 0.8 }]}>Pickup Code</Text>
         <Text style={[s.th, { flex: 1 }]}>Status</Text>
-        <Text style={[s.th, { flex: 0.9 }]}>Update</Text>
+        <Text style={[s.th, { flex: 1.2 }]}>LAST UPDATE</Text>
         <Text style={[s.th, { flex: 1, textAlign: 'right' }]}>Aksi</Text>
       </View>
       {items.map((pkg) => (

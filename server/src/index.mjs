@@ -304,10 +304,13 @@ app.post('/api/packages/:id/photos', requireAuth, requireRole('superadmin', 'adm
   wrap(async (req, res) => {
     const id = Number(req.params.id);
 
-    // KUNCI KEAMANAN: Cegah manipulasi foto pada transaksi yang sudah dikonfirmasi (fraud protection)
-    const pkgCheck = await pool.query('SELECT status FROM packages WHERE id=$1', [id]);
+    // KUNCI KEAMANAN: Cegah manipulasi foto pada transaksi yang sudah dikonfirmasi atau diarsip
+    const pkgCheck = await pool.query('SELECT status, archived FROM packages WHERE id=$1', [id]);
     const pkg = pkgCheck.rows[0];
     if (!pkg) return res.status(404).json({ error: 'Paket tidak ditemukan' });
+    if (pkg.archived) {
+      return res.status(400).json({ error: 'Paket ini telah diarsip dan tidak dapat diubah oleh siapapun.' });
+    }
     if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status)) {
       return res.status(400).json({ error: 'Foto terkunci! Tidak dapat menambah foto pada transaksi yang sudah dikonfirmasi.' });
     }
@@ -341,7 +344,7 @@ app.delete('/api/photos/:id', requireAuth, requireRole('superadmin', 'admin'), w
 
   // KUNCI KEAMANAN: Periksa status paket induk untuk mencegah penghapusan foto bukti
   const photoRes = await pool.query(
-    `SELECT p.id, p.filename, pkg.status
+    `SELECT p.id, p.filename, pkg.status, pkg.archived
      FROM package_photos p
      JOIN packages pkg ON pkg.id = p.package_id
      WHERE p.id = $1`,
@@ -350,6 +353,9 @@ app.delete('/api/photos/:id', requireAuth, requireRole('superadmin', 'admin'), w
   const photo = photoRes.rows[0];
   if (!photo) return res.status(404).json({ error: 'Foto tidak ditemukan' });
 
+  if (photo.archived) {
+    return res.status(400).json({ error: 'Paket ini telah diarsip dan foto tidak dapat dihapus.' });
+  }
   if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(photo.status)) {
     return res.status(400).json({ error: 'Foto terkunci! Tidak dapat menghapus foto pada transaksi yang sudah dikonfirmasi.' });
   }
@@ -361,26 +367,35 @@ app.delete('/api/photos/:id', requireAuth, requireRole('superadmin', 'admin'), w
 }));
 
 // Input manual (paket tidak ada di data import).
-app.post('/api/packages', requireAuth, requireRole('admin', 'warehouse'), wrap(async (req, res) => {
-  const { invoice_no, customer_name, customer_phone, item_desc, pickup_type, status } = req.body;
+app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'warehouse'), wrap(async (req, res) => {
+  const { invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, pickup_code } = req.body;
   if (!invoice_no?.trim()) return res.status(400).json({ error: 'No invoice wajib diisi' });
   const st = STATUSES.includes(status) ? status
     : pickup_type === 'gojek' ? 'absen_gojek' : 'absen_ambil_customer';
+  const cleanCode = pickup_code?.trim() || null;
+
   const r = await pool.query(
-    `INSERT INTO packages (invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, source, received_at, gojek_at)
-     VALUES ($1,$2,$3,$4,$5,$6,'manual',now(), CASE WHEN $6='absen_gojek' THEN now() ELSE NULL END)
+    `INSERT INTO packages (invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, pickup_code, source, received_at, gojek_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',now(), CASE WHEN $6='absen_gojek' THEN now() ELSE NULL END)
      ON CONFLICT (invoice_no) DO NOTHING RETURNING *`,
     [invoice_no.trim(), customer_name || '', customer_phone || '', item_desc || '',
-     pickup_type === 'gojek' ? 'gojek' : 'customer', st]
+     pickup_type === 'gojek' ? 'gojek' : 'customer', st, cleanCode]
   );
   if (!r.rows[0]) return res.status(409).json({ error: 'No invoice sudah terdaftar' });
-  await logEvent(r.rows[0].id, req.user, 'input_manual', `status awal ${st}`);
+  await logEvent(r.rows[0].id, req.user, 'input_manual', `status awal ${st}${cleanCode ? ` (pickup code: ${cleanCode})` : ''}`);
   notify();
   res.status(201).json(r.rows[0]);
 }));
 
 app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const id = Number(req.params.id);
+
+  // KUNCI KEAMANAN ARSIP: Paket yang diarsip terkunci permanen untuk siapapun
+  const chkArc = await pool.query('SELECT archived FROM packages WHERE id=$1', [id]);
+  if (chkArc.rows[0]?.archived) {
+    return res.status(400).json({ error: 'Paket ini telah diarsip dan tidak dapat diubah oleh siapapun.' });
+  }
+
   // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
   // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
   const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name'];
@@ -416,6 +431,23 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     req.body.status ? `status -> ${req.body.status}` : `ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
   notify();
   res.json(r.rows[0]);
+}));
+
+// Arsip data paket berdasarkan tanggal cutoff (Khusus Super Admin)
+app.post('/api/packages/archive', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const { beforeDate } = req.body;
+  if (!beforeDate) return res.status(400).json({ error: 'Tanggal batas (beforeDate) wajib diisi' });
+
+  const r = await pool.query(
+    `UPDATE packages
+     SET archived = true, archived_at = now()
+     WHERE created_at <= $1::timestamptz AND archived = false AND status IN ('selesai', 'done_pickup', 'retur', 'cancel')
+     RETURNING id`,
+    [beforeDate]
+  );
+  await logEvent(null, req.user, 'archive_packages', `Mengarsip ${r.rowCount} paket sebelum ${beforeDate}`);
+  notify();
+  res.json({ ok: true, count: r.rowCount });
 }));
 
 // Scan paket sampai kios: cocokkan invoice hasil scan dengan data import.
@@ -515,7 +547,7 @@ function classifyPickup(courierName) {
   return null;
 }
 
-app.post('/api/packages/import', requireAuth, requireRole('warehouse'),
+app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehouse'),
   (req, res, next) => {
     if (req.is('json') || (req.headers['content-type'] && req.headers['content-type'].includes('application/json'))) {
       return next();
@@ -572,7 +604,7 @@ app.post('/api/packages/import', requireAuth, requireRole('warehouse'),
 
 // ---- Dashboard/laporan (admin only) — agregasi untuk memantau kinerja role lain ----
 
-app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
+app.get('/api/dashboard/summary', requireAuth, wrap(async (req, res) => {
   const byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages GROUP BY status`);
   const totals = await pool.query(`
     SELECT
@@ -585,27 +617,57 @@ app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'
   res.json({ by_status: byStatus.rows, ...totals.rows[0] });
 }));
 
-app.get('/api/dashboard/throughput', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
-  const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
-  const r = await pool.query(`
-    SELECT d::date AS day,
-      (SELECT count(*) FROM packages WHERE received_at::date = d::date)::int AS received,
-      (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
-      (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
-    FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day') d
-    ORDER BY d`, [days]);
+app.get('/api/dashboard/throughput', requireAuth, wrap(async (req, res) => {
+  const { startDate, endDate } = req.query;
+  let r;
+  if (startDate && endDate) {
+    r = await pool.query(`
+      SELECT d::date AS day,
+        (SELECT count(*) FROM packages WHERE received_at::date = d::date)::int AS received,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
+      FROM generate_series($1::date, $2::date, interval '1 day') d
+      ORDER BY d`, [startDate, endDate]);
+  } else {
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
+    r = await pool.query(`
+      SELECT d::date AS day,
+        (SELECT count(*) FROM packages WHERE received_at::date = d::date)::int AS received,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
+      FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day') d
+      ORDER BY d`, [days]);
+  }
   res.json(r.rows);
 }));
 
-app.get('/api/dashboard/activity', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
-  const days = Math.min(180, Math.max(1, Number(req.query.days) || 30));
+app.get('/api/dashboard/activity', requireAuth, wrap(async (req, res) => {
+  const isSuper = req.user.role === 'superadmin';
+  const { startDate, endDate } = req.query;
+
+  let timeClause = "pe.created_at >= now() - (30 * interval '1 day')";
+  const params = [];
+
+  if (startDate && endDate) {
+    params.push(startDate, endDate);
+    timeClause = `pe.created_at >= $1::date AND pe.created_at <= ($2::date + interval '1 day')`;
+  }
+
+  // Jika bukan Super Admin, filter HANYA aktivitas user itu sendiri
+  let userClause = "";
+  if (!isSuper) {
+    params.push(req.user.id);
+    userClause = `AND pe.user_id = $${params.length}`;
+  }
+
   const r = await pool.query(`
     SELECT pe.user_name, u.role, pe.action, count(*)::int AS n
     FROM package_events pe
     LEFT JOIN users u ON u.id = pe.user_id
-    WHERE pe.created_at >= now() - ($1::int * interval '1 day')
+    WHERE ${timeClause} ${userClause}
     GROUP BY pe.user_name, u.role, pe.action
-    ORDER BY pe.user_name, pe.action`, [days]);
+    ORDER BY pe.user_name, pe.action`, params);
+
   res.json(r.rows);
 }));
 

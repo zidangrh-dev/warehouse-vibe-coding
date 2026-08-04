@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS package_events (
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS awb_no TEXT;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT '';
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS courier TEXT NOT NULL DEFAULT '';
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
 
 -- Bukti foto konfirmasi pengambilan (gojek & self pick up):
 -- 'wajah' (wajah driver/pengambil), 'ktp' (KTP driver/pengambil), 'barang'.
