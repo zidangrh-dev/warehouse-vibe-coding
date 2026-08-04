@@ -8,7 +8,7 @@ import { io } from 'socket.io-client';
 // - Web production        -> origin yang sama (nginx mem-proxy /api)
 // - Android dev (Expo Go) -> IP laptop diambil dari hostUri Metro
 // - APK production        -> isi PROD_API di bawah saat deploy
-const PROD_API = 'http://202.10.44.147';
+const PROD_API = 'https://apps-pickhub.cloud';
 
 export function apiBase() {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
