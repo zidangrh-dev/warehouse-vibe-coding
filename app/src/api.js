@@ -103,7 +103,8 @@ export const api = {
     }
     return req('GET', `/api/dashboard/activity?days=${params || 30}`);
   },
-  archivePackages: (beforeDate) => req('POST', '/api/packages/archive', { beforeDate }),
+  archivePackages: (beforeDate, mode = 'before', onlyCompleted = true) =>
+    req('POST', '/api/packages/archive', { beforeDate, mode, onlyCompleted }),
   listUsers: () => req('GET', '/api/users'),
   createUser: (data) => req('POST', '/api/users', data),
   updateUser: (id, data) => req('PATCH', `/api/users/${id}`, data),

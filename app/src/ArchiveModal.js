@@ -9,6 +9,8 @@ import { CalendarInput } from './CalendarInput';
 
 export function ArchiveModal({ visible, onClose, onArchived }) {
   const [beforeDate, setBeforeDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [mode, setMode] = useState('before'); // 'before' (sebelum), 'exact' (tepat), 'on_or_before' (sampai)
+  const [onlyCompleted, setOnlyCompleted] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +32,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
   const handleExecuteArchive = async () => {
     setBusy(true);
     try {
-      const res = await api.archivePackages(beforeDate);
+      const res = await api.archivePackages(beforeDate, mode, onlyCompleted);
       notice(`✅ Berhasil mengarsip ${res.count} paket!`);
       if (onArchived) onArchived();
       setConfirming(false);
@@ -46,6 +48,12 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
     if (busy) return;
     setConfirming(false);
     onClose();
+  };
+
+  const modeLabels = {
+    before: 'Sebelum Tanggal (Strictly Before)',
+    exact: 'Tepat Pada Tanggal (Single Date)',
+    on_or_before: 'Sampai Dengan Tanggal (Up to Date)',
   };
 
   return (
@@ -76,18 +84,24 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
               <View style={s.confirmWarningBox}>
                 <Text style={s.confirmWarningTitle}>🔒 PERINGATAN PENGARSIPAN PERMANEN</Text>
                 <Text style={s.confirmWarningText}>
-                  Apakah Anda yakin ingin mengarsip paket yang dibuat SEBELUM tanggal di bawah ini?
+                  Apakah Anda yakin ingin mengarsip paket sesuai dengan kriteria yang Anda pilih di bawah ini?
                 </Text>
               </View>
 
               <View style={s.summaryCard}>
                 <View style={s.summaryRow}>
-                  <Text style={s.summaryLabel}>Batas Tanggal Cutoff:</Text>
+                  <Text style={s.summaryLabel}>Mode Pengarsipan:</Text>
+                  <Text style={s.summaryValHighlight}>{modeLabels[mode]}</Text>
+                </View>
+                <View style={s.summaryRow}>
+                  <Text style={s.summaryLabel}>Tanggal Patokan:</Text>
                   <Text style={s.summaryValHighlight}>{beforeDate}</Text>
                 </View>
                 <View style={s.summaryRow}>
-                  <Text style={s.summaryLabel}>Status Yang Diarsip:</Text>
-                  <Text style={s.summaryVal}>Selesai, Done Pickup, Retur, Cancel</Text>
+                  <Text style={s.summaryLabel}>Filter Status:</Text>
+                  <Text style={s.summaryVal}>
+                    {onlyCompleted ? 'Hanya Selesai / Retur / Cancel' : 'Semua Status Paket'}
+                  </Text>
                 </View>
                 <View style={s.summaryRow}>
                   <Text style={s.summaryLabel}>Proteksi:</Text>
@@ -119,7 +133,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
               </View>
             </View>
           ) : (
-            /* Step 1: Date Selection Form */
+            /* Step 1: Date & Mode Selection Form */
             <View style={{ marginTop: 14 }}>
               <View style={s.alertBox}>
                 <Text style={s.alertTitle}>🔒 Proteksi Kunci Permanen</Text>
@@ -128,7 +142,29 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
                 </Text>
               </View>
 
-              <Text style={s.label}>Pilih Batas Waktu Tanggal (Cutoff Date):</Text>
+              <Text style={s.label}>Pilih Target Kriteria Tanggal:</Text>
+              <View style={s.modeRow}>
+                {[
+                  ['before', 'Sebelum Tanggal'],
+                  ['exact', 'Tepat Tanggal Ini'],
+                  ['on_or_before', 'Sampai Tanggal Ini'],
+                ].map(([mKey, mLabel]) => (
+                  <TouchableOpacity
+                    key={mKey}
+                    style={[s.modeBtn, mode === mKey && s.modeBtnActive]}
+                    onPress={() => setMode(mKey)}
+                  >
+                    <Text style={[s.modeText, mode === mKey && s.modeTextActive]}>{mLabel}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={s.label}>Pilih Tanggal Patokan:</Text>
+              <View style={{ marginTop: 4 }}>
+                <CalendarInput value={beforeDate} onChange={setBeforeDate} />
+              </View>
+
+              <Text style={s.label}>Pilihan Cepat Tanggal:</Text>
               <View style={s.presetRow}>
                 {[
                   [0, 'Hari Ini'],
@@ -146,10 +182,15 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
                 ))}
               </View>
 
-              <Text style={s.label}>Atau Pilih Tanggal dari Kalender Interaktif:</Text>
-              <View style={{ marginTop: 4 }}>
-                <CalendarInput value={beforeDate} onChange={setBeforeDate} />
-              </View>
+              <TouchableOpacity
+                style={s.toggleRow}
+                onPress={() => setOnlyCompleted(!onlyCompleted)}
+              >
+                <View style={[s.checkbox, onlyCompleted && s.checkboxActive]}>
+                  {onlyCompleted && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>✓</Text>}
+                </View>
+                <Text style={s.toggleText}>Hanya arsip paket yang sudah Selesai / Retur / Cancel</Text>
+              </TouchableOpacity>
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
                 <TouchableOpacity
@@ -228,30 +269,58 @@ const s = StyleSheet.create({
     borderColor: '#FCA5A5',
     borderRadius: radius.card,
     padding: 12,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   alertTitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '800',
     color: colors.danger,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   alertText: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: '#991B1B',
-    lineHeight: 17,
+    lineHeight: 16,
   },
   label: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.ink,
     marginTop: 10,
     marginBottom: 6,
   },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 6,
+  },
+  modeBtn: {
+    flex: 1,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: 7,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+  },
+  modeBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  modeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.sub,
+    textAlign: 'center',
+  },
+  modeTextActive: {
+    color: '#fff',
+  },
   presetRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
+    gap: 6,
+    marginBottom: 10,
   },
   presetChip: {
     flex: 1,
@@ -259,13 +328,39 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.pill,
-    paddingVertical: 8,
+    paddingVertical: 6,
     alignItems: 'center',
   },
   presetText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: colors.ink,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  checkbox: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  checkboxActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  toggleText: {
+    fontSize: 11.5,
+    color: colors.ink,
+    fontWeight: '600',
   },
   btn: {
     height: 42,
@@ -327,7 +422,7 @@ const s = StyleSheet.create({
     fontWeight: '600',
   },
   summaryValHighlight: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.primary,
     fontWeight: '800',
   },

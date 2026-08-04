@@ -441,17 +441,29 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 
 // Arsip data paket berdasarkan tanggal cutoff (Khusus Super Admin)
 app.post('/api/packages/archive', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
-  const { beforeDate } = req.body;
+  const { beforeDate, mode = 'before', onlyCompleted = true } = req.body;
   if (!beforeDate) return res.status(400).json({ error: 'Tanggal batas (beforeDate) wajib diisi' });
+
+  let timeCondition = `created_at < $1::date`;
+  if (mode === 'exact') {
+    timeCondition = `created_at::date = $1::date`;
+  } else if (mode === 'on_or_before') {
+    timeCondition = `created_at <= ($1::date + interval '1 day')`;
+  }
+
+  let statusCondition = '';
+  if (onlyCompleted) {
+    statusCondition = `AND status IN ('selesai', 'done_pickup', 'retur', 'cancel')`;
+  }
 
   const r = await pool.query(
     `UPDATE packages
      SET archived = true, archived_at = now()
-     WHERE created_at <= ($1::date + interval '1 day') AND archived = false
+     WHERE ${timeCondition} ${statusCondition} AND archived = false
      RETURNING id`,
     [beforeDate]
   );
-  await logEvent(null, req.user, 'archive_packages', `Mengarsip ${r.rowCount} paket sebelum ${beforeDate}`);
+  await logEvent(null, req.user, 'archive_packages', `Mengarsip ${r.rowCount} paket (mode: ${mode}, cutoff: ${beforeDate})`);
   notify();
   res.json({ ok: true, count: r.rowCount });
 }));
