@@ -128,8 +128,6 @@ const ROLE_TINT = {
   warehouse: "#0891B2",
 };
 
-import UserManagementModal from "./UserManagementModal";
-
 export default function DashboardScreen({ user }) {
   const { columns } = useBreakpoint();
   const [useCustomDate, setUseCustomDate] = useState(false);
