@@ -27,6 +27,22 @@ function fmtUpdate(pkg) {
   return `${d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+// Nama toko: gabungkan marketplace (Commerce Platform) + nama toko yang
+// diparsing dari kolom Title/item. Title berformat "MARKETPLACE - NAMA TOKO"
+// (mis. "Tiktok - Digitech Mall" => toko "Digitech Mall").
+function tokoLabel(pkg) {
+  const p = (pkg.platform || '').trim();
+  const t = (pkg.item_desc || '').trim();
+  if (!t) return p || '—';
+  const idx = t.indexOf(' - ');
+  if (idx >= 0) {
+    const prefix = t.slice(0, idx).trim();
+    const store = t.slice(idx + 3).trim();
+    return [p || prefix, store].filter(Boolean).join(' ');
+  }
+  return p ? `${p} ${t}`.trim() : t;
+}
+
 export function PackageRow({ pkg, onPress, action }) {
   return (
     <TouchableOpacity style={s.card} onPress={() => onPress(pkg)} activeOpacity={0.7}>
@@ -40,7 +56,7 @@ export function PackageRow({ pkg, onPress, action }) {
           </Text>
           <Text style={s.detail} numberOfLines={1}>
             {pkg.customer_name || '(tanpa nama)'}
-            {(pkg.platform || pkg.item_desc) ? `  ·  🏬 ${pkg.platform || pkg.item_desc}` : ''}
+            {tokoLabel(pkg) !== '—' ? `  ·  🏬 ${tokoLabel(pkg)}` : ''}
             {pkg.courier ? `  ·  🛵 ${pkg.courier}` : ''}
           </Text>
         </View>
@@ -136,7 +152,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       if (custF && !`${pkg.customer_name || ''} ${pkg.customer_phone || ''}`.toLowerCase().includes(custF)) return false;
 
       const tokoF = (filters.toko || '').trim().toLowerCase();
-      if (tokoF && !`${pkg.platform || ''} ${pkg.item_desc || ''}`.toLowerCase().includes(tokoF)) return false;
+      if (tokoF && !tokoLabel(pkg).toLowerCase().includes(tokoF)) return false;
 
       const courF = (filters.courier || '').trim().toLowerCase();
       if (courF && !`${pkg.courier || ''}`.toLowerCase().includes(courF)) return false;
@@ -315,7 +331,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
           </Text>
           <Text style={[s.td, { flex: 1.2 }]} numberOfLines={1}>{pkg.customer_name || '(tanpa nama)'}</Text>
           <Text style={[s.td, { flex: 1.0, fontWeight: '600', color: colors.ink }]} numberOfLines={1}>
-            {pkg.platform || pkg.item_desc || '—'}
+            {tokoLabel(pkg)}
           </Text>
           <Text style={[s.td, { flex: 1.0, color: colors.sub }]} numberOfLines={1}>
             {pkg.courier || '—'}
@@ -448,6 +464,117 @@ export function AreaChart({ data, height = 150, valueKey = 'value', color = colo
     </Svg>
   );
 }
+
+// Chart throughput modern & responsif: area gradien + gridline bernomor +
+// tooltip interaktif (hover di web, tap di Android) + axis tanggal yang
+// dijarangkan otomatis. Tidak butuh dependency chart tambahan.
+export function ThroughputChart({ data, color = colors.primary, height = 200 }) {
+  const [hover, setHover] = useState(null);
+  const list = Array.isArray(data) ? data : [];
+  const n = list.length;
+  if (!n) return null;
+
+  const W = 640;
+  const padL = 34, padR = 8, padT = 18, padB = 6;
+  const innerW = W - padL - padR;
+  const innerH = height - padT - padB;
+  const vals = list.map((d) => Number(d.value) || 0);
+  const max = Math.max(1, ...vals);
+  const x = (i) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const y = (v) => padT + innerH - (v / max) * innerH;
+
+  const pts = list.map((d, i) => ({ ...d, x: x(i), y: y(Number(d.value) || 0) }));
+  const bottomY = padT + innerH;
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const area = `${line} L ${pts[n - 1].x.toFixed(1)} ${bottomY} L ${pts[0].x.toFixed(1)} ${bottomY} Z`;
+  const grid = [
+    { g: 0, label: String(max) },
+    { g: 0.5, label: String(Math.round(max / 2)) },
+    { g: 1, label: '0' },
+  ];
+  const labelStep = Math.max(1, Math.ceil(n / 8));
+
+  const hoverPct = hover != null ? (pts[hover].x / W) * 100 : 0;
+  const tooltipHalf = 6;
+  const tooltipLeft = Math.min(100 - tooltipHalf - 1, Math.max(tooltipHalf + 1, hoverPct));
+  const h = hover != null ? pts[hover] : null;
+
+  return (
+    <View style={{ position: 'relative' }}>
+      <Svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none">
+        <Defs>
+          <SvgGradient id="thrFill" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity="0.32" />
+            <Stop offset="0.7" stopColor={color} stopOpacity="0.07" />
+            <Stop offset="1" stopColor={color} stopOpacity="0" />
+          </SvgGradient>
+        </Defs>
+        {grid.map(({ g }, i) => (
+          <SvgLine key={i} x1={padL} y1={padT + innerH * g} x2={W - padR} y2={padT + innerH * g}
+            stroke={colors.border} strokeWidth="1" strokeDasharray={g === 0 ? '' : '4 6'} />
+        ))}
+        <Path d={area} fill="url(#thrFill)" />
+        <Path d={line} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+        {pts.map((p, i) => (
+          <Circle key={i} cx={p.x} cy={p.y} r={i === n - 1 ? 4 : 2.6}
+            fill={i === n - 1 ? color : colors.surface} stroke={color} strokeWidth="2" />
+        ))}
+        {h && <Path d={`M ${h.x} ${padT} L ${h.x} ${bottomY}`} stroke={color} strokeWidth="1" strokeDasharray="3 4" opacity="0.7" />}
+      </Svg>
+
+      {/* Label angka gridline (kiri) */}
+      {grid.map(({ g, label }, i) => (
+        <Text key={i} style={{ position: 'absolute', left: 0, top: `${(((padT + innerH * g - 5) / height) * 100)}%`, width: 30, textAlign: 'right', fontSize: 9.5, color: colors.faint }}>
+          {label}
+        </Text>
+      ))}
+
+      {/* Kolom interaktif untuk hover/tap */}
+      <View style={{ position: 'absolute', top: padT, left: padL, right: padR, bottom: padB, flexDirection: 'row' }}>
+        {pts.map((p, i) => {
+          const handlers = Platform.OS === 'web'
+            ? { onMouseEnter: () => setHover(i), onMouseLeave: () => setHover(null) }
+            : {};
+          void p;
+          return (
+            <TouchableOpacity key={i} style={{ flex: 1 }} onPressIn={() => setHover(i)} {...handlers} />
+          );
+        })}
+      </View>
+
+      {/* Tooltip titik aktif */}
+      {h && (
+        <View pointerEvents="none" style={{ position: 'absolute', top: 2, left: `${tooltipLeft}%`, transform: [{ translateX: -44 }], alignItems: 'center', zIndex: 10 }}>
+          <View style={{ backgroundColor: colors.ink, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 8 }}>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800', textAlign: 'center' }}>{h.value}</Text>
+            <Text style={{ color: '#D1D5DB', fontSize: 9, textAlign: 'center' }}>{h.label}</Text>
+          </View>
+          <View style={{ width: 8, height: 8, backgroundColor: colors.ink, transform: [{ rotate: '45deg' }], marginTop: -4 }} />
+        </View>
+      )}
+
+      {/* Axis tanggal: setiap flex=1, yang tidak terbaca di-skip otomatis */}
+      <View style={{ flexDirection: 'row', marginTop: 2 }}>
+        {pts.map((p, i) => (
+          <Text key={i} style={[
+            axisLabelStyle,
+            {
+              flex: 1,
+              textAlign: i === 0 ? 'left' : i === n - 1 ? 'right' : 'center',
+              opacity: i % labelStep === 0 || i === n - 1 ? 1 : 0,
+              color: i === hover ? color : colors.faint,
+              fontWeight: i === hover ? '700' : '400',
+            },
+          ]}>
+            {p.label}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const axisLabelStyle = { fontSize: 9.5 };
 
 // Donut chart untuk proporsi status, dengan angka total di tengah.
 export function SimpleDonutChart({ data, size = 140, valueKey = 'value', colorKey = 'color', centerLabel, centerSub }) {

@@ -23,7 +23,7 @@ import {
 import {
   StatCard,
   SectionCard,
-  AreaChart,
+  ThroughputChart,
   SimpleDonutChart,
 } from "./components";
 import { useBreakpoint } from "./responsive";
@@ -172,14 +172,12 @@ export default function DashboardScreen({ user }) {
   const throughputSeries = throughput.map((d) => ({
     label: new Date(d.day).toLocaleDateString("id-ID", {
       day: "numeric",
-      month: "numeric",
+      month: "short",
     }),
     value: d.received,
   }));
   const throughputTotal = throughputSeries.reduce((a, d) => a + d.value, 0);
   const throughputPeak = Math.max(0, ...throughputSeries.map((d) => d.value));
-  // Label sumbu-x dijarangkan agar tidak berdesakan (mis. 14/30 titik).
-  const labelStep = Math.ceil(throughputSeries.length / 7);
 
   const activityRows = pivotActivity(activity);
   const actMax = Math.max(
@@ -299,7 +297,7 @@ export default function DashboardScreen({ user }) {
         <View style={s.colWide}>
           <SectionCard
             title="Throughput paket masuk"
-            subtitle="Rentang tanggal terpilih"
+            subtitle={`${startDate} s/d ${endDate}`}
             right={
               <View style={{ alignItems: "flex-end" }}>
                 <Text style={s.bigNumber}>{throughputTotal}</Text>
@@ -310,16 +308,7 @@ export default function DashboardScreen({ user }) {
             }
           >
             {throughputSeries.length > 0 ? (
-              <>
-                <AreaChart data={throughputSeries} height={150} />
-                <View style={s.axisRow}>
-                  {throughputSeries.map((d, i) => (
-                    <Text key={i} style={s.axisLabel}>
-                      {i % labelStep === 0 ? d.label : ""}
-                    </Text>
-                  ))}
-                </View>
-              </>
+              <ThroughputChart data={throughputSeries} color={colors.primary} height={200} />
             ) : (
               <Text style={s.empty}>Belum ada data.</Text>
             )}
@@ -516,14 +505,6 @@ const s = StyleSheet.create({
     letterSpacing: -0.5,
   },
   bigNumberSub: { fontSize: 10.5, color: colors.faint, marginTop: 1 },
-
-  axisRow: { flexDirection: "row", marginTop: 6 },
-  axisLabel: {
-    flex: 1,
-    fontSize: 9.5,
-    color: colors.faint,
-    textAlign: "center",
-  },
 
   donutWrap: {
     flexDirection: "row",

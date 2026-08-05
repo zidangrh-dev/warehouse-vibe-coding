@@ -363,7 +363,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Barang / Toko">
               <Text style={s.value}>
                 {pkg.item_desc || "-"}
-                {pkg.platform ? ` · ${pkg.platform}` : ""}
                 {pkg.courier ? ` · ${pkg.courier}` : ""}
               </Text>
             </Field>
