@@ -693,15 +693,21 @@ function mapRow(row) {
 }
 
 // Jenis ambilan ditentukan dari nama kurir (kolom "Courier Name" VEF):
-//   - "Ambil Customer Langsung" (mengandung "ambil")   -> 'customer'
-//   - Gojek / Grab / SPX / GoSend (kurir instant)       -> 'gojek'
-//   - selain itu (J&T, JNE, Anteraja, Paxel, Kurir Internal, kosong) -> null = tidak diimpor
+//   - "Ambil Customer Langsung" (mengandung "ambil")            -> 'customer'
+//   - Gojek / Grab / GoSend serta SPX Instant & SPX Same Day    -> 'gojek'
+//   - selain itu (SPX Hemat/Standard, J&T, JNE, Anteraja, Paxel,
+//     Kurir Internal, kosong)                                   -> null = tidak diimpor
+// SPX Express punya banyak varian: Hemat/Standard = kurir reguler (bukan ojol),
+// sedangkan Instant/Same Day = kurir instan/ojol.
 // Nama kurir asli tetap disimpan apa adanya (tidak diseragamkan jadi "Gojek").
 function classifyPickup(courierName) {
   const c = (courierName || '').toLowerCase();
   if (!c) return null;
   if (c.includes('ambil')) return 'customer';
-  if (/(gojek|grab|spx|gosend)/.test(c)) return 'gojek';
+  if (c.includes('spx')) {
+    return /instant|same[\s-]*day/.test(c) ? 'gojek' : null;
+  }
+  if (/(gojek|grab|gosend)/.test(c)) return 'gojek';
   return null;
 }
 
@@ -750,8 +756,8 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
       invoiceSeen.add(cleanInvoice);
 
       const ptype = classifyPickup(m.courier);
-      // Hanya paket Gojek/Grab/SPX (driver) & Ambil Customer yang diimpor.
-      // Ekspedisi reguler / kurir internal / tanpa kurir dilewati.
+      // Hanya paket Gojek/Grab/GoSend + SPX Instant/Same Day (ojol) & Ambil Customer yang diimpor.
+      // Ekspedisi reguler (SPX Hemat/Standard, J&T, JNE, dll) / kurir internal / tanpa kurir dilewati.
       if (!ptype) { skippedCourier++; continue; }
 
       let codeToSet = norm(m.pickup_code);
