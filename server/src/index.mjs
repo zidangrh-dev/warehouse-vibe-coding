@@ -264,6 +264,11 @@ const TAB_FILTERS = {
   selesai: { statuses: ['selesai'] },
 };
 
+// Kolom untuk daftar paket (tanpa `raw` yang berat — raw hanya dipakai di detail).
+const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
+  platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
+  received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at`;
+
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
 //   Self Pick Up : 1 foto pengambil + barang + 1 foto barang (2 foto)
@@ -291,11 +296,9 @@ const PHOTO_LABEL = { wajah: 'pengambil/driver + barang', ktp: 'KTP', barang: 'b
 
 // ---- Packages ----
 // Mode daftar: paginasi (page/pageSize) supaya tabel besar tetap ringan.
-// Mode cari: bila ada `q`, paginasi dibypass — cari ke seluruh data (dibatasi
-// SEARCH_CAP demi keamanan), sehingga hasil tidak terpotong per halaman.
-const SEARCH_CAP = 1000;
+// Mode cari: bila ada filter / query q, cari ke seluruh data tanpa batas (unlimited).
 app.get('/api/packages', requireAuth, wrap(async (req, res) => {
-  const { tab, q } = req.query;
+  const { tab, q, invoice, customer, toko, courier, code, status, pickup_type } = req.query;
   const cond = [];
   const values = [];
 
@@ -319,22 +322,60 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
       cond.push(`pickup_type = $${values.length}`);
     }
   }
-  const searching = !!(q && String(q).trim());
-  if (searching) {
-    values.push(`%${String(q).trim()}%`);
-    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length})`);
+
+  if (invoice && String(invoice).trim()) {
+    values.push(`%${String(invoice).trim()}%`);
+    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length})`);
   }
+  if (customer && String(customer).trim()) {
+    values.push(`%${String(customer).trim()}%`);
+    cond.push(`(customer_name ILIKE $${values.length} OR customer_phone ILIKE $${values.length})`);
+  }
+  if (toko && String(toko).trim()) {
+    values.push(`%${String(toko).trim()}%`);
+    cond.push(`(platform ILIKE $${values.length} OR item_desc ILIKE $${values.length})`);
+  }
+  if (courier && String(courier).trim()) {
+    values.push(`%${String(courier).trim()}%`);
+    cond.push(`courier ILIKE $${values.length}`);
+  }
+  if (code && String(code).trim()) {
+    values.push(`%${String(code).trim()}%`);
+    cond.push(`pickup_code ILIKE $${values.length}`);
+  }
+  if (status && String(status).trim()) {
+    values.push(String(status).trim());
+    cond.push(`status = $${values.length}`);
+  }
+  if (pickup_type && String(pickup_type).trim()) {
+    values.push(String(pickup_type).trim());
+    cond.push(`pickup_type = $${values.length}`);
+  }
+
+  const searching = !!(
+    (q && String(q).trim()) ||
+    (invoice && String(invoice).trim()) ||
+    (customer && String(customer).trim()) ||
+    (toko && String(toko).trim()) ||
+    (courier && String(courier).trim()) ||
+    (code && String(code).trim()) ||
+    (status && String(status).trim()) ||
+    (pickup_type && String(pickup_type).trim())
+  );
+
+  if (q && String(q).trim()) {
+    values.push(`%${String(q).trim()}%`);
+    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length})`);
+  }
+
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
 
   const countRes = await pool.query(`SELECT count(*)::int AS n FROM packages ${where}`, values);
   const total = countRes.rows[0].n;
 
-  if (searching) {
-    const r = await pool.query(
-      `SELECT * FROM packages ${where} ORDER BY updated_at DESC LIMIT ${SEARCH_CAP}`, values);
-    return res.json({ items: r.rows, total, page: 1, pageSize: r.rows.length, searching: true });
-  }
-
+  // Pencarian DAN daftar sama-sama dipaginasi: server selalu mengembalikan halaman
+  // kecil (max 200 baris) sehingga payload & render tetap ringan, walau pencarian
+  // tetap menjangkau SELURUH data. `searching` hanya penanda untuk label UI.
   const pageSize = Math.min(200, Math.max(10, parseInt(req.query.pageSize, 10) || 50));
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(pages, Math.max(1, parseInt(req.query.page, 10) || 1));
@@ -343,8 +384,8 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   values.push((page - 1) * pageSize);
   const offIdx = values.length;
   const r = await pool.query(
-    `SELECT * FROM packages ${where} ORDER BY updated_at DESC LIMIT $${limIdx} OFFSET $${offIdx}`, values);
-  res.json({ items: r.rows, total, page, pageSize, searching: false });
+    `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages ${where} ORDER BY updated_at DESC LIMIT $${limIdx} OFFSET $${offIdx}`, values);
+  res.json({ items: r.rows, total, page, pageSize, searching });
 }));
 
 app.get('/api/packages/:id', requireAuth, wrap(async (req, res) => {
@@ -615,8 +656,21 @@ const COLUMN_ALIASES = {
   item_desc: ['item', 'barang', 'produk', 'product', 'deskripsi', 'description', 'nama_barang', 'nama barang', 'title'],
   platform: ['commerce platform', 'marketplace', 'platform'],
   courier: ['courier name', 'kurir', 'courier'],
-  pickup_code: ['pickup code', 'pickup_code', 'kode pickup'],
+  pickup_code: ['pickup code', 'pickup_code', 'kode pickup', 'kode_pickup', 'pickup pin', 'pickup_pin', 'pin', 'code', 'kode', 'passcode', 'otp'],
 };
+
+// Excel sering mengkonversi angka panjang menjadi notasi ilmiah (5.85316E+17).
+// Fungsi ini mengembalikannya ke string angka penuh.
+function fixSciNotation(val) {
+  const s = String(val ?? '').trim();
+  if (/^[\d.]+[eE][+\-]?\d+$/.test(s)) {
+    try {
+      const n = Number(s);
+      if (Number.isFinite(n)) return n.toLocaleString('fullwide', { useGrouping: false });
+    } catch {}
+  }
+  return s;
+}
 
 function mapRow(row) {
   const lower = {};
@@ -626,8 +680,8 @@ function mapRow(row) {
     return '';
   };
   return {
-    invoice_no: pick('invoice_no'),
-    awb_no: pick('awb_no'),
+    invoice_no: fixSciNotation(pick('invoice_no')),
+    awb_no: fixSciNotation(pick('awb_no')),
     customer_name: pick('customer_name'),
     customer_phone: pick('customer_phone'),
     item_desc: pick('item_desc'),
@@ -659,52 +713,106 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
     upload.single('file')(req, res, next);
   },
   wrap(async (req, res) => {
-    let text = '';
-    if (req.file) {
-      text = req.file.buffer.toString('utf8');
-    } else if (req.body?.text || req.body?.csvText) {
-      text = req.body.text || req.body.csvText;
-    } else {
-      return res.status(400).json({ error: 'File CSV atau data teks tidak ada' });
-    }
-    const delimiter = (text.split('\n')[0].match(/;/g) || []).length >
-      (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
     let rows;
-    try {
-      rows = parseCsv(text, { columns: true, bom: true, trim: true, skip_empty_lines: true, delimiter });
-    } catch (e) {
-      return res.status(400).json({ error: `CSV tidak bisa dibaca: ${e.message}` });
+    if (Array.isArray(req.body?.rows)) {
+      rows = req.body.rows;
+    } else {
+      let text = '';
+      if (req.file) {
+        text = req.file.buffer.toString('utf8');
+      } else if (req.body?.text || req.body?.csvText) {
+        text = req.body.text || req.body.csvText;
+      } else {
+        return res.status(400).json({ error: 'File CSV atau data teks tidak ada' });
+      }
+      const delimiter = (text.split('\n')[0].match(/;/g) || []).length >
+        (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+      try {
+        rows = parseCsv(text, { columns: true, bom: true, trim: true, skip_empty_lines: true, delimiter });
+      } catch (e) {
+        return res.status(400).json({ error: `CSV tidak bisa dibaca: ${e.message}` });
+      }
     }
+
+    const norm = (str) => String(str || '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
     let inserted = 0, updated = 0, skipped = 0, skippedCourier = 0;
+    const invoiceSeen = new Set();
+
     for (const rawRow of rows) {
       const m = mapRow(rawRow);
       if (!m.invoice_no) { skipped++; continue; }
+
+      const cleanInvoice = norm(m.invoice_no);
+      if (invoiceSeen.has(cleanInvoice)) {
+        skipped++;
+        continue;
+      }
+      invoiceSeen.add(cleanInvoice);
+
       const ptype = classifyPickup(m.courier);
       // Hanya paket Gojek/Grab/SPX (driver) & Ambil Customer yang diimpor.
       // Ekspedisi reguler / kurir internal / tanpa kurir dilewati.
       if (!ptype) { skippedCourier++; continue; }
-      const r = await pool.query(
-        `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_type, pickup_code, raw, source)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,'import')
-         ON CONFLICT (invoice_no) DO UPDATE SET
-           awb_no = CASE WHEN EXCLUDED.awb_no <> '' THEN EXCLUDED.awb_no ELSE packages.awb_no END,
-           customer_name = CASE WHEN EXCLUDED.customer_name <> '' THEN EXCLUDED.customer_name ELSE packages.customer_name END,
-           customer_phone = CASE WHEN EXCLUDED.customer_phone <> '' THEN EXCLUDED.customer_phone ELSE packages.customer_phone END,
-           item_desc = CASE WHEN EXCLUDED.item_desc <> '' THEN EXCLUDED.item_desc ELSE packages.item_desc END,
-           platform = CASE WHEN EXCLUDED.platform <> '' THEN EXCLUDED.platform ELSE packages.platform END,
-           courier = CASE WHEN EXCLUDED.courier <> '' THEN EXCLUDED.courier ELSE packages.courier END,
-           pickup_type = EXCLUDED.pickup_type,
-           pickup_code = CASE
-             WHEN (packages.pickup_code IS NULL OR packages.pickup_code = '') AND (EXCLUDED.pickup_code IS NOT NULL AND EXCLUDED.pickup_code <> '')
-             THEN EXCLUDED.pickup_code
-             ELSE COALESCE(NULLIF(packages.pickup_code, ''), EXCLUDED.pickup_code)
-           END,
-           raw = EXCLUDED.raw, updated_at = now()
-         RETURNING (xmax = 0) AS is_new`,
-        [m.invoice_no, m.awb_no, m.customer_name, m.customer_phone, m.item_desc,
-         m.platform, m.courier, ptype, m.pickup_code, JSON.stringify(m.raw)]
-      );
-      r.rows[0].is_new ? inserted++ : updated++;
+
+      let codeToSet = norm(m.pickup_code);
+      if (codeToSet) {
+        // Cek apakah pickup_code sudah dipakai oleh paket lain di database
+        const codeExist = await pool.query('SELECT invoice_no FROM packages WHERE pickup_code = $1 AND invoice_no <> $2', [codeToSet, cleanInvoice]);
+        if (codeExist.rows.length > 0) {
+          codeToSet = '';
+        }
+      }
+
+      try {
+        const cleanAwb = norm(m.awb_no);
+        let existingRes;
+        if (cleanAwb) {
+          existingRes = await pool.query('SELECT * FROM packages WHERE invoice_no = $1 OR (awb_no <> \'\' AND awb_no = $2)', [cleanInvoice, cleanAwb]);
+        } else {
+          existingRes = await pool.query('SELECT * FROM packages WHERE invoice_no = $1', [cleanInvoice]);
+        }
+        const isReturnRow = cleanInvoice.startsWith('R/') || cleanInvoice.startsWith('r/') ||
+                            (m.raw?.Status || '').toLowerCase() === 'return' ||
+                            String(m.raw?.['Is Return (Credit Note)'] || '') === '1';
+        const initialStatus = isReturnRow ? 'retur' : 'data_masuk';
+
+        if (!existingRes.rows.length) {
+          // Paket BARU! Insert ke DB
+          await pool.query(
+            `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_type, pickup_code, status, raw, source)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,'import')`,
+            [cleanInvoice, norm(m.awb_no), norm(m.customer_name), norm(m.customer_phone), norm(m.item_desc),
+             norm(m.platform), norm(m.courier), ptype, codeToSet, initialStatus, JSON.stringify(m.raw)]
+          );
+          inserted++;
+        } else {
+          // Paket SUDAH ADA di DB! Field lain (nama, phone, barang, dll) TIDAK BOLEH diubah oleh CSV baru.
+          // Hanya Pickup Code (jika DB masih kosong) dan status retur yang boleh di-update.
+          const ex = existingRes.rows[0];
+          let hasChange = false;
+          const updates = [];
+          const vals = [ex.id];
+
+          if (isReturnRow && ex.status !== 'retur') {
+            hasChange = true; vals.push('retur'); updates.push(`status=$${vals.length}`);
+          }
+          if (codeToSet && codeToSet !== norm(ex.pickup_code) && (!ex.pickup_code || ex.pickup_code === '')) {
+            hasChange = true; vals.push(codeToSet); updates.push(`pickup_code=$${vals.length}`);
+          }
+
+          if (hasChange) {
+            vals.push(JSON.stringify(m.raw));
+            updates.push(`raw=$${vals.length}`);
+            await pool.query(`UPDATE packages SET ${updates.join(', ')}, updated_at=now() WHERE id=$1`, vals);
+            updated++;
+          } else {
+            skipped++;
+          }
+        }
+      } catch (err) {
+        console.error('Error importing row:', cleanInvoice, err.message);
+        skipped++;
+      }
     }
     notify();
     res.json({ inserted, updated, skipped: skipped + skippedCourier, skippedCourier, total: rows.length });

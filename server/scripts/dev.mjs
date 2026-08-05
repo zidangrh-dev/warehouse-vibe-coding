@@ -24,7 +24,7 @@ if (!fs.existsSync(path.join(dataDir, 'PG_VERSION'))) {
 await pg.start();
 console.log('PostgreSQL embedded jalan di port 5433');
 
-const server = spawn(process.execPath, ['src/index.mjs'], {
+const server = spawn(process.execPath, ['--watch', 'src/index.mjs'], {
   stdio: 'inherit',
   env: {
     ...process.env,

@@ -10,7 +10,8 @@ import PackageModal from '../PackageModal';
 
 export default function CancelReturScreen({ user }) {
   const [q, setQ] = useState('');
-  const { items, total, page, setPage, loading, searching, refetch } = usePackages('cancelretur', q);
+  const [colFilters, setColFilters] = useState({});
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('cancelretur', q, colFilters);
   const [openId, setOpenId] = useState(null);
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
 
@@ -52,8 +53,11 @@ export default function CancelReturScreen({ user }) {
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={searching ? null : { page, total, onPage: setPage }}
+        pagination={{ page, total, onPage: setPage }}
         rowAction={rowAction}
+        onSearchQuery={setQ}
+        onColumnFilterChange={setColFilters}
+        tab="cancelretur"
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
     </View>

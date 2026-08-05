@@ -12,7 +12,8 @@ import PackageModal from '../PackageModal';
 
 export default function SelfPickupScreen({ user }) {
   const [q, setQ] = useState('');
-  const { items, total, page, setPage, loading, searching, refetch } = usePackages('selfpickup', q);
+  const [colFilters, setColFilters] = useState({});
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('selfpickup', q, colFilters);
   const [scanOpen, setScanOpen] = useState(false);
   const [codePkg, setCodePkg] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -71,8 +72,11 @@ export default function SelfPickupScreen({ user }) {
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={searching ? null : { page, total, onPage: setPage }}
+        pagination={{ page, total, onPage: setPage }}
         rowAction={rowAction}
+        onSearchQuery={setQ}
+        onColumnFilterChange={setColFilters}
+        tab="selfpickup"
       />
       <ScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
       <CodeModal pkg={codePkg} onClose={() => setCodePkg(null)} />

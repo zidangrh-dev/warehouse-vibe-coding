@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking,
+  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking, Platform,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, {
@@ -40,7 +40,7 @@ export function PackageRow({ pkg, onPress, action }) {
           </Text>
           <Text style={s.detail} numberOfLines={1}>
             {pkg.customer_name || '(tanpa nama)'}
-            {pkg.platform ? `  ·  🏬 ${pkg.platform}` : ''}
+            {(pkg.platform || pkg.item_desc) ? `  ·  🏬 ${pkg.platform || pkg.item_desc}` : ''}
             {pkg.courier ? `  ·  🛵 ${pkg.courier}` : ''}
           </Text>
         </View>
@@ -57,52 +57,182 @@ export function PackageRow({ pkg, onPress, action }) {
 
 // Tabel padat untuk layar lebar (desktop web) — kontrak props sama dengan
 // PackageRow supaya screens.js tinggal switch render mode.
-export function PackageTable({ items, onPress, renderAction }) {
-  const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '' });
-  const [showFilters, setShowFilters] = useState(false);
 
-  const setF = (k) => (v) => setFilters((prev) => ({ ...prev, [k]: v }));
-  const resetFilters = () => setFilters({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '' });
+// Didefinisikan di LEVEL MODUL (bukan di dalam render) agar tipe komponennya
+// stabil. Komponen yang dibuat di dalam fungsi render akan remount tiap render,
+// sehingga TextInput kehilangan fokus setiap kali diketik 1 huruf.
+function FilterInputCell({ placeholder, widthFlex, value, onChange }) {
+  const isActive = !!String(value || '').trim();
+  return (
+    <View style={{ flex: widthFlex, paddingRight: 4, position: 'relative', justifyContent: 'center' }}>
+      <TextInput
+        style={[
+          s.colInput,
+          isActive ? {
+            backgroundColor: colors.surface,
+            borderColor: colors.primary,
+            color: colors.primary,
+            fontWeight: '700',
+            paddingRight: 18,
+          } : null,
+        ]}
+        placeholder={placeholder}
+        placeholderTextColor={colors.faint}
+        value={value}
+        onChangeText={onChange}
+      />
+      {isActive && (
+        <TouchableOpacity
+          style={{ position: 'absolute', right: 8, top: 4, padding: 2 }}
+          onPress={() => onChange('')}
+        >
+          <Text style={{ fontSize: 10, color: colors.primary, fontWeight: '800' }}>✕</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
 
-  const hasActiveFilters = Object.values(filters).some((v) => v.trim() !== '');
+export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab }) {
+  const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' });
+  const debounceRef = useRef(null);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+
+  const debouncedNotify = useCallback((next) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onColumnFilterChange?.(next);
+    }, 500);
+  }, [onColumnFilterChange]);
+
+  const setF = (k) => (v) => {
+    const val = String(v || '');
+    // Baca nilai terbaru dari ref (bukan closure render) agar nilai yang
+    // di-debounce selalu lengkap walau beberapa ketikan berjalan cepat.
+    const next = { ...filtersRef.current, [k]: val };
+    setFilters(next);
+    debouncedNotify(next);
+  };
+
+  const resetFilters = () => {
+    const next = { invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' };
+    setFilters(next);
+    onColumnFilterChange?.(next);
+    onSearchQuery?.('');
+  };
+
+  const hasActiveFilters = Object.values(filters).some((v) => (v || '').trim() !== '');
+  const activeCount = Object.values(filters).filter((v) => (v || '').trim() !== '').length;
 
   const filteredItems = useMemo(() => {
-    return items.filter((pkg) => {
-      if (filters.invoice && !`${pkg.awb_no || ''} ${pkg.invoice_no || ''}`.toLowerCase().includes(filters.invoice.toLowerCase().trim())) return false;
-      if (filters.customer && !`${pkg.customer_name || ''} ${pkg.customer_phone || ''}`.toLowerCase().includes(filters.customer.toLowerCase().trim())) return false;
-      if (filters.toko && !`${pkg.platform || ''}`.toLowerCase().includes(filters.toko.toLowerCase().trim())) return false;
-      if (filters.courier && !`${pkg.courier || ''}`.toLowerCase().includes(filters.courier.toLowerCase().trim())) return false;
-      if (filters.code && !`${pkg.pickup_code || ''}`.toLowerCase().includes(filters.code.toLowerCase().trim())) return false;
-      if (filters.status && !`${pkg.status || ''} ${statusLabel(pkg.status)}`.toLowerCase().includes(filters.status.toLowerCase().trim())) return false;
+    const list = Array.isArray(items) ? items : [];
+    return list.filter((pkg) => {
+      if (!pkg) return false;
+      const invF = (filters.invoice || '').trim().toLowerCase();
+      if (invF && !`${pkg.awb_no || ''} ${pkg.invoice_no || ''}`.toLowerCase().includes(invF)) return false;
+
+      const custF = (filters.customer || '').trim().toLowerCase();
+      if (custF && !`${pkg.customer_name || ''} ${pkg.customer_phone || ''}`.toLowerCase().includes(custF)) return false;
+
+      const tokoF = (filters.toko || '').trim().toLowerCase();
+      if (tokoF && !`${pkg.platform || ''} ${pkg.item_desc || ''}`.toLowerCase().includes(tokoF)) return false;
+
+      const courF = (filters.courier || '').trim().toLowerCase();
+      if (courF && !`${pkg.courier || ''}`.toLowerCase().includes(courF)) return false;
+
+      const codeF = (filters.code || '').trim().toLowerCase();
+      if (codeF && !`${pkg.pickup_code || ''}`.toLowerCase().includes(codeF)) return false;
+
+      const typeF = (filters.pickup_type || '').trim().toLowerCase();
+      if (typeF && (pkg.pickup_type || '').toLowerCase() !== typeF) return false;
+
+      const statF = (filters.status || '').trim().toLowerCase();
+      if (statF && !`${pkg.status || ''} ${statusLabel(pkg.status) || ''}`.toLowerCase().includes(statF)) return false;
+
       return true;
     });
   }, [items, filters]);
 
+  const STATUS_COLOR = {
+    data_masuk: '#475569',
+    absen_ambil_customer: '#4338CA',
+    absen_gojek: '#047857',
+    mencari_driver: '#B45309',
+    driver_sampai_kios: '#6D28D9',
+    done_pickup: '#0E7490',
+    selesai: '#15803D',
+    retur: '#B91C1C',
+    cancel: '#334155',
+  };
+
+  const currentStatusColor = STATUS_COLOR[filters.status] || colors.ink;
+
+  const applyQuickFilter = (typeVal, statusVal) => {
+    const next = {
+      ...filters,
+      pickup_type: typeVal,
+      status: statusVal,
+    };
+    setFilters(next);
+    onColumnFilterChange?.(next);
+  };
+
+  const allPresetChips = [
+    { label: 'Semua', type: '', status: '' },
+    { label: '🧍 Ambil Customer', type: 'customer', status: '', allowedTabs: ['semua', 'arsip', 'selfpickup'] },
+    { label: '🛵 Gojek / Instant', type: 'gojek', status: '', allowedTabs: ['semua', 'arsip', 'gojek'] },
+    { label: '✅ Selesai', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
+    { label: '↩️ Retur', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: '❌ Cancel', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+  ];
+
+  const presetChips = allPresetChips.filter((chip) => {
+    if (!chip.allowedTabs || !tab) return true;
+    return chip.allowedTabs.includes(tab);
+  });
+
   return (
     <View style={s.table}>
-      {/* Column Filter Toggle Bar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F8FAFC', borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <TouchableOpacity
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
-          onPress={() => setShowFilters(!showFilters)}
-        >
-          <Icon name="list" size={14} color={hasActiveFilters ? colors.primary : colors.sub} />
-          <Text style={{ fontSize: 12, fontWeight: '700', color: hasActiveFilters ? colors.primary : colors.sub }}>
-            {showFilters ? '▼ Sembunyikan Filter Kolom' : '🔍 Filter per Kolom'}
+      {/* Quick Interactive Filter Presets Bar */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F8FAFC', borderBottomWidth: 1, borderBottomColor: colors.border, flexWrap: 'wrap', gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            ⚡ Filter Cepat:
           </Text>
-          {hasActiveFilters && (
-            <View style={{ backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 }}>
-              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>Aktif</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+          {presetChips.map((chip) => {
+            const isSelected = chip.type
+              ? filters.pickup_type === chip.type
+              : chip.status
+              ? filters.status === chip.status
+              : !filters.pickup_type && !filters.status;
+            return (
+              <TouchableOpacity
+                key={chip.label}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: radius.pill,
+                  backgroundColor: isSelected ? colors.primary : '#E2E8F0',
+                }}
+                onPress={() => applyQuickFilter(chip.type, chip.status)}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFFFFF' : colors.sub }}>
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {hasActiveFilters && (
           <TouchableOpacity
-            style={{ backgroundColor: '#FEE2E2', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 }}
+            style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 }}
             onPress={resetFilters}
           >
-            <Text style={{ color: colors.danger, fontSize: 11, fontWeight: '700' }}>✕ Reset Filter ({filteredItems.length}/{items.length})</Text>
+            <Text style={{ color: colors.danger, fontSize: 11, fontWeight: '800' }}>
+              ✕ Reset ({activeCount} Filter Aktif · {filteredItems.length}/{(items || []).length})
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -120,62 +250,59 @@ export function PackageTable({ items, onPress, renderAction }) {
         <Text style={[s.th, { flex: 1.0, textAlign: 'right' }]}>Aksi</Text>
       </View>
 
-      {/* Filter Row */}
-      {showFilters && (
-        <View style={[s.tableHeadRow, { backgroundColor: '#F1F5F9', paddingVertical: 6 }]}>
-          <View style={{ width: 36 }} />
-          <View style={{ flex: 1.2, paddingRight: 4 }}>
+      {/* Filter Row (Bersih & Elegan - Hanya Warna Teks yang Berubah per Nama/Status) */}
+      <View style={[s.tableHeadRow, { backgroundColor: '#F8FAFC', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+        <View style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 11, color: colors.sub }}>🔍</Text>
+        </View>
+        <FilterInputCell placeholder="Filter Invoice..." widthFlex={1.2} value={filters.invoice || ''} onChange={setF('invoice')} />
+        <FilterInputCell placeholder="Filter Customer..." widthFlex={1.2} value={filters.customer || ''} onChange={setF('customer')} />
+        <FilterInputCell placeholder="Filter Toko..." widthFlex={1.0} value={filters.toko || ''} onChange={setF('toko')} />
+        <FilterInputCell placeholder="Filter Kurir..." widthFlex={1.0} value={filters.courier || ''} onChange={setF('courier')} />
+        <FilterInputCell placeholder="Filter Code..." widthFlex={0.8} value={filters.code || ''} onChange={setF('code')} />
+
+        {/* Dropdown Status: Latar Putih Bersih, Hanya Warna Teks Nama Status yang Berubah */}
+        <View style={{ flex: 1.0, paddingRight: 4, position: 'relative' }}>
+          {Platform.OS === 'web' ? (
+            <select
+              style={{
+                backgroundColor: '#FFFFFF',
+                border: filters.status ? `1.5px solid ${currentStatusColor}` : `1px solid ${colors.border}`,
+                borderRadius: 6,
+                padding: '4px 6px',
+                fontSize: 11,
+                color: currentStatusColor,
+                outline: 'none',
+                width: '100%',
+                cursor: 'pointer',
+                fontWeight: '700',
+              }}
+              value={filters.status}
+              onChange={(e) => setF('status')(e.target.value)}
+            >
+              <option value="" style={{ color: colors.ink }}>▼ Filter Status...</option>
+              <option value="data_masuk" style={{ color: '#475569' }}>Data Masuk</option>
+              <option value="absen_ambil_customer" style={{ color: '#4338CA' }}>Absen Ambil Customer</option>
+              <option value="absen_gojek" style={{ color: '#047857' }}>Absen Gojek</option>
+              <option value="mencari_driver" style={{ color: '#B45309' }}>Mencari Driver</option>
+              <option value="driver_sampai_kios" style={{ color: '#6D28D9' }}>Driver Sampai Kios</option>
+              <option value="done_pickup" style={{ color: '#0E7490' }}>Done Pickup</option>
+              <option value="selesai" style={{ color: '#15803D' }}>Selesai</option>
+              <option value="retur" style={{ color: '#B91C1C' }}>Retur</option>
+              <option value="cancel" style={{ color: '#334155' }}>Cancel</option>
+            </select>
+          ) : (
             <TextInput
-              style={s.colInput}
-              placeholder="Filter Invoice..."
-              value={filters.invoice}
-              onChangeText={setF('invoice')}
-            />
-          </View>
-          <View style={{ flex: 1.2, paddingRight: 4 }}>
-            <TextInput
-              style={s.colInput}
-              placeholder="Filter Customer..."
-              value={filters.customer}
-              onChangeText={setF('customer')}
-            />
-          </View>
-          <View style={{ flex: 1.0, paddingRight: 4 }}>
-            <TextInput
-              style={s.colInput}
-              placeholder="Filter Toko..."
-              value={filters.toko}
-              onChangeText={setF('toko')}
-            />
-          </View>
-          <View style={{ flex: 1.0, paddingRight: 4 }}>
-            <TextInput
-              style={s.colInput}
-              placeholder="Filter Kurir..."
-              value={filters.courier}
-              onChangeText={setF('courier')}
-            />
-          </View>
-          <View style={{ flex: 0.8, paddingRight: 4 }}>
-            <TextInput
-              style={s.colInput}
-              placeholder="Filter Code..."
-              value={filters.code}
-              onChangeText={setF('code')}
-            />
-          </View>
-          <View style={{ flex: 1.0, paddingRight: 4 }}>
-            <TextInput
-              style={s.colInput}
+              style={[s.colInput, filters.status ? { backgroundColor: '#FFFFFF', borderColor: '#3B82F6', color: currentStatusColor, fontWeight: '700' } : null]}
               placeholder="Filter Status..."
               value={filters.status}
               onChangeText={setF('status')}
             />
-          </View>
-          <View style={{ flex: 0.9 }} />
-          <View style={{ flex: 1.0 }} />
+          )}
         </View>
-      )}
+        <View style={{ flex: 0.9 }} />
+        <View style={{ flex: 1.0 }} />
+      </View>
 
       {/* Table Rows */}
       {filteredItems.map((pkg) => (
@@ -188,7 +315,7 @@ export function PackageTable({ items, onPress, renderAction }) {
           </Text>
           <Text style={[s.td, { flex: 1.2 }]} numberOfLines={1}>{pkg.customer_name || '(tanpa nama)'}</Text>
           <Text style={[s.td, { flex: 1.0, fontWeight: '600', color: colors.ink }]} numberOfLines={1}>
-            {pkg.platform || '—'}
+            {pkg.platform || pkg.item_desc || '—'}
           </Text>
           <Text style={[s.td, { flex: 1.0, color: colors.sub }]} numberOfLines={1}>
             {pkg.courier || '—'}

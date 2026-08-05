@@ -36,15 +36,20 @@ export function PaginationBar({ page, total, pageSize, onPage }) {
   );
 }
 
-export function PackageList({ items, loading, onOpen, rowAction, pagination }) {
+export function PackageList({ items, loading, onOpen, rowAction, pagination, onSearchQuery, onColumnFilterChange, tab }) {
   const { isDesktop } = useBreakpoint();
   if (loading && !items.length) return <ActivityIndicator style={{ marginTop: 30 }} color={colors.primary} />;
 
   const body = isDesktop ? (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 24 }}>
-      {items.length
-        ? <PackageTable items={items} onPress={onOpen} renderAction={rowAction} />
-        : <Text style={s.empty}>Tidak ada paket.</Text>}
+      <PackageTable
+        items={items}
+        onPress={onOpen}
+        renderAction={rowAction}
+        onSearchQuery={onSearchQuery}
+        onColumnFilterChange={onColumnFilterChange}
+        tab={tab}
+      />
     </ScrollView>
   ) : (
     <FlatList

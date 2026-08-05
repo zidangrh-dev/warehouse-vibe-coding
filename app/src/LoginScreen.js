@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
 import Icon from './Icon';
 import { login } from './api';
@@ -61,7 +61,7 @@ export default function LoginScreen({ onLogin }) {
     return (
       <View style={s.wrapDesktop}>
         <View style={s.brandPanel}>
-          <View style={s.logoBox}><Icon name="box" size={30} color="#fff" /></View>
+          <Image source={require('../assets/icon.png')} style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16 }} resizeMode="contain" />
           <Text style={s.titleDark}>PickHub</Text>
           <Text style={s.subtitleDark}>Kelola paket retail pickup — cepat, rapi, realtime.</Text>
         </View>
@@ -73,7 +73,7 @@ export default function LoginScreen({ onLogin }) {
   return (
     <View style={s.wrap}>
       <View style={s.brand}>
-        <View style={[s.logoBox, { backgroundColor: colors.primary }]}><Icon name="box" size={28} color="#fff" /></View>
+        <Image source={require('../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 16, marginBottom: 14 }} resizeMode="contain" />
         <Text style={s.title}>PickHub</Text>
         <Text style={s.subtitle}>Kelola paket retail pickup — cepat, rapi, realtime</Text>
       </View>

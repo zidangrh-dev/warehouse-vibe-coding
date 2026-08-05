@@ -10,7 +10,8 @@ import PackageModal from '../PackageModal';
 
 export default function ArsipScreen({ user }) {
   const [q, setQ] = useState('');
-  const { items, total, page, setPage, loading, searching, refetch } = usePackages('arsip', q);
+  const [colFilters, setColFilters] = useState({});
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('arsip', q, colFilters);
   const [openId, setOpenId] = useState(null);
 
   const {
@@ -116,8 +117,10 @@ export default function ArsipScreen({ user }) {
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={searching ? null : { page, total, onPage: setPage }}
+        pagination={{ page, total, onPage: setPage }}
         rowAction={rowAction}
+        onSearchQuery={setQ}
+        onColumnFilterChange={setColFilters}
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
     </View>

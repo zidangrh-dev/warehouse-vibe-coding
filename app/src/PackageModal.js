@@ -381,27 +381,57 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Pickup Code / PIN">
               {canEditCode ? (
                 editingCode || !pkg.pickup_code ? (
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, alignItems: 'center' }}>
                     <TextInput
-                      style={[s.input, { flex: 1, marginBottom: 0, fontWeight: '700', letterSpacing: 1 }]}
+                      style={{
+                        flex: 1,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        borderRadius: radius.pill,
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        fontSize: 14,
+                        fontWeight: '700',
+                        letterSpacing: 1.5,
+                        color: colors.ink,
+                        backgroundColor: colors.bg,
+                      }}
                       value={codeVal}
                       onChangeText={setCodeVal}
                       placeholder="Isi / Ubah Pickup Code..."
                       autoCapitalize="characters"
                     />
                     <TouchableOpacity
-                      style={[s.saveNote, { marginTop: 0, paddingVertical: 10, paddingHorizontal: 14 }]}
+                      style={{
+                        borderRadius: radius.pill,
+                        backgroundColor: colors.primary,
+                        paddingHorizontal: 16,
+                        paddingVertical: 9,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
                       onPress={saveCode}
                       disabled={busy}
                     >
-                      <Text style={s.btnText}>{busy ? '...' : 'Simpan'}</Text>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                        {busy ? '...' : 'Simpan'}
+                      </Text>
                     </TouchableOpacity>
                     {!!pkg.pickup_code && (
                       <TouchableOpacity
-                        style={[s.saveNote, { marginTop: 0, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, paddingVertical: 10, paddingHorizontal: 12 }]}
+                        style={{
+                          borderRadius: radius.pill,
+                          backgroundColor: colors.surfaceAlt,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          paddingHorizontal: 14,
+                          paddingVertical: 9,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
                         onPress={() => { setCodeVal(pkg.pickup_code); setEditingCode(false); }}
                       >
-                        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 12 }}>Batal</Text>
+                        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }}>Batal</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -411,7 +441,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       {pkg.pickup_code}
                     </Text>
                     <TouchableOpacity
-                      style={{ backgroundColor: colors.primarySoft, borderRadius: 6, paddingVertical: 4, paddingHorizontal: 10 }}
+                      style={{ backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 }}
                       onPress={() => setEditingCode(true)}
                     >
                       <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>✏️ Edit Code</Text>
