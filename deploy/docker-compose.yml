@@ -16,8 +16,9 @@ services:
     build: ../server
     restart: unless-stopped
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgres://gudang:${DB_PASSWORD}@db:5432/gudang
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-gudang-board}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET di file .env}
       PORT: 4000
     volumes:
       - uploads:/app/uploads

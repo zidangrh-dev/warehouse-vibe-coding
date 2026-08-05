@@ -20,17 +20,19 @@ cd app && npm install && npx expo start      # tekan 'w' untuk web; scan QR untu
 
 - Alamat API terdeteksi otomatis di `app/src/api.js` (`apiBase()`).
 - Setelah install paket baru saat Metro nyala, restart dengan `npx expo start -c` (cache).
-- Login awal (WAJIB diganti sebelum produksi): `gudang/gudang123` (warehouse),
-  `admin/admin123` (admin kios), `sales/sales123` (sales). Dibuat di `server/src/db.mjs`.
+- Login awal (WAJIB diganti sebelum produksi): `superadmin/superadmin123` (super admin),
+  `gudang/gudang123` (warehouse), `admin/admin123` (admin kios), `sales/sales123` (sales).
+  Dibuat di `server/src/db.mjs`.
 
 ## Arsitektur
 
 - `server/` — `src/index.mjs` (semua endpoint), `src/db.mjs` (pool + seed user),
-  `src/schema.sql` (skema, dijalankan tiap start). Auth JWT, role: warehouse/admin/sales.
+  `src/schema.sql` (skema, dijalankan tiap start). Auth JWT, role: superadmin/warehouse/admin/sales.
   Dev DB dinisialisasi **UTF8** (`scripts/dev.mjs`) — WIN1252 menolak unicode dari CSV marketplace.
 - `app/` — Expo SDK 57. `App.js` → login/tabs. `src/MainTabs.js` (tab per role),
-  `src/screens.js` (4 layar tab), `src/PackageModal.js` (detail + aksi + foto),
-  `src/components.js` (kartu, modal kode, modal nama), `src/theme.js` (design token),
+  `src/screens/` (satu file layar per tab + `ListComponents.js` + `ManualInputModal.js`),
+  `src/PackageModal.js` (detail + aksi + foto),
+  `src/components.js` (kartu, tabel, modal kode, chart), `src/theme.js` (design token),
   `src/ScannerModal.js` (scan barcode / input manual).
 - `deploy/` — docker-compose (Postgres + API) + contoh nginx untuk VPS.
 
@@ -55,6 +57,13 @@ pengambilan (gojek `done_pickup` & self-pickup `selesai`) butuh 1 masing-masing.
 Ditegakkan server (tolak PATCH bila kurang) DAN UI (tombol terkunci). Endpoint lama
 `redeem` dihapus → diganti `find-by-code`. Kolom `gojek_at` mencatat jam masuk antrian
 gojek (dipakai di kolom "Update" tabel). Setiap datatable/kartu wajib tampilkan pickup code.
+
+**Akses file**: foto di `/uploads` TIDAK publik — wajib JWT (`?token=` atau header
+Bearer; `photoUrl()` di `app/src/api.js` menyisipkan token otomatis).
+
+**Akses API**: `PATCH /api/packages/:id` membatasi per-field — role operasional
+(superadmin/admin/warehouse) boleh semua kolom; sales hanya boleh `pickup_code`.
+`/uploads` juga wajib JWT (lihat di atas).
 
 ## Keputusan produk (jangan diubah tanpa konfirmasi user)
 

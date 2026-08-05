@@ -16,12 +16,19 @@ const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-gudang-board';
 
 if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'dev-secret-gudang-board') {
-  console.warn('⚠️ WARNING: JWT_SECRET belum diset di .env production! Menggunakan secret default.');
+  console.error('⚠️ JWT_SECRET belum diset di .env production! Server menolak untuk berjalan (pakai secret default = celah keamanan).');
+  process.exit(1);
 }
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : ['https://apps-pickhub.cloud', 'http://localhost:8081', 'http://localhost:4000', 'http://localhost:19006'];
+  : [
+      'https://apps-pickhub.cloud',
+      'http://202.10.44.147',
+      'http://localhost:8081',
+      'http://localhost:4000',
+      'http://localhost:19006',
+    ];
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -36,6 +43,10 @@ const corsOptions = {
 };
 
 const app = express();
+// Percaya satu lapis proxy (nginx). Tanpa ini `req.ip` = 127.0.0.1 untuk
+// semua client di belakang proxy, sehingga rate limiter login mengunci
+// seluruh server setelah 10 percobaan gabungan.
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -64,7 +75,19 @@ const photoUpload = multer({
 
 app.use(cors(corsOptions));
 app.use(express.json());
-app.use('/uploads', express.static(UPLOAD_DIR));
+
+// Foto bukti (terutama KTP/wajah) TIDAK boleh diakses publik. Memverifikasi
+// JWT lewat query `?token=` (dipakai <Image>/<img> yang tidak bisa kirim
+// header Authorization) ATAU header `Authorization: Bearer`.
+app.use('/uploads', (req, res, next) => {
+  const token = req.query.token || (req.headers.authorization || '').replace(/^Bearer /, '');
+  try {
+    jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: 'Akses ke foto butuh autentikasi' });
+  }
+}, express.static(UPLOAD_DIR));
 
 const notify = () => io.emit('packages:changed');
 
@@ -430,7 +453,9 @@ app.post('/api/packages/:id/photos', requireAuth, requireRole('superadmin', 'adm
       const rawBase64 = req.body.base64 || req.body.photoBase64;
       const cleanBase64 = rawBase64.replace(/^data:image\/\w+;base64,/, '');
       const buffer = Buffer.from(cleanBase64, 'base64');
-      const ext = req.body.ext || '.jpg';
+      // Ekstensi DIWHITELIST — jangan terima `ext` mentah dari client
+      // (jalur multipart pakai filter MIME, jalur base64 harus konsisten).
+      const ext = ['.jpg', '.png', '.webp'].includes(String(req.body?.ext || '')) ? req.body.ext : '.jpg';
       filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
       fs.writeFileSync(path.join(UPLOAD_DIR, filename), buffer);
     } else {
@@ -505,6 +530,17 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
   // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
   const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code'];
+
+  // Role operasional (admin/warehouse) boleh semua field. Sales hanya boleh
+  // mengubah pickup code; perubahan status/field lain wajib ditolak server.
+  const isOperational = ['superadmin', 'admin', 'warehouse'].includes(req.user.role);
+  const forbidden = Object.keys(req.body).filter(
+    (k) => allowed.includes(k) && k !== 'pickup_code' && !isOperational
+  );
+  if (forbidden.length > 0) {
+    return res.status(403).json({ error: `Role Anda tidak berhak mengubah: ${forbidden.join(', ')}` });
+  }
+
   const sets = [];
   const values = [id];
   for (const key of allowed) {

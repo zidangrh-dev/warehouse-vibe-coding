@@ -160,7 +160,10 @@ export async function uploadPhoto(packageId, kind, asset) {
 }
 
 export function photoUrl(photo) {
-  return `${apiBase()}/uploads/${photo.filename}`;
+  const base = `${apiBase()}/uploads/${photo.filename}`;
+  // Server mewajibkan autentikasi untuk foto (<Image>/<img> tidak bisa kirim
+  // header Authorization → token dilewatkan via query). Token aman di memory.
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
 export async function importCsv(fileAsset) {

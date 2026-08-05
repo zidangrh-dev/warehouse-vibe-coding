@@ -1,7 +1,8 @@
-# 📦 PickHub — Warehouse Management System
+# 📦 PickHub — Manajemen Paket Retail Pickup
 
-Aplikasi manajemen paket **retail pickup** untuk kios. Satu codebase React Native (Expo)
-untuk **Android** dan **Web**, backend **Express + PostgreSQL + Socket.IO**.
+Aplikasi tracking paket **retail pickup** untuk kios (dulu "Warehouse Management
+System"). Satu codebase React Native (Expo) untuk **Android** dan **Web**,
+backend **Express + PostgreSQL + Socket.IO**.
 
 ## Fitur Utama
 
@@ -23,6 +24,9 @@ untuk **Android** dan **Web**, backend **Express + PostgreSQL + Socket.IO**.
 gudang-board/
 ├── app/                  # Aplikasi Expo (Android + Web)
 │   ├── src/              # Source code React Native
+│   │   ├── screens/      # Layer layar per tab
+│   │   ├── hooks/        # usePackages, useBulkSelection
+│   │   └── ...           # komponen, api, theme
 │   ├── package.json
 │   └── app.json
 ├── server/               # REST API + WebSocket
@@ -33,7 +37,9 @@ gudang-board/
 ├── deploy/               # Konfigurasi deployment VPS
 │   ├── docker-compose.yml
 │   ├── nginx.conf.example
-│   └── setup-vps.sh      # Script setup VPS otomatis
+│   ├── setup-vps.sh      # Script setup VPS otomatis
+│   └── update.sh         # Update 1-perintah (git pull + rebuild)
+├── samples/              # CSV contoh untuk tes import
 ├── .env.example          # Template environment variables
 └── README.md
 ```
@@ -144,7 +150,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### Akses Setelah Deploy
 - **Web:** `http://202.10.44.147`
-- **Android APK:** Build dengan `eas build` (PROD_API sudah di-set ke IP VPS)
+- **Android APK:** Build dengan `eas build` (isi `PROD_API` di `app/src/api.js` dengan domain VPS)
 
 ### HTTPS (Opsional, Jika Punya Domain)
 ```bash
@@ -161,23 +167,23 @@ eas login                               # akun Expo gratis
 eas build -p android --profile preview  # menghasilkan .apk
 ```
 
-> `PROD_API` di `app/src/api.js` sudah di-set ke `http://202.10.44.147`.
+> ⚠️ **Sebelum build APK produksi**: ganti `PROD_API` di `app/src/api.js` dengan
+> domain VPS Anda (saat ini terisi `https://apps-pickhub.cloud`). Di web
+> produksi alamat API dideteksi otomatis dari origin yang sama (nginx mem-proxy `/api`).
 
 ## Alur Kerja Developer (Git Workflow)
 
 ```
-[Lokal: dev]  →  git push  →  [GitHub: main]  →  ssh ke VPS  →  git pull  →  rebuild
+[Lokal: dev]  →  git push  →  [GitHub: main]  →  ssh ke VPS  →  deploy/update.sh
 ```
 
 1. Develop & test di lokal (`npm run dev`)
 2. Commit & push ke GitHub (`git push origin main`)
-3. SSH ke VPS, pull perubahan terbaru:
+3. SSH ke VPS, lalu update satu perintah:
    ```bash
    ssh root@202.10.44.147
    cd /opt/gudang-board
-   git pull origin main
-   cd deploy && docker compose up -d --build    # rebuild backend
-   cd ../app && npm install && npx expo export -p web && sudo cp -r dist/* /var/www/gudang-board/   # rebuild frontend
+   bash deploy/update.sh     # git pull → rebuild backend (docker) → build web → pasang ke nginx
    ```
 
 ## Tech Stack
