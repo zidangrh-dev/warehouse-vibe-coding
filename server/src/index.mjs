@@ -100,8 +100,22 @@ const wrap = (fn) => (req, res) =>
 
 // ---- In-Memory Rate Limiter untuk Login ----
 const loginAttempts = new Map();
+
+// IP klien yang BUKAN bisa dipalsukan. nginx (satu-satunya ingress) menata
+// `X-Forwarded-For` via $proxy_add_x_forwarded_for = meneruskan spoof client
+// lalu MENAMBAHKAN IP asli client di paling belakang. Jadi entri TERAKHIR
+// selalu ditulis nginx = IP klien yang sebenarnya.
+function clientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) {
+    const parts = String(xff).split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length) return parts[parts.length - 1];
+  }
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
 function rateLimitLogin(req, res, next) {
-  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+  const ip = clientIp(req) || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const now = Date.now();
   const windowMs = 15 * 60 * 1000; // 15 menit
   const maxAttempts = 10;
