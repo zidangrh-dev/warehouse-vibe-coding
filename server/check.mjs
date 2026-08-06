@@ -1,4 +1,4 @@
-import 'dotenv/config';
+try { await import('dotenv/config'); } catch (e) {}
 import { pool } from './src/db.mjs';
 
 const search = process.argv[2]?.trim();
