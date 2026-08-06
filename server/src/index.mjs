@@ -545,12 +545,15 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
   const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code'];
 
-  // Role operasional (admin/warehouse) boleh semua field. Sales hanya boleh
-  // mengubah pickup code; perubahan status/field lain wajib ditolak server.
+  // Role operasional (admin/warehouse) boleh field utama; SALES-lah satu-satunya
+  // yang boleh mengubah pickup code. Field lain oleh sales wajib ditolak server.
   const isOperational = ['superadmin', 'admin', 'warehouse'].includes(req.user.role);
-  const forbidden = Object.keys(req.body).filter(
-    (k) => allowed.includes(k) && k !== 'pickup_code' && !isOperational
-  );
+  const forbidden = Object.keys(req.body).filter((k) => {
+    if (!allowed.includes(k)) return false;
+    if (k === 'pickup_code') return req.user.role !== 'sales'; // hanya sales
+    if (isOperational) return false;                            // operasional boleh
+    return true;                                                // sales: field lain dilarang
+  });
   if (forbidden.length > 0) {
     return res.status(403).json({ error: `Role Anda tidak berhak mengubah: ${forbidden.join(', ')}` });
   }
@@ -678,7 +681,7 @@ app.post('/api/packages/find-by-code', requireAuth, requireRole('admin', 'sales'
 }));
 
 // Sales membuat pickup code untuk paket.
-app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales', 'admin'), wrap(async (req, res) => {
+app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales'), wrap(async (req, res) => {
   const id = Number(req.params.id);
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = crypto.randomInt(0, 100000000).toString().padStart(8, '0');

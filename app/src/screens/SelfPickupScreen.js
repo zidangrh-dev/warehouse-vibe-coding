@@ -38,12 +38,24 @@ export default function SelfPickupScreen({ user }) {
     }
   };
 
-  const rowAction = (p) =>
-    (isSales || isAdmin) ? (
-      <TouchableOpacity style={s.rowBtn} onPress={() => generate(p)}>
-        <Text style={s.rowBtnText}>{p.pickup_code ? 'Lihat Kode' : 'Buat Kode'}</Text>
-      </TouchableOpacity>
-    ) : null;
+  const rowAction = (p) => {
+    if (isSales) {
+      return (
+        <TouchableOpacity style={s.rowBtn} onPress={() => generate(p)}>
+          <Text style={s.rowBtnText}>{p.pickup_code ? 'Lihat Kode' : 'Buat Kode'}</Text>
+        </TouchableOpacity>
+      );
+    }
+    // Admin/superadmin hanya boleh MELIHAT kode yang sudah ada (tidak membuat).
+    if (isAdmin && p.pickup_code) {
+      return (
+        <TouchableOpacity style={s.rowBtn} onPress={() => setCodePkg(p)}>
+          <Text style={s.rowBtnText}>Lihat Kode</Text>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
 
   return (
     <View style={s.screen}>

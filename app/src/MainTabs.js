@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import Icon from './Icon';
 import { colors, shadow, spacing, confirmAsync } from './theme';
 import { useBreakpoint } from './responsive';
@@ -43,7 +43,7 @@ export default function MainTabs({ user, onLogout }) {
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.bg }}>
         <View style={s.sidebar}>
           <View style={s.brandRow}>
-            <View style={s.brandMark}><Icon name="box" size={18} color="#fff" /></View>
+            <Image source={require('../assets/icon.png')} style={{ width: 28, height: 28, borderRadius: 6, marginRight: 8 }} resizeMode="contain" />
             <Text style={s.brandText}>PickHub</Text>
           </View>
           <View style={{ flex: 1, marginTop: spacing.lg }}>
@@ -87,9 +87,12 @@ export default function MainTabs({ user, onLogout }) {
           <Text style={s.name}>{user.name}</Text>
           <Text style={s.role}>{ROLE_LABEL[user.role] || user.role} · PickHub</Text>
         </View>
-        <TouchableOpacity style={s.avatar} onPress={logout}>
-          <Text style={s.avatarText}>{initials}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Image source={require('../assets/icon.png')} style={{ width: 34, height: 34, borderRadius: 8 }} resizeMode="contain" />
+          <TouchableOpacity style={s.avatar} onPress={logout}>
+            <Text style={s.avatarText}>{initials}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={{ flex: 1 }}>

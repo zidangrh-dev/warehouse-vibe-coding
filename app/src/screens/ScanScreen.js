@@ -1,8 +1,8 @@
 // Tab 1: Scan Paket — paket baru datang dari kurir
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { api } from '../api';
-import { notice, colors } from '../theme';
+import { notice, colors, radius } from '../theme';
 import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
 import { s } from './styles';
@@ -10,6 +10,10 @@ import ScannerModal from '../ScannerModal';
 import PackageModal from '../PackageModal';
 import ManualInputModal from './ManualInputModal';
 
+// Scan kontinu untuk scanner hardware (web/PC): scanner bertingkah seperti
+// keyboard (ketik barcode + Enter). Input selalu terfokus, auto-commit saat
+// Enter, auto-clear + refocus sesudahnya sehingga bisa scan berturut-turut
+// tanpa sentuh apa pun. Feedback cukup pill visual yang tidak menutup layar.
 export default function ScanScreen({ user }) {
   const [q, setQ] = useState('');
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('scan', q);
@@ -18,6 +22,59 @@ export default function ScanScreen({ user }) {
   const [manualInvoice, setManualInvoice] = useState('');
   const [openId, setOpenId] = useState(null);
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+
+  const scanInputRef = useRef(null);
+  const scanLockRef = useRef(false);
+  const resultTimer = useRef(null);
+  const [scanInput, setScanInput] = useState('');
+  const [scanResult, setScanResult] = useState(null); // { ok, text }
+
+  // Fokus otomatis ke kolom scan saat layar terbuka (untuk scanner hardware).
+  useEffect(() => {
+    const t = setTimeout(() => scanInputRef.current?.focus(), 300);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Hilangkan feedback visual setelah ~2.5s agar tidak mengganggu scan berikut.
+  useEffect(() => {
+    if (!scanResult) return;
+    resultTimer.current = setTimeout(() => setScanResult(null), 2500);
+    return () => clearTimeout(resultTimer.current);
+  }, [scanResult]);
+
+  const processScan = useCallback(async (code) => {
+    try {
+      const p = await api.arrive(code);
+      setScanResult({
+        ok: true,
+        text: `✅ ${p.invoice_no} → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Ambil Customer'}`,
+      });
+    } catch (e) {
+      if (e.status === 404) {
+        setScanResult({ ok: false, text: `⚠ ${code} tidak ditemukan` });
+        setManualInvoice(code);
+        setManualOpen(true);
+      } else {
+        setScanResult({ ok: false, text: e.message });
+      }
+    }
+  }, []);
+
+  const submitScan = async () => {
+    const code = scanInput.trim();
+    if (!code || scanLockRef.current) return;
+    scanLockRef.current = true; // cegah double-enter dari scanner
+    try {
+      await processScan(code);
+    } finally {
+      setScanInput('');
+      // clear + refocus agar bisa lanjut scan berikutnya tanpa klik.
+      setTimeout(() => {
+        scanLockRef.current = false;
+        scanInputRef.current?.focus();
+      }, 0);
+    }
+  };
 
   const onScanned = async (code) => {
     try {
@@ -60,6 +117,37 @@ export default function ScanScreen({ user }) {
           </>
         )}
       </View>
+
+      {/* Kolom scan permanen untuk scanner hardware (web/PC) — loop kontinu */}
+      {isAdmin && (
+        <View style={scanBarStyle.wrap}>
+          <View style={scanBarStyle.row}>
+            <TextInput
+              ref={scanInputRef}
+              style={[s.input, scanBarStyle.input]}
+              placeholder="🖥 Scan barcode / AWB paket sampai lalu Enter..."
+              value={scanInput}
+              onChangeText={setScanInput}
+              onSubmitEditing={submitScan}
+              enterKeyHint="enter"
+            />
+            {scanResult && (
+              <View style={[scanBarStyle.pill, {
+                backgroundColor: scanResult.ok ? '#DCFCE7' : '#FEE2E2',
+                borderColor: scanResult.ok ? '#86EFAC' : '#FCA5A5',
+              }]}>
+                <Text style={[scanBarStyle.pillText, { color: scanResult.ok ? '#15803D' : '#B91C1C' }]} numberOfLines={1}>
+                  {scanResult.text}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={scanBarStyle.hint}>
+            Scanner hardware: cukup arahkan & tekan trigger berulang — kode otomatis diproses. Tidak ditemukan → form manual terbuka.
+          </Text>
+        </View>
+      )}
+
       <Text style={s.sectionTitle}>
         {searching
           ? `Hasil pencarian "${q.trim()}" (${total})`
@@ -82,3 +170,37 @@ export default function ScanScreen({ user }) {
     </View>
   );
 }
+
+const scanBarStyle = {
+  wrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    paddingTop: 2,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  input: {
+    flex: 1,
+    marginBottom: 0,
+    fontSize: 15,
+  },
+  pill: {
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: '55%',
+  },
+  pillText: {
+    fontWeight: '700',
+    fontSize: 12.5,
+  },
+  hint: {
+    fontSize: 11,
+    color: colors.faint,
+    marginTop: 4,
+  },
+};
