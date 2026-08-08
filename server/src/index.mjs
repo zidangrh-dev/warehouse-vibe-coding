@@ -626,6 +626,15 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   if (req.body.status === 'selesai' || req.body.status === 'done_pickup') sets.push('done_at=now()');
   // Done Pickup = data driver terkunci PERMANEN (walau retur & diantrikan lagi).
   if (req.body.status === 'done_pickup') sets.push('driver_locked=true');
+
+  // Paket yang pernah diangkut (driver_locked=true) lalu DI-RETUR dan diklik
+  // "Cari Driver" => kembali ke mencari_driver: data driver LAMA direset dari
+  // awal sehingga admin menginput driver BARU dari nol (driver_locked dibuka lagi).
+  if (req.body.status === 'mencari_driver' && chkArc.rows[0]?.driver_locked) {
+    if (!('driver_name' in req.body)) sets.push(`driver_name=''`);
+    if (!('driver_phone' in req.body)) sets.push(`driver_phone=''`);
+    sets.push(`driver_locked=false`);
+  }
   const r = await pool.query(
     `UPDATE packages SET ${sets.join(', ')}, updated_at=now() WHERE id=$1 RETURNING *`, values);
   if (!r.rows[0]) return res.status(404).json({ error: 'Paket tidak ditemukan' });
