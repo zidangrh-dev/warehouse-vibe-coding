@@ -90,6 +90,10 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_phone TEXT NOT NULL DEFAULT
 -- Setelah paket sekali selesai diangkut, data driver TIDAK boleh diubah lagi
 -- (tetap terkunci walaupun paket diretur lalu dimasukkan ke antrian lagi).
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_locked BOOLEAN NOT NULL DEFAULT false;
+-- Backfill data lama: paket yang sudah berada di status tuntas juga terkunci
+-- permanen (idempoten — tidak mengubah apa pun pada run berikutnya).
+UPDATE packages SET driver_locked=true
+  WHERE status IN ('done_pickup', 'selesai', 'retur', 'cancel') AND NOT driver_locked;
 
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
