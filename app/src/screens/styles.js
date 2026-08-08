@@ -54,10 +54,20 @@ export const s = StyleSheet.create({
   rowBtn: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 13,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    minWidth: 108,
+    minHeight: 30,
+    maxWidth: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  rowBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  rowBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+    textAlign: 'center',
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15,23,42,0.5)',
