@@ -74,7 +74,7 @@ export default function GojekScreen({ user }) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 12, gap: 6, paddingBottom: 6 }}
         >
-          {CHIP_STATUS.map((chip) => {
+          {CHIP_STATUSES.map((chip) => {
             const active = (colFilters.status || '') === chip.status;
             return (
               <TouchableOpacity
