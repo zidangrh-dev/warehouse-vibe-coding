@@ -64,8 +64,13 @@ export function PackageRow({ pkg, onPress, action }) {
       </View>
       <View style={s.cardBottom}>
         <StatusPill status={pkg.status} />
-        <Text style={s.codeChip}>🔑 {pkg.pickup_code || '—'}</Text>
         <Text style={s.time}>{fmtUpdate(pkg)}</Text>
+      </View>
+      <View style={s.cardRowMeta}>
+        <Text style={s.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code || '—'}</Text>
+        {!!pkg.driver_name && (
+          <Text style={s.driverChip} numberOfLines={1}>🛵 {pkg.driver_name}</Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -175,6 +180,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
     absen_ambil_customer: '#4338CA',
     absen_gojek: '#047857',
     mencari_driver: '#B45309',
+    data_driver_ready: '#C026D3',
     driver_sampai_kios: '#6D28D9',
     done_pickup: '#0E7490',
     selesai: '#15803D',
@@ -201,6 +207,12 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
     { label: '✅ Selesai', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
     { label: '↩️ Retur', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
     { label: '❌ Cancel', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    // Filter cepat per-status untuk tab Gojek (termasuk selesai agar paket
+    // yang sudah tuntas tetap terlihat di tab gojek).
+    { label: 'Absen Gojek', type: '', status: 'absen_gojek', allowedTabs: ['gojek'] },
+    { label: 'Mencari Driver', type: '', status: 'mencari_driver', allowedTabs: ['gojek'] },
+    { label: 'Driver Ready', type: '', status: 'data_driver_ready', allowedTabs: ['gojek'] },
+    { label: 'Driver Sampai Kios', type: '', status: 'driver_sampai_kios', allowedTabs: ['gojek'] },
   ];
 
   const presetChips = allPresetChips.filter((chip) => {
@@ -260,7 +272,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
         <Text style={[s.th, { flex: 1.2 }]}>Customer</Text>
         <Text style={[s.th, { flex: 1.0 }]}>Nama Toko</Text>
         <Text style={[s.th, { flex: 1.0 }]}>Kurir</Text>
-        <Text style={[s.th, { flex: 0.8 }]}>Pickup Code</Text>
+        <Text style={[s.th, { flex: 0.9 }]}>Pickup Code</Text>
         <Text style={[s.th, { flex: 1.0 }]}>Status</Text>
         <Text style={[s.th, { flex: 0.9 }]}>LAST UPDATE</Text>
         <Text style={[s.th, { flex: 1.0, textAlign: 'right' }]}>Aksi</Text>
@@ -301,6 +313,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
               <option value="absen_ambil_customer" style={{ color: '#4338CA' }}>Absen Ambil Customer</option>
               <option value="absen_gojek" style={{ color: '#047857' }}>Absen Gojek</option>
               <option value="mencari_driver" style={{ color: '#B45309' }}>Mencari Driver</option>
+              <option value="data_driver_ready" style={{ color: '#C026D3' }}>Data Driver Ready</option>
               <option value="driver_sampai_kios" style={{ color: '#6D28D9' }}>Driver Sampai Kios</option>
               <option value="done_pickup" style={{ color: '#0E7490' }}>Done Pickup</option>
               <option value="selesai" style={{ color: '#15803D' }}>Selesai</option>
@@ -336,11 +349,18 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
           <Text style={[s.td, { flex: 1.0, color: colors.sub }]} numberOfLines={1}>
             {pkg.courier || '—'}
           </Text>
-          <Text style={[s.td, { flex: 0.8, fontFamily: font.mono, fontWeight: '700', color: pkg.pickup_code ? colors.ink : colors.faint }]} numberOfLines={1}>
-            {pkg.pickup_code || '—'}
-          </Text>
+          <View style={{ flex: 0.9 }}>
+            <Text style={[s.td, { fontFamily: font.mono, fontWeight: '700', color: pkg.pickup_code ? colors.ink : colors.faint }]} numberOfLines={1}>
+              {pkg.pickup_code || '—'}
+            </Text>
+            {!!pkg.driver_name && (
+              <Text style={[s.td, { color: colors.primary, fontSize: 10.5, fontWeight: '700', marginTop: 1 }]} numberOfLines={1}>
+                🛵 {pkg.driver_name}
+              </Text>
+            )}
+          </View>
           <View style={{ flex: 1.0 }}><StatusPill status={pkg.status} /></View>
-          <Text style={[s.td, { flex: 0.9, color: colors.faint, fontSize: 12 }]} numberOfLines={1}>
+          <Text style={[s.td, { flex: 0.9, color: colors.faint, fontSize: 10.5 }]} numberOfLines={1}>
             {fmtUpdate(pkg)}
           </Text>
           <View style={{ flex: 1.0, alignItems: 'flex-end' }}>
@@ -706,8 +726,12 @@ export const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border,
   },
-  time: { color: colors.faint, fontSize: 12, fontWeight: '600' },
-  codeChip: { color: colors.sub, fontSize: 12, fontWeight: '700', fontFamily: font.mono },
+  cardRowMeta: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8,
+  },
+  time: { color: colors.faint, fontSize: 10.5, fontWeight: '600' },
+  codeChip: { color: colors.sub, fontSize: 11.5, fontWeight: '700', fontFamily: font.mono },
+  driverChip: { color: colors.primary, fontSize: 11.5, fontWeight: '700' },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,
     borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 9,

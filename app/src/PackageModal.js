@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -29,6 +29,7 @@ import {
 import { useBreakpoint } from "./responsive";
 import { ConfirmActionModal } from "./ConfirmActionModal";
 import Icon from "./Icon";
+import DriverInfoModal from "./DriverInfoModal";
 
 const Field = ({ label, children }) => (
   <View style={{ marginTop: 10 }}>
@@ -44,9 +45,13 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
   const [viewingPhoto, setViewingPhoto] = useState(null);
+  const [driverModalOpen, setDriverModalOpen] = useState(false);
 
   const [codeVal, setCodeVal] = useState("");
   const [editingCode, setEditingCode] = useState(false);
+
+  const [driverName, setDriverName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
 
   const load = async () => {
     if (!pkgId) return;
@@ -54,6 +59,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setPkg(p);
     setNote(p.admin_note || "");
     setCodeVal(p.pickup_code || "");
+    setDriverName(p.driver_name || "");
+    setDriverPhone(p.driver_phone || "");
     setEditingCode(false);
   };
   useEffect(() => {
@@ -65,7 +72,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const isArchived = !!pkg.archived;
   const isPhotoLocked = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
-  const canEditCode = !isArchived && user.role === 'sales';
+  const canEditCode = !isArchived && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
   const canEditPhotos = canAct && !isPhotoLocked;
 
   const actions = NEXT_ACTIONS[pkg.status] || [];
@@ -87,6 +94,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       barangPhotos.length >= 1
     : wajahPhotos.length >= 1 && barangPhotos.length >= 1;
   const gatedStatus = "done_pickup";
+  // Data driver WAJIB terisi sebelum Done Pickup (paket gojek).
+  const driverReady =
+    !!String(pkg.driver_name || "").trim() &&
+    !!String(pkg.driver_phone || "").trim();
+  const driverLocked = isGojek && pkg.status === "driver_sampai_kios" && !driverReady;
 
   const addPhoto = async (kind, fromCamera) => {
     const opts = { quality: 0.8 };
@@ -123,7 +135,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   const removePhoto = async (photo) => {
     if (isPhotoLocked) {
-      return notice('🔒 Foto telah dikunci secara permanen dan tidak dapat dihapus.');
+      return notice('ðŸ”’ Foto telah dikunci secara permanen dan tidak dapat dihapus.');
     }
     if (!(await confirmAsync('Hapus foto?'))) return;
     await api.deletePhoto(photo.id);
@@ -134,12 +146,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   // Satu tombol -> pilih sumber (Kamera / File). Di web langsung buka file.
   const pickPhoto = (kind) => {
     if (isPhotoLocked) {
-      return notice('🔒 Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
+      return notice('ðŸ”’ Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
     }
     if (Platform.OS === 'web') return addPhoto(kind, false);
     Alert.alert('Tambah Foto', 'Pilih sumber foto', [
-      { text: '📸 Kamera', onPress: () => addPhoto(kind, true) },
-      { text: '🗂 File / Galeri', onPress: () => addPhoto(kind, false) },
+      { text: 'ðŸ“¸ Kamera', onPress: () => addPhoto(kind, true) },
+      { text: 'ðŸ—‚ File / Galeri', onPress: () => addPhoto(kind, false) },
       { text: 'Batal', style: 'cancel' },
     ]);
   };
@@ -254,7 +266,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             onPress={() => pickPhoto(kind)}
             disabled={busy}
           >
-            <Text style={s.photoAddText}>＋{'\n'}Tambah</Text>
+            <Text style={s.photoAddText}>ï¼‹{'\n'}Tambah</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -274,17 +286,32 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     }
   };
 
-  const saveNote = async () => {
-    setBusy(true);
-    try {
-      await api.updatePackage(pkg.id, { admin_note: note });
-      onChanged();
-      notice("Catatan tersimpan");
-    } catch (e) {
-      notice(e.message);
-    } finally {
-      setBusy(false);
-    }
+// Auto-save admin note: debounce 700ms, lalu flush saat Tutup/close.
+  const noteTimerRef = useRef(null);
+  const noteLastSavedRef = useRef(note);
+  const flushNote = useCallback(() => {
+    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
+    const cur = note.trim();
+    const base = (pkg?.admin_note || "").trim();
+    if (cur === base) return;
+    if (cur === noteLastSavedRef.current) return;
+    noteLastSavedRef.current = cur;
+    api
+      .updatePackage(pkg.id, { admin_note: cur })
+      .then(onChanged)
+      .catch((e) => notice(e.message));
+  }, [pkg, note, onChanged]);
+
+  const onChangeNote = (v) => {
+    setNote(v);
+    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
+    noteTimerRef.current = setTimeout(flushNote, 700);
+  };
+
+  // Flush catatan saat modal ditutup (termasuk lewat tombol Tutup tak langsung).
+  const handleClose = () => {
+    flushNote();
+    onClose();
   };
 
   const saveCode = async () => {
@@ -293,7 +320,23 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       await api.updatePackage(pkg.id, { pickup_code: codeVal.trim() });
       onChanged();
       await load();
-      notice("✅ Pickup code berhasil disimpan!");
+      notice("âœ… Pickup code berhasil disimpan!");
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveDriver = async () => {
+    setBusy(true);
+    try {
+      await api.updatePackage(pkg.id, {
+        driver_name: driverName.trim(),
+        driver_phone: driverPhone.trim(),
+      });
+      notice("âœ… Data driver tersimpan");
+      onChanged();
     } catch (e) {
       notice(e.message);
     } finally {
@@ -305,7 +348,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setBusy(true);
     try {
       await api.unarchivePackage(pkg.id);
-      notice("✅ Berhasil mengembalikan paket dari arsip ke data aktif!");
+      notice("âœ… Berhasil mengembalikan paket dari arsip ke data aktif!");
       onChanged();
       onClose();
     } catch (e) {
@@ -316,18 +359,18 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
       <View style={s.backdrop}>
         <View style={[s.sheet, isWide && { maxWidth: 640 }]}>
           <ScrollView>
             <Text style={s.invoice}>{pkg.invoice_no}</Text>
             <Text style={[s.status, { color: statusColor(pkg.status) }]}>
-              ● {statusLabel(pkg.status)}
+              â— {statusLabel(pkg.status)}
             </Text>
 
             {isArchived && (
               <View style={s.archivedBanner}>
-                <Text style={s.archivedBannerTitle}>📦 PAKET TELAH DIARSIP</Text>
+                <Text style={s.archivedBannerTitle}>ðŸ“¦ PAKET TELAH DIARSIP</Text>
                 <Text style={s.archivedBannerText}>
                   {user.role === 'superadmin'
                     ? 'Data ini sedang dikunci. Sebagai Super Admin, Anda dapat mengembalikan paket ini ke data aktif.'
@@ -340,7 +383,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                     disabled={busy}
                   >
                     <Text style={s.unarchiveBtnText}>
-                      {busy ? 'Processing...' : '🔄 Pulihkan Paket ke Data Aktif'}
+                      {busy ? 'Processing...' : 'ðŸ”„ Pulihkan Paket ke Data Aktif'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -350,7 +393,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Customer">
               <Text style={s.value}>
                 {pkg.customer_name || "-"}{" "}
-                {pkg.customer_phone ? `· ${pkg.customer_phone}` : ""}
+                {pkg.customer_phone ? `Â· ${pkg.customer_phone}` : ""}
               </Text>
             </Field>
             {!!pkg.awb_no && (
@@ -363,7 +406,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Barang / Toko">
               <Text style={s.value}>
                 {pkg.item_desc || "-"}
-                {pkg.courier ? ` · ${pkg.courier}` : ""}
+                {pkg.courier ? ` Â· ${pkg.courier}` : ""}
               </Text>
             </Field>
             <Field label="Jenis ambilan">
@@ -371,10 +414,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               <View style={s.rowWrap}>
                 <Text style={s.value}>
                   {pkg.pickup_type === "gojek"
-                    ? `🛵 ${pkg.courier || "Driver"}`
-                    : "🧍 Ambil Customer"}
+                    ? `ðŸ›µ ${pkg.courier || "Driver"}`
+                    : "ðŸ§ Ambil Customer"}
                 </Text>
-                <Text style={s.lockTag}>🔒 terkunci</Text>
+                <Text style={s.lockTag}>ðŸ”’ terkunci</Text>
               </View>
             </Field>
             <Field label="Pickup Code / PIN">
@@ -443,13 +486,13 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       style={{ backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 }}
                       onPress={() => setEditingCode(true)}
                     >
-                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>✏️ Edit Code</Text>
+                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>âœï¸ Edit Code</Text>
                     </TouchableOpacity>
                   </View>
                 )
               ) : (
                 <Text style={[s.value, { fontWeight: "800", letterSpacing: 2 }]}>
-                  {pkg.pickup_code || "—"}
+                  {pkg.pickup_code || "â€”"}
                 </Text>
               )}
             </Field>
@@ -459,22 +502,39 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               </Field>
             )}
 
-            <Field label="Admin note (data driver, dsb.)">
+            <Field label="Admin note">
               <TextInput
                 style={s.input}
                 value={note}
-                onChangeText={setNote}
+                onChangeText={onChangeNote}
                 multiline
-                placeholder="Nama driver, plat nomor, catatan..."
+                placeholder="Catatan opsional untuk paket ini..."
                 editable={canAct}
               />
+              {canAct && <Text style={s.hint}>Auto-simpan saat buka Tab lain.</Text>}
+            </Field>
+
+            <Field label="Data driver (Gojek)">
+              <TextInput
+                style={s.driverInput}
+                placeholder="Nama driver (dari marketplace)"
+                placeholderTextColor={colors.faint}
+                value={driverName}
+                onChangeText={setDriverName}
+                editable={canAct}
+              />
+              <TextInput
+                style={[s.driverInput, { marginTop: 6 }]}
+                placeholder="Nomor HP driver"
+                placeholderTextColor={colors.faint}
+                value={driverPhone}
+                onChangeText={setDriverPhone}
+                editable={canAct}
+                keyboardType="phone-pad"
+              />
               {canAct && (
-                <TouchableOpacity
-                  style={s.saveNote}
-                  onPress={saveNote}
-                  disabled={busy}
-                >
-                  <Text style={s.btnText}>Simpan Catatan</Text>
+                <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
+                  <Text style={s.btnText}>Simpan Data Driver</Text>
                 </TouchableOpacity>
               )}
             </Field>
@@ -529,7 +589,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {canAct && (
                   <Text style={s.hint}>
                     {isPhotoLocked
-                      ? '🔒 Bukti foto telah dikunci secara permanen (tidak dapat ditambah/dihapus).'
+                      ? 'ðŸ”’ Bukti foto telah dikunci secara permanen (tidak dapat ditambah/dihapus).'
                       : 'Tekan lama foto untuk menghapus.'}
                   </Text>
                 )}
@@ -542,7 +602,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               <Field label="Aksi">
                 {actions.map((a) => {
                   const locked =
-                    a.to === gatedStatus && needsPhotos && !photosOk;
+                    (a.to === gatedStatus && needsPhotos && !photosOk) ||
+                    (a.to === gatedStatus && driverLocked);
                   return (
                     <TouchableOpacity
                       key={a.to}
@@ -557,12 +618,18 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       onPress={() => {
                         if (locked) {
                           notice(
-                            isGojek
+                            driverLocked && !photosOk
+                              ? "Lengkapi dulu: data driver (nama & no HP), foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
+                              : driverLocked
+                              ? "Data driver (nama & no HP) masih kosong â€” isi dulu sebelum Done Pickup."
+                              : isGojek
                               ? "Lengkapi dulu: foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : "Lengkapi dulu: foto pengambil + barang dan foto barang (masing-masing 1).",
                           );
                         } else if (a.to === "retur" || a.to === "cancel") {
                           setPendingStatus(a.to);
+                        } else if (a.to === "data_driver_ready") {
+                          setDriverModalOpen(true);
                         } else {
                           setStatus(a.to);
                         }
@@ -572,7 +639,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       <Text
                         style={[s.btnText, locked && { color: colors.sub }]}
                       >
-                        {locked ? "🔒 " : ""}
+                        {locked ? "ðŸ”’ " : ""}
                         {a.label}
                       </Text>
                     </TouchableOpacity>
@@ -584,14 +651,14 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Riwayat">
               {(pkg.events || []).map((ev) => (
                 <Text key={ev.id} style={s.event}>
-                  • {new Date(ev.created_at).toLocaleString("id-ID")} —{" "}
+                  â€¢ {new Date(ev.created_at).toLocaleString("id-ID")} â€”{" "}
                   {ev.user_name}: {ev.action}
                   {ev.detail ? ` (${ev.detail})` : ""}
                 </Text>
               ))}
             </Field>
 
-            <TouchableOpacity style={s.closeBtn} onPress={onClose}>
+            <TouchableOpacity style={s.closeBtn} onPress={handleClose}>
               <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -611,6 +678,13 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         }}
       />
 
+      <DriverInfoModal
+        visible={driverModalOpen}
+        pkg={pkg}
+        onClose={() => setDriverModalOpen(false)}
+        onSaved={onChanged}
+      />
+
       {viewingPhoto && (
         <Modal
           visible
@@ -622,7 +696,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <View style={s.pvCard}>
               <View style={s.pvHead}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.pvTitle}>📷 Foto Bukti ({viewingPhoto.kind})</Text>
+                  <Text style={s.pvTitle}>ðŸ“· Foto Bukti ({viewingPhoto.kind})</Text>
                   <Text style={s.pvSub}>{viewingPhoto.filename}</Text>
                 </View>
                 <TouchableOpacity
@@ -634,7 +708,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   <Text style={s.pvDlBtnText}>Unduh</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.pvClose} onPress={() => setViewingPhoto(null)}>
-                  <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
+                  <Text style={{ fontSize: 18, color: colors.sub }}>âœ•</Text>
                 </TouchableOpacity>
               </View>
 
@@ -713,6 +787,16 @@ const s = StyleSheet.create({
     marginTop: 6,
     alignSelf: "flex-start",
     paddingHorizontal: 16,
+  },
+  driverInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.input,
+    padding: 10,
+    fontSize: 14,
+    color: colors.ink,
+    backgroundColor: colors.bg,
+    marginTop: 4,
   },
   actionBtn: {
     borderRadius: radius.input,

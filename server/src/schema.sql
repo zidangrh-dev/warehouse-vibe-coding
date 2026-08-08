@@ -81,6 +81,11 @@ ALTER TABLE package_photos ADD CONSTRAINT package_photos_kind_check
 -- Waktu paket masuk ke antrian ambilan gojek (untuk kolom "Update" modul Gojek).
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS gojek_at TIMESTAMPTZ;
 
+-- Data driver (status 'data_driver_ready'): nama & no HP driver yang diinput
+-- admin dari data marketplace sebelum paket dijemput driver.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_phone TEXT NOT NULL DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
 CREATE INDEX IF NOT EXISTS idx_packages_pickup_code ON packages(pickup_code);
