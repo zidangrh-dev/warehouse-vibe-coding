@@ -80,13 +80,12 @@ export default function GojekScreen({ user }) {
               <TouchableOpacity
                 key={chip.label}
                 style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
                   borderRadius: radius.pill,
                   backgroundColor: active ? colors.primary : '#E2E8F0',
-                  borderWidth: 1,
-                  borderColor: active ? colors.primary : colors.border,
                 }}
+                activeOpacity={0.7}
                 onPress={() => applyStatus(chip.status)}
               >
                 <Text style={{ fontSize: 12, fontWeight: '700', color: active ? '#FFFFFF' : colors.sub }}>
