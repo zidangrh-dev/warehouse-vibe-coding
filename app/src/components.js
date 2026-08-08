@@ -163,7 +163,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       if (courF && !`${pkg.courier || ''}`.toLowerCase().includes(courF)) return false;
 
       const codeF = (filters.code || '').trim().toLowerCase();
-      if (codeF && !`${pkg.pickup_code || ''}`.toLowerCase().includes(codeF)) return false;
+      if (codeF && !`${pkg.pickup_code || ''} ${pkg.driver_name || ''}`.toLowerCase().includes(codeF)) return false;
 
       const typeF = (filters.pickup_type || '').trim().toLowerCase();
       if (typeF && (pkg.pickup_type || '').toLowerCase() !== typeF) return false;
@@ -288,7 +288,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
         <FilterInputCell placeholder="Filter Customer..." widthFlex={1.2} value={filters.customer || ''} onChange={setF('customer')} />
         <FilterInputCell placeholder="Filter Toko..." widthFlex={1.0} value={filters.toko || ''} onChange={setF('toko')} />
         <FilterInputCell placeholder="Filter Kurir..." widthFlex={1.0} value={filters.courier || ''} onChange={setF('courier')} />
-        <FilterInputCell placeholder="Filter Code..." widthFlex={0.8} value={filters.code || ''} onChange={setF('code')} />
+        <FilterInputCell placeholder="Filter Code / Driver..." widthFlex={0.8} value={filters.code || ''} onChange={setF('code')} />
 
         {/* Dropdown Status: Latar Putih Bersih, Hanya Warna Teks Nama Status yang Berubah */}
         <View style={{ flex: 1.0, paddingRight: 4, position: 'relative' }}>

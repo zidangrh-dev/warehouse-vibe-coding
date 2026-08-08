@@ -379,7 +379,7 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   }
   if (code && String(code).trim()) {
     values.push(`%${String(code).trim()}%`);
-    cond.push(`pickup_code ILIKE $${values.length}`);
+    cond.push(`(pickup_code ILIKE $${values.length} OR driver_name ILIKE $${values.length})`);
   }
   if (status && String(status).trim()) {
     values.push(String(status).trim());
@@ -944,29 +944,27 @@ app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'
       `SELECT status, count(*)::int AS n FROM packages WHERE archived = false AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day') GROUP BY status`,
       [startDate, endDate]
     );
-    totals = await pool.query(
-      `SELECT
-        count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
-        count(*) FILTER (WHERE created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS week,
-        count(*) FILTER (WHERE status NOT IN ('selesai','cancel') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending,
-        count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS gojek_active,
-        round(extract(epoch FROM avg(done_at - received_at) FILTER (WHERE done_at IS NOT NULL AND received_at IS NOT NULL AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))))::int AS avg_pickup_seconds
-      FROM packages
-      WHERE archived = false`,
-      [startDate, endDate]
-    );
-  } else {
-    byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages WHERE archived = false GROUP BY status`);
-    totals = await pool.query(`
-      SELECT
-        count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
-        count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS week,
-        count(*) FILTER (WHERE status NOT IN ('selesai','cancel'))::int AS pending,
-        count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur'))::int AS gojek_active,
-        round(extract(epoch FROM avg(done_at - received_at) FILTER (WHERE done_at IS NOT NULL AND received_at IS NOT NULL)))::int AS avg_pickup_seconds
-      FROM packages
-      WHERE archived = false`);
-  }
+     totals = await pool.query(
+       `SELECT
+         count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
+         count(*) FILTER (WHERE created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS week,
+         count(*) FILTER (WHERE pickup_type='selfpickup' AND status NOT IN ('selesai','cancel') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending_selfpickup,
+         count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending_gojek
+       FROM packages
+       WHERE archived = false`,
+       [startDate, endDate]
+     );
+   } else {
+     byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages WHERE archived = false GROUP BY status`);
+     totals = await pool.query(`
+       SELECT
+         count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
+         count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS week,
+         count(*) FILTER (WHERE pickup_type='selfpickup' AND status NOT IN ('selesai','cancel'))::int AS pending_selfpickup,
+         count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur'))::int AS pending_gojek
+       FROM packages
+       WHERE archived = false`);
+   }
   res.json({ by_status: byStatus.rows, ...totals.rows[0] });
 }));
 

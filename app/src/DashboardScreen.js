@@ -209,17 +209,16 @@ export default function DashboardScreen({ user }) {
       accent: "#7C3AED",
     },
     {
-      label: "Pending (belum selesai)",
-      value: summary?.pending ?? 0,
+      label: "Pending Self Pickup",
+      value: summary?.pending_selfpickup ?? 0,
       icon: "list",
       accent: colors.warn,
     },
     {
-      label: "Rata-rata waktu ambil",
-      value: formatDuration(summary?.avg_pickup_seconds),
+      label: "Pending Gojek",
+      value: summary?.pending_gojek ?? 0,
       icon: "scooter",
       accent: colors.ok,
-      sub: `${summary?.gojek_active ?? 0} gojek aktif`,
     },
   ];
 
