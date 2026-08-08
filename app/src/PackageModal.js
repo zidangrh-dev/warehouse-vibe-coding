@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -135,7 +135,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   const removePhoto = async (photo) => {
     if (isPhotoLocked) {
-      return notice('ðŸ”’ Foto telah dikunci secara permanen dan tidak dapat dihapus.');
+      return notice('🔒 Foto telah dikunci secara permanen dan tidak dapat dihapus.');
     }
     if (!(await confirmAsync('Hapus foto?'))) return;
     await api.deletePhoto(photo.id);
@@ -146,12 +146,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   // Satu tombol -> pilih sumber (Kamera / File). Di web langsung buka file.
   const pickPhoto = (kind) => {
     if (isPhotoLocked) {
-      return notice('ðŸ”’ Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
+      return notice('🔒 Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
     }
     if (Platform.OS === 'web') return addPhoto(kind, false);
     Alert.alert('Tambah Foto', 'Pilih sumber foto', [
-      { text: 'ðŸ“¸ Kamera', onPress: () => addPhoto(kind, true) },
-      { text: 'ðŸ—‚ File / Galeri', onPress: () => addPhoto(kind, false) },
+      { text: '📸 Kamera', onPress: () => addPhoto(kind, true) },
+      { text: '🗂 File / Galeri', onPress: () => addPhoto(kind, false) },
       { text: 'Batal', style: 'cancel' },
     ]);
   };
@@ -266,7 +266,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             onPress={() => pickPhoto(kind)}
             disabled={busy}
           >
-            <Text style={s.photoAddText}>ï¼‹{'\n'}Tambah</Text>
+            <Text style={s.photoAddText}>＋{'\n'}Tambah</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -320,7 +320,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       await api.updatePackage(pkg.id, { pickup_code: codeVal.trim() });
       onChanged();
       await load();
-      notice("âœ… Pickup code berhasil disimpan!");
+      notice("✅ Pickup code berhasil disimpan!");
     } catch (e) {
       notice(e.message);
     } finally {
@@ -335,7 +335,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         driver_name: driverName.trim(),
         driver_phone: driverPhone.trim(),
       });
-      notice("âœ… Data driver tersimpan");
+      notice("✅ Data driver tersimpan");
       onChanged();
     } catch (e) {
       notice(e.message);
@@ -348,7 +348,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setBusy(true);
     try {
       await api.unarchivePackage(pkg.id);
-      notice("âœ… Berhasil mengembalikan paket dari arsip ke data aktif!");
+      notice("✅ Berhasil mengembalikan paket dari arsip ke data aktif!");
       onChanged();
       onClose();
     } catch (e) {
@@ -365,12 +365,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           <ScrollView>
             <Text style={s.invoice}>{pkg.invoice_no}</Text>
             <Text style={[s.status, { color: statusColor(pkg.status) }]}>
-              â— {statusLabel(pkg.status)}
+              ● {statusLabel(pkg.status)}
             </Text>
 
             {isArchived && (
               <View style={s.archivedBanner}>
-                <Text style={s.archivedBannerTitle}>ðŸ“¦ PAKET TELAH DIARSIP</Text>
+                <Text style={s.archivedBannerTitle}>📦 PAKET TELAH DIARSIP</Text>
                 <Text style={s.archivedBannerText}>
                   {user.role === 'superadmin'
                     ? 'Data ini sedang dikunci. Sebagai Super Admin, Anda dapat mengembalikan paket ini ke data aktif.'
@@ -383,7 +383,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                     disabled={busy}
                   >
                     <Text style={s.unarchiveBtnText}>
-                      {busy ? 'Processing...' : 'ðŸ”„ Pulihkan Paket ke Data Aktif'}
+                      {busy ? 'Processing...' : '🔄 Pulihkan Paket ke Data Aktif'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -393,7 +393,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Customer">
               <Text style={s.value}>
                 {pkg.customer_name || "-"}{" "}
-                {pkg.customer_phone ? `Â· ${pkg.customer_phone}` : ""}
+                {pkg.customer_phone ? `· ${pkg.customer_phone}` : ""}
               </Text>
             </Field>
             {!!pkg.awb_no && (
@@ -406,7 +406,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Barang / Toko">
               <Text style={s.value}>
                 {pkg.item_desc || "-"}
-                {pkg.courier ? ` Â· ${pkg.courier}` : ""}
+                {pkg.courier ? ` · ${pkg.courier}` : ""}
               </Text>
             </Field>
             <Field label="Jenis ambilan">
@@ -414,10 +414,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               <View style={s.rowWrap}>
                 <Text style={s.value}>
                   {pkg.pickup_type === "gojek"
-                    ? `ðŸ›µ ${pkg.courier || "Driver"}`
-                    : "ðŸ§ Ambil Customer"}
+                    ? `🛵 ${pkg.courier || "Driver"}`
+                    : "🧍 Ambil Customer"}
                 </Text>
-                <Text style={s.lockTag}>ðŸ”’ terkunci</Text>
+                <Text style={s.lockTag}>🔒 terkunci</Text>
               </View>
             </Field>
             <Field label="Pickup Code / PIN">
@@ -486,13 +486,13 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       style={{ backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 }}
                       onPress={() => setEditingCode(true)}
                     >
-                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>âœï¸ Edit Code</Text>
+                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>✏️ Edit Code</Text>
                     </TouchableOpacity>
                   </View>
                 )
               ) : (
                 <Text style={[s.value, { fontWeight: "800", letterSpacing: 2 }]}>
-                  {pkg.pickup_code || "â€”"}
+                  {pkg.pickup_code || "—"}
                 </Text>
               )}
             </Field>
@@ -589,7 +589,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {canAct && (
                   <Text style={s.hint}>
                     {isPhotoLocked
-                      ? 'ðŸ”’ Bukti foto telah dikunci secara permanen (tidak dapat ditambah/dihapus).'
+                      ? '🔒 Bukti foto telah dikunci secara permanen (tidak dapat ditambah/dihapus).'
                       : 'Tekan lama foto untuk menghapus.'}
                   </Text>
                 )}
@@ -621,7 +621,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                             driverLocked && !photosOk
                               ? "Lengkapi dulu: data driver (nama & no HP), foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : driverLocked
-                              ? "Data driver (nama & no HP) masih kosong â€” isi dulu sebelum Done Pickup."
+                              ? "Data driver (nama & no HP) masih kosong — isi dulu sebelum Done Pickup."
                               : isGojek
                               ? "Lengkapi dulu: foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : "Lengkapi dulu: foto pengambil + barang dan foto barang (masing-masing 1).",
@@ -639,7 +639,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       <Text
                         style={[s.btnText, locked && { color: colors.sub }]}
                       >
-                        {locked ? "ðŸ”’ " : ""}
+                        {locked ? "🔒 " : ""}
                         {a.label}
                       </Text>
                     </TouchableOpacity>
@@ -651,7 +651,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Riwayat">
               {(pkg.events || []).map((ev) => (
                 <Text key={ev.id} style={s.event}>
-                  â€¢ {new Date(ev.created_at).toLocaleString("id-ID")} â€”{" "}
+                  • {new Date(ev.created_at).toLocaleString("id-ID")} —{" "}
                   {ev.user_name}: {ev.action}
                   {ev.detail ? ` (${ev.detail})` : ""}
                 </Text>
@@ -696,7 +696,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <View style={s.pvCard}>
               <View style={s.pvHead}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.pvTitle}>ðŸ“· Foto Bukti ({viewingPhoto.kind})</Text>
+                  <Text style={s.pvTitle}>📷 Foto Bukti ({viewingPhoto.kind})</Text>
                   <Text style={s.pvSub}>{viewingPhoto.filename}</Text>
                 </View>
                 <TouchableOpacity
@@ -708,7 +708,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   <Text style={s.pvDlBtnText}>Unduh</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.pvClose} onPress={() => setViewingPhoto(null)}>
-                  <Text style={{ fontSize: 18, color: colors.sub }}>âœ•</Text>
+                  <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
                 </TouchableOpacity>
               </View>
 
