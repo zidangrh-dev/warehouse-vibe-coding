@@ -102,9 +102,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const isArchived = !!pkg.archived;
   const isPhotoLocked = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
-  const canEditCode = !isArchived && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
-  const canEditPhotos = canAct && !isPhotoLocked;
   const lockDriver = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
+  const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
+  const canEditPhotos = canAct && !isPhotoLocked;
 
   const actions = NEXT_ACTIONS[pkg.status] || [];
 

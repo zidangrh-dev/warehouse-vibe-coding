@@ -542,12 +542,12 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     return res.status(400).json({ error: 'Paket ini telah diarsip dan tidak dapat diubah oleh siapapun.' });
   }
 
-  // Data driver TERKUNCI setelah transaksi tuntas/dikonfirmasi (done_pickup,
-  // selesai, retur, cancel) — tidak boleh diubah lagi.
+  // Data driver & pickup code TERKUNCI setelah transaksi tuntas/dikonfirmasi
+  // (done_pickup, selesai, retur, cancel) — tidak boleh diubah lagi.
   if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(chkArc.rows[0]?.status)) {
-    const bad = Object.keys(req.body).filter((k) => k === 'driver_name' || k === 'driver_phone');
+    const bad = Object.keys(req.body).filter((k) => k === 'driver_name' || k === 'driver_phone' || k === 'pickup_code');
     if (bad.length > 0) {
-      return res.status(400).json({ error: 'Data driver terkunci setelah transaksi tuntas — tidak dapat diubah.' });
+      return res.status(400).json({ error: bad.includes('pickup_code') ? 'Pickup code terkunci setelah transaksi tuntas.' : 'Data driver terkunci setelah transaksi tuntas — tidak dapat diubah.' });
     }
   }
 
