@@ -305,7 +305,7 @@ const TAB_FILTERS = {
 const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
   platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
   received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at,
-  driver_name, driver_phone`;
+  driver_name, driver_phone, driver_locked`;
 
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
@@ -537,9 +537,17 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const id = Number(req.params.id);
 
   // KUNCI KEAMANAN ARSIP: Paket yang diarsip terkunci permanen untuk siapapun
-  const chkArc = await pool.query('SELECT archived, status FROM packages WHERE id=$1', [id]);
+  const chkArc = await pool.query('SELECT archived, status, driver_locked FROM packages WHERE id=$1', [id]);
   if (chkArc.rows[0]?.archived) {
     return res.status(400).json({ error: 'Paket ini telah diarsip dan tidak dapat diubah oleh siapapun.' });
+  }
+
+  // Kunci PERMANEN data driver: setelah paket sekali dilakukan Done Pickup,
+  // data driver TIDAK boleh diganti — berlaku bahkan jika paket diretur lalu
+  // dimasukkan ke antrian lagi (status berubah, flag driver_locked tetap).
+  if (chkArc.rows[0]?.driver_locked &&
+      ('driver_name' in req.body || 'driver_phone' in req.body)) {
+    return res.status(400).json({ error: 'Data driver terkunci permanen karena paket ini sudah pernah diangkut — tidak dapat diubah.' });
   }
 
   // Data driver & pickup code TERKUNCI setelah transaksi tuntas/dikonfirmasi
@@ -616,6 +624,8 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // Catat jam masuk antrian ambilan gojek.
   if (req.body.status === 'absen_gojek') sets.push('gojek_at=now()');
   if (req.body.status === 'selesai' || req.body.status === 'done_pickup') sets.push('done_at=now()');
+  // Done Pickup = data driver terkunci PERMANEN (walau retur & diantrikan lagi).
+  if (req.body.status === 'done_pickup') sets.push('driver_locked=true');
   const r = await pool.query(
     `UPDATE packages SET ${sets.join(', ')}, updated_at=now() WHERE id=$1 RETURNING *`, values);
   if (!r.rows[0]) return res.status(404).json({ error: 'Paket tidak ditemukan' });

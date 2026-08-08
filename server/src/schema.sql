@@ -86,6 +86,11 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS gojek_at TIMESTAMPTZ;
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_phone TEXT NOT NULL DEFAULT '';
 
+-- Kunci PERMANEN data driver: diset true saat status bergerak ke done_pickup.
+-- Setelah paket sekali selesai diangkut, data driver TIDAK boleh diubah lagi
+-- (tetap terkunci walaupun paket diretur lalu dimasukkan ke antrian lagi).
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_locked BOOLEAN NOT NULL DEFAULT false;
+
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
 CREATE INDEX IF NOT EXISTS idx_packages_pickup_code ON packages(pickup_code);
