@@ -534,33 +534,35 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               {canAct && <Text style={s.hint}>Auto-simpan saat buka Tab lain.</Text>}
             </Field>
 
-            <Field label="Data driver (Gojek)">
-              <TextInput
-                style={s.driverInput}
-                placeholder="Nama driver (dari marketplace)"
-                placeholderTextColor={colors.faint}
-                value={driverName}
-                onChangeText={setDriverName}
-                editable={canAct && !lockDriver}
-              />
-              <TextInput
-                style={[s.driverInput, { marginTop: 6 }]}
-                placeholder="Nomor HP driver"
-                placeholderTextColor={colors.faint}
-                value={driverPhone}
-                onChangeText={setDriverPhone}
-                editable={canAct && !lockDriver}
-                keyboardType="phone-pad"
-              />
-              {canAct && !lockDriver && (
-                <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
-                  <Text style={s.btnText}>Simpan Data Driver</Text>
-                </TouchableOpacity>
-              )}
-              {lockDriver && (
-                <Text style={s.hint}>Data driver terkunci setelah transaksi tuntas.</Text>
-              )}
-            </Field>
+            {isGojek && (
+              <Field label="Data driver (Gojek)">
+                <TextInput
+                  style={s.driverInput}
+                  placeholder="Nama driver (dari marketplace)"
+                  placeholderTextColor={colors.faint}
+                  value={driverName}
+                  onChangeText={setDriverName}
+                  editable={canAct && !lockDriver}
+                />
+                <TextInput
+                  style={[s.driverInput, { marginTop: 6 }]}
+                  placeholder="Nomor HP driver"
+                  placeholderTextColor={colors.faint}
+                  value={driverPhone}
+                  onChangeText={setDriverPhone}
+                  editable={canAct && !lockDriver}
+                  keyboardType="phone-pad"
+                />
+                {canAct && !lockDriver && (
+                  <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
+                    <Text style={s.btnText}>Simpan Data Driver</Text>
+                  </TouchableOpacity>
+                )}
+                {lockDriver && (
+                  <Text style={s.hint}>Data driver terkunci setelah transaksi tuntas.</Text>
+                )}
+              </Field>
+            )}
 
             {(needsPhotos || photos.length > 0) && (
               <Field label="Bukti foto konfirmasi">
