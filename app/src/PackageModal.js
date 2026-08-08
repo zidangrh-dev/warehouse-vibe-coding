@@ -104,6 +104,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
   const canEditCode = !isArchived && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
   const canEditPhotos = canAct && !isPhotoLocked;
+  const lockDriver = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
 
   const actions = NEXT_ACTIONS[pkg.status] || [];
 
@@ -523,7 +524,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 placeholderTextColor={colors.faint}
                 value={driverName}
                 onChangeText={setDriverName}
-                editable={canAct}
+                editable={canAct && !lockDriver}
               />
               <TextInput
                 style={[s.driverInput, { marginTop: 6 }]}
@@ -531,13 +532,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 placeholderTextColor={colors.faint}
                 value={driverPhone}
                 onChangeText={setDriverPhone}
-                editable={canAct}
+                editable={canAct && !lockDriver}
                 keyboardType="phone-pad"
               />
-              {canAct && (
+              {canAct && !lockDriver && (
                 <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
                   <Text style={s.btnText}>Simpan Data Driver</Text>
                 </TouchableOpacity>
+              )}
+              {lockDriver && (
+                <Text style={s.hint}>Data driver terkunci setelah transaksi tuntas.</Text>
               )}
             </Field>
 

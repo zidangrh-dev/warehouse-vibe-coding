@@ -537,9 +537,18 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const id = Number(req.params.id);
 
   // KUNCI KEAMANAN ARSIP: Paket yang diarsip terkunci permanen untuk siapapun
-  const chkArc = await pool.query('SELECT archived FROM packages WHERE id=$1', [id]);
+  const chkArc = await pool.query('SELECT archived, status FROM packages WHERE id=$1', [id]);
   if (chkArc.rows[0]?.archived) {
     return res.status(400).json({ error: 'Paket ini telah diarsip dan tidak dapat diubah oleh siapapun.' });
+  }
+
+  // Data driver TERKUNCI setelah transaksi tuntas/dikonfirmasi (done_pickup,
+  // selesai, retur, cancel) — tidak boleh diubah lagi.
+  if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(chkArc.rows[0]?.status)) {
+    const bad = Object.keys(req.body).filter((k) => k === 'driver_name' || k === 'driver_phone');
+    if (bad.length > 0) {
+      return res.status(400).json({ error: 'Data driver terkunci setelah transaksi tuntas — tidak dapat diubah.' });
+    }
   }
 
   // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
