@@ -29,7 +29,6 @@ import {
 import { useBreakpoint } from "./responsive";
 import { ConfirmActionModal } from "./ConfirmActionModal";
 import Icon from "./Icon";
-import DriverInfoModal from "./DriverInfoModal";
 
 const Field = ({ label, children }) => (
   <View style={{ marginTop: 10 }}>
@@ -45,7 +44,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [pendingStatus, setPendingStatus] = useState(null);
   const [viewingPhoto, setViewingPhoto] = useState(null);
-  const [driverModalOpen, setDriverModalOpen] = useState(false);
 
   const [codeVal, setCodeVal] = useState("");
   const [editingCode, setEditingCode] = useState(false);
@@ -347,6 +345,25 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     }
   };
 
+  const saveDriverAdvance = async () => {
+    if (!driverName.trim() || !driverPhone.trim()) return;
+    setBusy(true);
+    try {
+      await api.updatePackage(pkg.id, {
+        status: "data_driver_ready",
+        driver_name: driverName.trim(),
+        driver_phone: driverPhone.trim(),
+      });
+      notice("✅ Data driver tersimpan");
+      onChanged();
+      await load();
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleUnarchive = async () => {
     setBusy(true);
     try {
@@ -609,7 +626,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {actions.map((a) => {
                   const locked =
                     (a.to === gatedStatus && needsPhotos && !photosOk) ||
-                    (a.to === gatedStatus && driverLocked);
+                    (a.to === gatedStatus && driverLocked) ||
+                    (a.to === "data_driver_ready" && (!driverName.trim() || !driverPhone.trim()));
                   return (
                     <TouchableOpacity
                       key={a.to}
@@ -624,7 +642,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       onPress={() => {
                         if (locked) {
                           notice(
-                            driverLocked && !photosOk
+                            a.to === "data_driver_ready"
+                              ? "Isi dulu nama & no HP driver di bagian Data Driver — baru bisa lanjut."
+                              : driverLocked && !photosOk
                               ? "Lengkapi dulu: data driver (nama & no HP), foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : driverLocked
                               ? "Data driver (nama & no HP) masih kosong — isi dulu sebelum Done Pickup."
@@ -635,7 +655,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                         } else if (a.to === "retur" || a.to === "cancel") {
                           setPendingStatus(a.to);
                         } else if (a.to === "data_driver_ready") {
-                          setDriverModalOpen(true);
+                          saveDriverAdvance();
                         } else {
                           setStatus(a.to);
                         }
@@ -682,13 +702,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           setPendingStatus(null);
           await setStatus(st);
         }}
-      />
-
-      <DriverInfoModal
-        visible={driverModalOpen}
-        pkg={pkg}
-        onClose={() => setDriverModalOpen(false)}
-        onSaved={onChanged}
       />
 
       {viewingPhoto && (
