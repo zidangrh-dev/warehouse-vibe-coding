@@ -16,6 +16,7 @@ const CHIP_STATUSES = [
   { label: 'Mencari Driver', status: 'mencari_driver' },
   { label: 'Driver Ready', status: 'data_driver_ready' },
   { label: 'Driver Sampai Kios', status: 'driver_sampai_kios' },
+  { label: 'Done Pickup', status: 'done_pickup' },
   { label: 'Selesai', status: 'selesai' },
 ];
 

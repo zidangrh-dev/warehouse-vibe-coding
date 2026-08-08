@@ -213,6 +213,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
     { label: 'Mencari Driver', type: '', status: 'mencari_driver', allowedTabs: ['gojek'] },
     { label: 'Driver Ready', type: '', status: 'data_driver_ready', allowedTabs: ['gojek'] },
     { label: 'Driver Sampai Kios', type: '', status: 'driver_sampai_kios', allowedTabs: ['gojek'] },
+    { label: 'Done Pickup', type: '', status: 'done_pickup', allowedTabs: ['gojek'] },
   ];
 
   const presetChips = allPresetChips.filter((chip) => {
