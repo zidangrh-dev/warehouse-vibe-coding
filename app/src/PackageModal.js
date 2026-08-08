@@ -67,6 +67,36 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     load();
   }, [pkgId]);
 
+  // Auto-save admin note: debounce 700ms, lalu flush saat Tutup/close.
+  // WAJIB di atas early-return — hook tidak boleh conditional.
+  const noteTimerRef = useRef(null);
+  const noteLastSavedRef = useRef(note);
+  const flushNote = useCallback(() => {
+    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
+    if (!pkg) return;
+    const cur = note.trim();
+    const base = (pkg.admin_note || "").trim();
+    if (cur === base) return;
+    if (cur === noteLastSavedRef.current) return;
+    noteLastSavedRef.current = cur;
+    api
+      .updatePackage(pkg.id, { admin_note: cur })
+      .then(onChanged)
+      .catch((e) => notice(e.message));
+  }, [pkg, note, onChanged]);
+
+  const onChangeNote = (v) => {
+    setNote(v);
+    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
+    noteTimerRef.current = setTimeout(flushNote, 700);
+  };
+
+  // Flush catatan saat modal ditutup (termasuk lewat tombol Tutup tak langsung).
+  const handleClose = () => {
+    flushNote();
+    onClose();
+  };
+
   if (!pkgId || !pkg) return null;
 
   const isArchived = !!pkg.archived;
@@ -284,34 +314,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     } finally {
       setBusy(false);
     }
-  };
-
-// Auto-save admin note: debounce 700ms, lalu flush saat Tutup/close.
-  const noteTimerRef = useRef(null);
-  const noteLastSavedRef = useRef(note);
-  const flushNote = useCallback(() => {
-    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
-    const cur = note.trim();
-    const base = (pkg?.admin_note || "").trim();
-    if (cur === base) return;
-    if (cur === noteLastSavedRef.current) return;
-    noteLastSavedRef.current = cur;
-    api
-      .updatePackage(pkg.id, { admin_note: cur })
-      .then(onChanged)
-      .catch((e) => notice(e.message));
-  }, [pkg, note, onChanged]);
-
-  const onChangeNote = (v) => {
-    setNote(v);
-    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
-    noteTimerRef.current = setTimeout(flushNote, 700);
-  };
-
-  // Flush catatan saat modal ditutup (termasuk lewat tombol Tutup tak langsung).
-  const handleClose = () => {
-    flushNote();
-    onClose();
   };
 
   const saveCode = async () => {
