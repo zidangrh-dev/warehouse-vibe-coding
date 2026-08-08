@@ -72,7 +72,8 @@ export default function GojekScreen({ user }) {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 12, gap: 6, paddingBottom: 6 }}
+          style={{ flexGrow: 0, flexShrink: 0 }}
+          contentContainerStyle={{ paddingHorizontal: 12, gap: 6, paddingBottom: 6, alignItems: 'flex-start' }}
         >
           {CHIP_STATUSES.map((chip) => {
             const active = (colFilters.status || '') === chip.status;
