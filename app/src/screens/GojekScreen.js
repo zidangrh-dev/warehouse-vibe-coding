@@ -84,6 +84,9 @@ export default function GojekScreen({ user }) {
                   paddingVertical: 5,
                   borderRadius: radius.pill,
                   backgroundColor: active ? colors.primary : '#E2E8F0',
+                  flexShrink: 0,
+                  maxWidth: 180,
+                  alignItems: 'center',
                 }}
                 activeOpacity={0.7}
                 onPress={() => applyStatus(chip.status)}
