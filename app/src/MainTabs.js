@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
 import { colors, shadow, spacing, confirmAsync } from './theme';
 import { useBreakpoint } from './responsive';
@@ -27,12 +28,29 @@ function greeting() {
   return 'Selamat malam';
 }
 
+const TAB_STORAGE_KEY = 'gudang_active_tab';
+
 export default function MainTabs({ user, onLogout }) {
   const { isDesktop } = useBreakpoint();
   const tabs = ALL_TABS.filter((t) => t.roles.includes(user.role));
   const [active, setActive] = useState(tabs[0].key);
   const ActiveScreen = tabs.find((t) => t.key === active)?.Screen || SemuaScreen;
   const initials = user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+
+  // Pulihkan tab terakhir user (refresh web/Android tidak balik ke tab pertama).
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(TAB_STORAGE_KEY);
+        if (saved && tabs.some((t) => t.key === saved)) setActive(saved);
+      } catch (e) {}
+    })();
+  }, []);
+
+  const switchTab = (key) => {
+    setActive(key);
+    AsyncStorage.setItem(TAB_STORAGE_KEY, key).catch(() => {});
+  };
 
   const logout = async () => {
     if (await confirmAsync('Keluar?', `Logout dari akun ${user.name}.`)) onLogout();
@@ -53,7 +71,7 @@ export default function MainTabs({ user, onLogout }) {
                 <TouchableOpacity
                   key={t.key}
                   style={[s.navItem, isActive && s.navItemActive]}
-                  onPress={() => setActive(t.key)}
+                  onPress={() => switchTab(t.key)}
                 >
                   <Icon name={t.icon} size={18} color={isActive ? colors.primary : colors.sub} />
                   <Text style={[s.navLabel, isActive && s.navLabelActive]}>{t.label}</Text>
@@ -108,7 +126,7 @@ export default function MainTabs({ user, onLogout }) {
             <TouchableOpacity
               key={t.key}
               style={[s.tab, isActive && s.tabActive]}
-              onPress={() => setActive(t.key)}
+              onPress={() => switchTab(t.key)}
             >
               <Icon name={t.icon} size={17} color={isActive ? colors.primary : colors.sub} />
               {isActive && <Text style={s.tabLabel}>{t.label}</Text>}
