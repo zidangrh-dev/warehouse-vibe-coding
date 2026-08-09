@@ -89,7 +89,11 @@ app.use('/uploads', (req, res, next) => {
   }
 }, express.static(UPLOAD_DIR));
 
-const notify = () => io.emit('packages:changed');
+let notifyTimer = null;
+const notify = () => {
+  clearTimeout(notifyTimer);
+  notifyTimer = setTimeout(() => io.emit('packages:changed'), 500);
+};
 
 const wrap = (fn) => (req, res) =>
   fn(req, res).catch((err) => {
@@ -882,6 +886,12 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
     let inserted = 0, updated = 0, skipped = 0, skippedCourier = 0;
     const invoiceSeen = new Set();
 
+    // Optimasi Performa: Preload data existing untuk seluruh baris di batch ini (1 query per batch, bukan N query per baris).
+    const batchMapped = [];
+    const invoicesToSearch = new Set();
+    const awbsToSearch = new Set();
+    const codesToSearch = new Set();
+
     for (const rawRow of rows) {
       const m = mapRow(rawRow);
       if (!m.invoice_no) { skipped++; continue; }
@@ -894,45 +904,79 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
       invoiceSeen.add(cleanInvoice);
 
       const ptype = classifyPickup(m.courier);
-      // Hanya paket Gojek/Grab/GoSend + SPX Instant/Same Day (ojol) & Ambil Customer yang diimpor.
-      // Ekspedisi reguler (SPX Hemat/Standard, J&T, JNE, dll) / kurir internal / tanpa kurir dilewati.
       if (!ptype) { skippedCourier++; continue; }
 
-      let codeToSet = norm(m.pickup_code);
+      const cleanAwb = norm(m.awb_no);
+      const cleanCode = norm(m.pickup_code);
+
+      if (cleanInvoice) invoicesToSearch.add(cleanInvoice);
+      if (cleanAwb) awbsToSearch.add(cleanAwb);
+      if (cleanCode) codesToSearch.add(cleanCode);
+
+      batchMapped.push({ m, cleanInvoice, cleanAwb, cleanCode, ptype });
+    }
+
+    // 1. Preload existing packages by invoice / AWB
+    const existingMap = new Map(); // key = cleanInvoice OR cleanAwb -> package object
+    if (invoicesToSearch.size > 0 || awbsToSearch.size > 0) {
+      const invArr = Array.from(invoicesToSearch);
+      const awbArr = Array.from(awbsToSearch);
+      const exRes = await pool.query(
+        `SELECT id, invoice_no, awb_no, pickup_code, status FROM packages
+         WHERE invoice_no = ANY($1::text[]) OR (awb_no <> '' AND awb_no = ANY($2::text[]))`,
+        [invArr, awbArr]
+      );
+      for (const row of exRes.rows) {
+        if (row.invoice_no) existingMap.set(row.invoice_no, row);
+        if (row.awb_no) existingMap.set(row.awb_no, row);
+      }
+    }
+
+    // 2. Preload used pickup codes
+    const codeUsedByOther = new Set(); // set of pickup_code yang sudah dipakai di DB
+    if (codesToSearch.size > 0) {
+      const codeArr = Array.from(codesToSearch);
+      const codeRes = await pool.query(
+        `SELECT pickup_code, invoice_no FROM packages WHERE pickup_code = ANY($1::text[]) AND pickup_code <> ''`,
+        [codeArr]
+      );
+      for (const row of codeRes.rows) {
+        codeUsedByOther.set(`${row.pickup_code}:${row.invoice_no}`);
+      }
+    }
+
+    for (const item of batchMapped) {
+      const { m, cleanInvoice, cleanAwb, cleanCode, ptype } = item;
+
+      let codeToSet = cleanCode;
       if (codeToSet) {
-        // Cek apakah pickup_code sudah dipakai oleh paket lain di database
-        const codeExist = await pool.query('SELECT invoice_no FROM packages WHERE pickup_code = $1 AND invoice_no <> $2', [codeToSet, cleanInvoice]);
-        if (codeExist.rows.length > 0) {
-          codeToSet = '';
-        }
+        // Cek apakah pickup_code sudah dipakai oleh paket LAIN
+        // Jika ada di DB dengan invoice beda, jangan set
+        const isUsedElsewhere = Array.from(codeUsedByOther).some((entry) => {
+          const [c, inv] = entry.split(':');
+          return c === codeToSet && inv !== cleanInvoice;
+        });
+        if (isUsedElsewhere) codeToSet = '';
       }
 
       try {
-        const cleanAwb = norm(m.awb_no);
-        let existingRes;
-        if (cleanAwb) {
-          existingRes = await pool.query('SELECT * FROM packages WHERE invoice_no = $1 OR (awb_no <> \'\' AND awb_no = $2)', [cleanInvoice, cleanAwb]);
-        } else {
-          existingRes = await pool.query('SELECT * FROM packages WHERE invoice_no = $1', [cleanInvoice]);
-        }
+        const ex = existingMap.get(cleanInvoice) || (cleanAwb ? existingMap.get(cleanAwb) : null);
         const isReturnRow = cleanInvoice.startsWith('R/') || cleanInvoice.startsWith('r/') ||
                             (m.raw?.Status || '').toLowerCase() === 'return' ||
                             String(m.raw?.['Is Return (Credit Note)'] || '') === '1';
         const initialStatus = isReturnRow ? 'retur' : 'data_masuk';
 
-        if (!existingRes.rows.length) {
+        if (!ex) {
           // Paket BARU! Insert ke DB
           await pool.query(
             `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_type, pickup_code, status, raw, source)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,'import')`,
-            [cleanInvoice, norm(m.awb_no), norm(m.customer_name), norm(m.customer_phone), norm(m.item_desc),
+            [cleanInvoice, cleanAwb, norm(m.customer_name), norm(m.customer_phone), norm(m.item_desc),
              norm(m.platform), norm(m.courier), ptype, codeToSet, initialStatus, JSON.stringify(m.raw)]
           );
           inserted++;
         } else {
-          // Paket SUDAH ADA di DB! Field lain (nama, phone, barang, dll) TIDAK BOLEH diubah oleh CSV baru.
-          // Hanya Pickup Code (jika DB masih kosong) dan status retur yang boleh di-update.
-          const ex = existingRes.rows[0];
+          // Paket SUDAH ADA di DB! Field lain TIDAK BOLEH diubah oleh CSV baru.
           let hasChange = false;
           const updates = [];
           const vals = [ex.id];
