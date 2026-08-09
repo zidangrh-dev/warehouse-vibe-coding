@@ -7,7 +7,8 @@ import Svg, {
   Rect, Circle, Path, Line as SvgLine, Defs, Stop, LinearGradient as SvgGradient,
 } from 'react-native-svg';
 import Icon from './Icon';
-import { colors, radius, shadow, spacing, font, statusLabel, statusColor, statusTint } from './theme';
+import { colors, radius, shadow, spacing, font, STATUS_META, statusLabel, statusColor, statusTint } from './theme';
+import { fmtUpdate } from './utils/format';
 
 export function StatusPill({ status }) {
   const c = statusColor(status);
@@ -17,14 +18,6 @@ export function StatusPill({ status }) {
       <Text style={[s.pillText, { color: c }]}>{statusLabel(status)}</Text>
     </View>
   );
-}
-
-// Format sel "LAST UPDATE": tampilkan tanggal & waktu update terakhir secara lengkap.
-function fmtUpdate(pkg) {
-  const dt = pkg.updated_at || pkg.created_at;
-  if (!dt) return '—';
-  const d = new Date(dt);
-  return `${d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 // Nama toko: gabungkan marketplace (Commerce Platform) + nama toko yang
@@ -175,20 +168,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
     });
   }, [items, filters]);
 
-  const STATUS_COLOR = {
-    data_masuk: '#475569',
-    absen_ambil_customer: '#4338CA',
-    absen_gojek: '#047857',
-    mencari_driver: '#B45309',
-    data_driver_ready: '#C026D3',
-    driver_sampai_kios: '#6D28D9',
-    done_pickup: '#0E7490',
-    selesai: '#15803D',
-    retur: '#B91C1C',
-    cancel: '#334155',
-  };
-
-  const currentStatusColor = STATUS_COLOR[filters.status] || colors.ink;
+  const currentStatusColor = statusColor(filters.status) || colors.ink;
 
   const applyQuickFilter = (typeVal, statusVal) => {
     const next = {
@@ -211,9 +191,8 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
     // yang sudah tuntas tetap terlihat di tab gojek).
     { label: 'Absen Gojek', type: '', status: 'absen_gojek', allowedTabs: ['gojek'] },
     { label: 'Mencari Driver', type: '', status: 'mencari_driver', allowedTabs: ['gojek'] },
-    { label: 'Driver Ready', type: '', status: 'data_driver_ready', allowedTabs: ['gojek'] },
     { label: 'Driver Sampai Kios', type: '', status: 'driver_sampai_kios', allowedTabs: ['gojek'] },
-    { label: 'Done Pickup', type: '', status: 'done_pickup', allowedTabs: ['gojek'] },
+    { label: 'Selesai', type: '', status: 'selesai', allowedTabs: ['gojek'] },
   ];
 
   const presetChips = allPresetChips.filter((chip) => {
@@ -310,16 +289,11 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
               onChange={(e) => setF('status')(e.target.value)}
             >
               <option value="" style={{ color: colors.ink }}>▼ Filter Status...</option>
-              <option value="data_masuk" style={{ color: '#475569' }}>Data Masuk</option>
-              <option value="absen_ambil_customer" style={{ color: '#4338CA' }}>Absen Ambil Customer</option>
-              <option value="absen_gojek" style={{ color: '#047857' }}>Absen Gojek</option>
-              <option value="mencari_driver" style={{ color: '#B45309' }}>Mencari Driver</option>
-              <option value="data_driver_ready" style={{ color: '#C026D3' }}>Data Driver Ready</option>
-              <option value="driver_sampai_kios" style={{ color: '#6D28D9' }}>Driver Sampai Kios</option>
-              <option value="done_pickup" style={{ color: '#0E7490' }}>Done Pickup</option>
-              <option value="selesai" style={{ color: '#15803D' }}>Selesai</option>
-              <option value="retur" style={{ color: '#B91C1C' }}>Retur</option>
-              <option value="cancel" style={{ color: '#334155' }}>Cancel</option>
+              {Object.keys(STATUS_META).map((key) => (
+                <option key={key} value={key} style={{ color: statusColor(key) }}>
+                  {statusLabel(key)}
+                </option>
+              ))}
             </select>
           ) : (
             <TextInput

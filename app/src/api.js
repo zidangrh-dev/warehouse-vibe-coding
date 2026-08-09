@@ -113,7 +113,8 @@ export const api = {
   archivePackages: (beforeDate, mode = 'before', onlyCompleted = true) =>
     req('POST', '/api/packages/archive', { beforeDate, mode, onlyCompleted }),
   unarchivePackage: (id) => req('POST', `/api/packages/${id}/unarchive`),
-  unarchiveBulkPackages: (ids) => req('POST', '/api/packages/unarchive-bulk', { ids }),
+  archiveSummary: (limit) => req('GET', `/api/archives/summary${limit ? `?limit=${limit}` : ''}`),
+  restoreArchiveByDate: (date) => req('POST', '/api/archives/restore-by-date', { date }),
   listUsers: () => req('GET', '/api/users'),
   createUser: (data) => req('POST', '/api/users', data),
   updateUser: (id, data) => req('PATCH', `/api/users/${id}`, data),

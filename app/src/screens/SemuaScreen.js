@@ -13,7 +13,7 @@ import ImportProgressModal from '../ImportProgressModal';
 export default function SemuaScreen({ user }) {
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
-  const { items, total, page, setPage, loading, searching, refetch } = usePackages(null, q, colFilters);
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('semua', q, colFilters);
   const [openId, setOpenId] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(null);

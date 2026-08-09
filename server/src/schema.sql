@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS users (
 --   absen_gojek          : paket sampai, akan diambilkan driver Gojek
 --   mencari_driver       : admin sedang mencari driver di marketplace
 --   driver_sampai_kios   : driver tiba di kios
---   done_pickup          : paket dibawa driver
---   retur                : driver mengembalikan barang (bisa dicari driver lagi)
 --   selesai              : paket sudah di tangan customer / tuntas
+--                         (konfirmasi pengambilan dgn foto langsung ke sini)
+--   retur                : driver mengembalikan barang (bisa dicari driver lagi)
 --   cancel               : dibatalkan customer
 CREATE TABLE IF NOT EXISTS packages (
   id SERIAL PRIMARY KEY,
@@ -81,8 +81,8 @@ ALTER TABLE package_photos ADD CONSTRAINT package_photos_kind_check
 -- Waktu paket masuk ke antrian ambilan gojek (untuk kolom "Update" modul Gojek).
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS gojek_at TIMESTAMPTZ;
 
--- Data driver (status 'data_driver_ready'): info driver diinput admin dalam
--- SATU field gabungan (nama / no HP / dll), di-copy sekaligus dari marketplace.
+-- Data driver: info driver diinput admin dalam SATU field gabungan
+-- (nama / no HP / dll), di-copy sekaligus dari marketplace.
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_info TEXT NOT NULL DEFAULT '';
 -- Migrasi: gabung driver_name + driver_phone lama ke driver_info, lalu hapus
 -- kolom lama. Idempoten — hanya jalan sekali (saat kolom lama masih ada).
@@ -99,14 +99,24 @@ BEGIN
   END IF;
 END $$;
 
--- Kunci PERMANEN data driver: diset true saat status bergerak ke done_pickup.
+-- Status 'done_pickup' dihapus dari alur — konfirmasi pengambilan langsung ke
+-- 'selesai'. Paket yang masih di status itu dianggap sudah selesai.
+-- Idempoten: tidak mengubah apa pun pada run berikutnya.
+UPDATE packages SET status='selesai' WHERE status='done_pickup';
+
+-- Kunci PERMANEN data driver: diset true saat status bergerak ke selesai.
 -- Setelah paket sekali selesai diangkut, data driver TIDAK boleh diubah lagi
 -- (tetap terkunci walaupun paket diretur lalu dimasukkan ke antrian lagi).
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_locked BOOLEAN NOT NULL DEFAULT false;
 -- Backfill data lama: paket yang sudah berada di status tuntas juga terkunci
 -- permanen (idempoten — tidak mengubah apa pun pada run berikutnya).
 UPDATE packages SET driver_locked=true
-  WHERE status IN ('done_pickup', 'selesai', 'retur', 'cancel') AND NOT driver_locked;
+  WHERE status IN ('selesai', 'retur', 'cancel') AND NOT driver_locked;
+
+-- Status 'data_driver_ready' dihapus dari alur — paket yang masih di status itu
+-- dianggap sudah memasuki 'driver_sampai_kios' (data driver sudah terisi).
+-- Idempoten: tidak mengubah apa pun pada run berikutnya.
+UPDATE packages SET status='driver_sampai_kios' WHERE status='data_driver_ready';
 
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);

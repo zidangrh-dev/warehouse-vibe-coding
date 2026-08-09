@@ -29,14 +29,12 @@ import {
 import { useBreakpoint } from "./responsive";
 import Icon from "./Icon";
 import UserManagementModal from "./UserManagementModal";
-import { ArchiveModal } from "./ArchiveModal";
 import { CalendarInput } from "./CalendarInput";
 
 const GOJEK_FUNNEL = [
   "absen_gojek",
   "mencari_driver",
   "driver_sampai_kios",
-  "done_pickup",
   "selesai",
   "retur",
 ];
@@ -140,7 +138,6 @@ export default function DashboardScreen({ user }) {
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [userModalOpen, setUserModalOpen] = useState(false);
-  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
 
   const { summary, throughput, activity, loading, refetch } = useDashboard(startDate, endDate);
 
@@ -243,13 +240,6 @@ export default function DashboardScreen({ user }) {
               >
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>👥 Kelola Karyawan</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[s.dayBtn, { backgroundColor: colors.danger, paddingVertical: 8, paddingHorizontal: 14 }]}
-                onPress={() => setArchiveModalOpen(true)}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>📦 Arsip Data</Text>
-              </TouchableOpacity>
             </>
           )}
 
@@ -271,12 +261,6 @@ export default function DashboardScreen({ user }) {
         visible={userModalOpen}
         user={user}
         onClose={() => setUserModalOpen(false)}
-      />
-
-      <ArchiveModal
-        visible={archiveModalOpen}
-        onClose={() => setArchiveModalOpen(false)}
-        onArchived={refetch}
       />
 
       <View style={s.statGrid}>

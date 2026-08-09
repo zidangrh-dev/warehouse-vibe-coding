@@ -70,7 +70,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
                 {confirming ? '⚠️ Konfirmasi Pengarsipan Paket' : '📦 Arsip Data Paket'}
               </Text>
               <Text style={s.sub}>
-                {confirming ? 'Tindakan ini permanen & tidak dapat dibatalkan' : 'Pengaturan Arsip Otomatis (Super Admin)'}
+                {confirming ? 'Paket dipindah dari kanban; masih bisa dipulihkan kapan saja' : 'Pengaturan Arsip Otomatis (Super Admin)'}
               </Text>
             </View>
             <TouchableOpacity style={s.closeBtn} onPress={handleClose} disabled={busy}>
@@ -82,9 +82,10 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
             /* Step 2: Custom Professional Confirmation Card */
             <View style={{ marginTop: 14 }}>
               <View style={s.confirmWarningBox}>
-                <Text style={s.confirmWarningTitle}>🔒 PERINGATAN PENGARSIPAN PERMANEN</Text>
+                <Text style={s.confirmWarningTitle}>📦 KONFIRMASI PENGARSIPAN</Text>
                 <Text style={s.confirmWarningText}>
-                  Apakah Anda yakin ingin mengarsip paket sesuai dengan kriteria yang Anda pilih di bawah ini?
+                  Apakah Anda yakin ingin mengarsip paket sesuai kriteria di bawah ini?
+                  Paket akan hilang dari kanban (tetap ada di tab Semua) dan dapat dipulihkan lagi.
                 </Text>
               </View>
 
@@ -104,9 +105,9 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
                   </Text>
                 </View>
                 <View style={s.summaryRow}>
-                  <Text style={s.summaryLabel}>Proteksi:</Text>
-                  <Text style={[s.summaryVal, { color: colors.danger, fontWeight: '700' }]}>
-                    🔒 Kunci Permanen (Tidak dapat diubah)
+                  <Text style={s.summaryLabel}>Efek:</Text>
+                  <Text style={s.summaryVal}>
+                    Hilang dari kanban · tetap di Semua · bisa dipulihkan
                   </Text>
                 </View>
               </View>
@@ -136,9 +137,9 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
             /* Step 1: Date & Mode Selection Form */
             <View style={{ marginTop: 14 }}>
               <View style={s.alertBox}>
-                <Text style={s.alertTitle}>🔒 Proteksi Kunci Permanen</Text>
+                <Text style={s.alertTitle}>📦 Arsip = Keluar dari Kanban</Text>
                 <Text style={s.alertText}>
-                  Paket yang diarsip tidak akan lagi dapat diubah statusnya, ditambah/dihapus fotonya oleh siapapun.
+                  Paket diarsip tidak tampil di kanban, tapi tetap ada di tab Semua dan bisa dipulihkan lagi dari tab Arsip kapan saja.
                 </Text>
               </View>
 

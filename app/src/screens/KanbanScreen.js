@@ -8,17 +8,20 @@
 // Data diambil sekali dari endpoint list dengan kanban=1 (semua paket aktif).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, ScrollView, TouchableOpacity,
+  View, Text, TextInput, ScrollView, TouchableOpacity, Modal,
   Platform, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { api, getSocket } from '../api';
 import {
-  colors, radius, shadow, font, notice,
+  colors, radius, shadow, font, notice, confirmAsync,
   statusLabel, statusColor, statusTint, NEXT_ACTIONS,
 } from '../theme';
 import { tokoLabel } from '../components';
+import { fmtTime } from '../utils/format';
+import Icon from '../Icon';
 import PackageModal from '../PackageModal';
-import DriverInfoModal from '../DriverInfoModal';
+import { ArchiveModal } from '../ArchiveModal';
+import { CalendarInput } from '../CalendarInput';
 import { useBreakpoint } from '../responsive';
 import { s } from './styles';
 
@@ -28,9 +31,7 @@ const COLUMNS = [
   'absen_ambil_customer',
   'absen_gojek',
   'mencari_driver',
-  'data_driver_ready',
   'driver_sampai_kios',
-  'done_pickup',
   'retur',
   'selesai',
   'cancel',
@@ -44,52 +45,85 @@ const TYPE_CHIPS = [
 
 const allowedTargets = (status) => (NEXT_ACTIONS[status] || []).map((a) => a.to);
 // Transisi yang butuh input/foto di modal -> jangan PATCH langsung.
-const modalTargets = new Set(['done_pickup', 'data_driver_ready']);
+const modalTargets = new Set(['selesai']);
 
 // Teks yang dicari pada kartu (satukan semua field, lowercase).
 const searchable = (pkg) =>
   `${pkg.invoice_no || ''} ${pkg.awb_no || ''} ${pkg.driver_info || ''} ${tokoLabel(pkg)} ${pkg.pickup_code || ''} ${pkg.customer_name || ''}`.toLowerCase();
 
-function fmtTime(dt) {
-  if (!dt) return '—';
-  const d = new Date(dt);
-  return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) +
-    ` ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+// "2026-08-07" -> "07/08/2026" (konvensi Indonesia). Aman walau string ISO aneh.
+function fmtDate(d) {
+  if (!d) return '';
+  const s = String(d).slice(0, 10);
+  const [y, m, dd] = s.split('-');
+  return y && m && dd ? `${dd}/${m}/${y}` : s;
 }
 
 export default function KanbanScreen({ user }) {
   const { isWeb } = useBreakpoint();
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+  const isSuperadmin = user.role === 'superadmin';
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
-  const [driverPkg, setDriverPkg] = useState(null);
   const dragging = useRef(null);
   // Slot drop antar kartu: { status, index } — index posisi kartu target.
   const [insert, setInsert] = useState(null);
   // Search per kolom: { [status]: kata kunci }.
   const [colSearch, setColSearch] = useState({});
+  // Navigasi tanggal: null = papan aktif; tanggal = kanban snapshot hari tsb.
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [archiveGroups, setArchiveGroups] = useState([]);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [archiveListOpen, setArchiveListOpen] = useState(false);
+  const [customDate, setCustomDate] = useState('');
+
+  const loadSummary = useCallback(async () => {
+    try {
+      const res = await api.archiveSummary();
+      setArchiveGroups(res.items || []);
+    } catch (e) {
+      // gagal ambil ringkasan — chips tanggal diabaikan, bukan fatal.
+    }
+  }, []);
+
+  const restoreByDate = async (date) => {
+    if (!(await confirmAsync('Pulihkan arsip?', `Yakin ingin mengembalikan semua paket arsip tanggal ${fmtDate(date)} ke kanban?`))) return;
+    try {
+      const res = await api.restoreArchiveByDate(date);
+      notice(`✅ Berhasil memulihkan ${res.count} paket tanggal ${fmtDate(date)} ke kanban!`);
+      if (selectedDate === date) setSelectedDate(null);
+      loadSummary();
+      load();
+    } catch (e) {
+      notice(`Gagal memulihkan: ${e.message}`);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
-      const res = await api.kanbanBoard(q, { pickup_type: typeFilter });
+      const res = await api.kanbanBoard(q, {
+        pickup_type: typeFilter,
+        ...(selectedDate ? { date: selectedDate } : {}),
+      });
       setItems(res.items || []);
     } catch (e) {
       notice(`Gagal memuat papan: ${e.message}`);
     } finally {
       setLoading(false);
     }
-  }, [q, typeFilter]);
+  }, [q, typeFilter, selectedDate]);
 
   useEffect(() => {
     load();
+    loadSummary();
     const socket = getSocket();
     const onChanged = () => load();
     socket.on('packages:changed', onChanged);
     return () => socket.off('packages:changed', onChanged);
-  }, [load]);
+  }, [load, loadSummary]);
 
   const byStatus = useMemo(() => {
     const m = {};
@@ -106,8 +140,7 @@ export default function KanbanScreen({ user }) {
       return;
     }
     if (modalTargets.has(target)) {
-      if (target === 'data_driver_ready') setDriverPkg(pkg);
-      else setOpenId(pkg.id);
+      setOpenId(pkg.id);
       return;
     }
     try {
@@ -119,10 +152,9 @@ export default function KanbanScreen({ user }) {
   };
 
   const saveDriver = async (pkg, info, code) => {
-    if (!String(info || '').trim()) return notice('Isi data driver dulu (nama / no HP).');
     try {
       await api.updatePackage(pkg.id, {
-        status: 'data_driver_ready',
+        status: 'driver_sampai_kios',
         driver_info: info.trim(),
         ...(String(code || '').trim() ? { pickup_code: String(code).trim() } : {}),
       });
@@ -154,7 +186,25 @@ export default function KanbanScreen({ user }) {
           value={q}
           onChangeText={setQ}
         />
+        <TouchableOpacity
+          style={[s.bigBtn, { backgroundColor: colors.primary }]}
+          onPress={() => setArchiveListOpen(true)}
+        >
+          <Text style={s.btnText}>🗄 Arsip</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Banner saat melihat kanban tanggal lama */}
+      {selectedDate && (
+        <View style={kb.banner}>
+          <Text style={kb.bannerText}>
+            📅 Menampilkan kanban {fmtDate(selectedDate)} — {total} paket
+          </Text>
+          <TouchableOpacity style={kb.bannerBtn} onPress={() => setSelectedDate(null)}>
+            <Text style={kb.bannerBtnText}>← Kembali ke Aktif</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={kb.chipRow}>
         {TYPE_CHIPS.map((c) => {
@@ -170,13 +220,13 @@ export default function KanbanScreen({ user }) {
           );
         })}
         <Text style={kb.chipCount}>
-          {searching ? `Hasil ${total}` : `${total} paket aktif`}
+          {searching ? `Hasil ${total}` : selectedDate ? `${total} paket` : `${total} paket aktif`}
         </Text>
       </View>
 
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={true}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 4, alignItems: 'flex-start' }}
       >
@@ -210,8 +260,83 @@ export default function KanbanScreen({ user }) {
       </ScrollView>
 
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={load} />
-      <DriverInfoModal visible={!!driverPkg} pkg={driverPkg} onClose={() => setDriverPkg(null)} onSaved={load} />
+      <ArchiveListModal
+        visible={archiveListOpen}
+        groups={archiveGroups}
+        customDate={customDate}
+        onCustomDate={setCustomDate}
+        onPick={(date) => { setSelectedDate(date); setArchiveListOpen(false); }}
+        onArchive={() => { setArchiveListOpen(false); setArchiveModalOpen(true); }}
+        canRestore={isSuperadmin}
+        onRestore={restoreByDate}
+        onClose={() => setArchiveListOpen(false)}
+      />
+      <ArchiveModal
+        visible={archiveModalOpen}
+        onClose={() => setArchiveModalOpen(false)}
+        onArchived={() => { load(); loadSummary(); }}
+      />
     </View>
+  );
+}
+
+// ---- Popup daftar arsip per tanggal (ala menu Arsip Trello) ----
+function ArchiveListModal({ visible, groups, customDate, onCustomDate, onPick, onArchive, canRestore, onRestore, onClose }) {
+  if (!visible) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={kb.modalBackdrop} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={kb.modalSheet} activeOpacity={1} onPress={(e) => e?.stopPropagation?.()}>
+          <View style={kb.modalHead}>
+            <Text style={kb.modalTitle}>🗄 Arsip</Text>
+            <TouchableOpacity style={kb.modalClose} onPress={onClose}>
+              <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={kb.archiveBtn} onPress={onArchive}>
+            <Text style={kb.archiveBtnText}>📦 Arsipkan Tanggal…</Text>
+          </TouchableOpacity>
+
+          <View style={kb.customRow}>
+            <CalendarInput value={customDate} onChange={onCustomDate} />
+            <TouchableOpacity
+              style={[kb.openBtn, { paddingVertical: 7, paddingHorizontal: 12 }]}
+              onPress={() => { if (customDate) onPick(customDate); }}
+            >
+              <Text style={[kb.openBtnText, { fontSize: 11.5 }]}>Buka</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ maxHeight: 360 }} showsVerticalScrollIndicator>
+            {groups.length === 0 ? (
+              <Text style={kb.emptyCol}>Belum ada paket yang diarsip.</Text>
+            ) : (
+              groups.map((g) => (
+                <View key={g.date} style={kb.archiveRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={kb.archiveDate}>{fmtDate(g.date)}</Text>
+                    <Text style={kb.archiveCount}>{g.count} paket diarsip</Text>
+                  </View>
+                  {canRestore && (
+                    <TouchableOpacity
+                      style={kb.restoreBtn}
+                      accessibilityLabel={`Pulihkan arsip ${fmtDate(g.date)}`}
+                      onPress={() => onRestore(g.date)}
+                    >
+                      <Icon name="rotate" size={14} color="#fff" />
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={kb.openBtn} onPress={() => onPick(g.date)}>
+                    <Text style={kb.openBtnText}>Buka</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
@@ -392,7 +517,7 @@ function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver
               multiline
             />
             <TouchableOpacity
-              style={[kb.bigSave, { backgroundColor: statusColor('data_driver_ready') }]}
+              style={[kb.bigSave, { backgroundColor: statusColor('driver_sampai_kios') }]}
               onPress={() => onSaveDriver(driverDraft, codeDraft)}
               activeOpacity={0.85}
             >
@@ -402,7 +527,7 @@ function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver
         )}
 
         {actions.map((a) =>
-          showsDriverInput && a.to === 'data_driver_ready' ? null : (
+          showsDriverInput && a.to === 'driver_sampai_kios' ? null : (
             <ActionBtn
               key={a.to}
               label={a.label.replace(/^\S+\s/, '')}
@@ -438,6 +563,58 @@ const kb = StyleSheet.create({
   chipText: { color: colors.sub, fontWeight: '600', fontSize: 12.5 },
   chipTextActive: { color: '#fff', fontWeight: '700' },
   chipCount: { marginLeft: 'auto', color: colors.faint, fontWeight: '600', fontSize: 12 },
+
+  // Popup daftar arsip per tanggal
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 16,
+  },
+  modalSheet: {
+    width: '100%', maxWidth: 420, backgroundColor: colors.surface,
+    borderRadius: radius.sheet, padding: 16, borderWidth: 1, borderColor: colors.border,
+    ...shadow.float,
+  },
+  modalHead: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '800', color: colors.ink },
+  modalClose: { padding: 6 },
+  archiveBtn: {
+    backgroundColor: colors.primary, borderRadius: radius.pill,
+    paddingVertical: 9, alignItems: 'center', justifyContent: 'center',
+  },
+  archiveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  customRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 8 },
+  archiveRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.card, paddingVertical: 8, paddingHorizontal: 10, marginBottom: 8,
+  },
+  archiveDate: { fontWeight: '800', color: colors.ink, fontSize: 12.5, fontFamily: font.mono },
+  archiveCount: { color: colors.faint, fontSize: 10.5, marginTop: 1 },
+  restoreBtn: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center',
+  },
+  openBtn: {
+    backgroundColor: '#10B981', borderRadius: radius.pill,
+    paddingVertical: 4, paddingHorizontal: 9,
+  },
+  openBtnText: { color: '#fff', fontWeight: '800', fontSize: 10.5 },
+
+  banner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    gap: 8, marginHorizontal: 14, marginTop: 10,
+    backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0',
+    borderRadius: radius.card, paddingVertical: 8, paddingHorizontal: 12,
+  },
+  bannerText: { color: '#065F46', fontWeight: '700', fontSize: 12 },
+  bannerBtn: {
+    backgroundColor: '#10B981', borderRadius: radius.pill,
+    paddingVertical: 5, paddingHorizontal: 10,
+  },
+  bannerBtnText: { color: '#fff', fontWeight: '800', fontSize: 11 },
 
   col: {
     width: 280, backgroundColor: colors.surfaceAlt, borderRadius: radius.card,

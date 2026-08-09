@@ -96,9 +96,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   if (!pkgId || !pkg) return null;
 
   const isArchived = !!pkg.archived;
-  const isPhotoLocked = isArchived || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
+  const isPhotoLocked = isArchived || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
-  const lockDriver = isArchived || !!pkg.driver_locked || ['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status);
+  const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
   const canEditPhotos = canAct && !isPhotoLocked;
 
@@ -120,8 +120,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       ktpPhotos.length >= 1 &&
       barangPhotos.length >= 1
     : wajahPhotos.length >= 1 && barangPhotos.length >= 1;
-  const gatedStatus = "done_pickup";
-  // Data driver WAJIB terisi sebelum Done Pickup (paket gojek).
+  const gatedStatus = "selesai";
+  // Data driver WAJIB terisi sebelum konfirmasi (paket gojek).
   const driverReady = !!String(pkg.driver_info || "").trim();
   const driverLocked = isGojek && pkg.status === "driver_sampai_kios" && !driverReady;
 
@@ -333,24 +333,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       });
       notice("✅ Data driver tersimpan");
       onChanged();
-    } catch (e) {
-      notice(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveDriverAdvance = async () => {
-    if (!driverInfo.trim()) return;
-    setBusy(true);
-    try {
-      await api.updatePackage(pkg.id, {
-        status: "data_driver_ready",
-        driver_info: driverInfo.trim(),
-      });
-      notice("✅ Data driver tersimpan");
-      onChanged();
-      await load();
     } catch (e) {
       notice(e.message);
     } finally {
@@ -614,8 +596,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {actions.map((a) => {
                   const locked =
                     (a.to === gatedStatus && needsPhotos && !photosOk) ||
-                    (a.to === gatedStatus && driverLocked) ||
-                    (a.to === "data_driver_ready" && !driverInfo.trim());
+                    (a.to === gatedStatus && driverLocked);
                   return (
                     <TouchableOpacity
                       key={a.to}
@@ -630,20 +611,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       onPress={() => {
                         if (locked) {
                           notice(
-                            a.to === "data_driver_ready"
-                              ? "Isi dulu data driver di bagian Data Driver — baru bisa lanjut."
-                              : driverLocked && !photosOk
+                            driverLocked && !photosOk
                               ? "Lengkapi dulu: data driver, foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : driverLocked
-                              ? "Data driver masih kosong — isi dulu sebelum Done Pickup."
+                              ? "Data driver masih kosong — isi dulu sebelum konfirmasi."
                               : isGojek
                               ? "Lengkapi dulu: foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : "Lengkapi dulu: foto pengambil + barang dan foto barang (masing-masing 1).",
                           );
                         } else if (a.to === "retur" || a.to === "cancel") {
                           setPendingStatus(a.to);
-                        } else if (a.to === "data_driver_ready") {
-                          saveDriverAdvance();
                         } else {
                           setStatus(a.to);
                         }

@@ -7,16 +7,13 @@ import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
 import { s } from './styles';
 import PackageModal from '../PackageModal';
-import DriverInfoModal from '../DriverInfoModal';
 import { useBreakpoint } from '../responsive';
 
 const CHIP_STATUSES = [
   { label: 'Semua', status: '' },
   { label: 'Absen Gojek', status: 'absen_gojek' },
   { label: 'Mencari Driver', status: 'mencari_driver' },
-  { label: 'Driver Ready', status: 'data_driver_ready' },
   { label: 'Driver Sampai Kios', status: 'driver_sampai_kios' },
-  { label: 'Done Pickup', status: 'done_pickup' },
   { label: 'Selesai', status: 'selesai' },
 ];
 
@@ -25,7 +22,6 @@ export default function GojekScreen({ user }) {
   const [colFilters, setColFilters] = useState({});
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('gojek', q, colFilters);
   const [openId, setOpenId] = useState(null);
-  const [driverPkg, setDriverPkg] = useState(null);
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
   const { isDesktop } = useBreakpoint();
 
@@ -36,8 +32,16 @@ export default function GojekScreen({ user }) {
       <TouchableOpacity
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
         onPress={async () => {
-          if (next.to === 'done_pickup') return setOpenId(pkg.id);
-          if (next.to === 'data_driver_ready') return setDriverPkg(pkg);
+          if (next.to === 'selesai') return setOpenId(pkg.id);
+          if (next.to === 'driver_sampai_kios') {
+            try {
+              await api.updatePackage(pkg.id, { status: next.to });
+              refetch();
+            } catch (e) {
+              notice(e.message);
+            }
+            return;
+          }
           try {
             await api.updatePackage(pkg.id, { status: next.to });
             refetch();
@@ -116,12 +120,6 @@ export default function GojekScreen({ user }) {
         tab="gojek"
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
-      <DriverInfoModal
-        visible={!!driverPkg}
-        pkg={driverPkg}
-        onClose={() => setDriverPkg(null)}
-        onSaved={refetch}
-      />
     </View>
   );
 }

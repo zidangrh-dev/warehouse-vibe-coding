@@ -43,24 +43,23 @@ export const STATUS_META = {
   absen_ambil_customer: { label: 'Absen Ambil Customer', color: '#4F46E5', tint: '#4F46E51A' },
   absen_gojek: { label: 'Absen Gojek', color: '#059669', tint: '#0596691A' },
   mencari_driver: { label: 'Mencari Driver', color: '#D97706', tint: '#D977061F' },
-  data_driver_ready: { label: 'Data Driver Ready', color: '#C026D3', tint: '#C026D31A' },
   driver_sampai_kios: { label: 'Driver Sampai Kios', color: '#7C3AED', tint: '#7C3AED1A' },
-  done_pickup: { label: 'Done Pickup', color: '#0891B2', tint: '#0891B21A' },
   retur: { label: 'Retur', color: '#E5484D', tint: '#E5484D1A' },
   selesai: { label: 'Selesai', color: '#16A34A', tint: '#16A34A1A' },
   cancel: { label: 'Cancel', color: '#475569', tint: '#4755691F' },
 };
 
 export const NEXT_ACTIONS = {
-  // Self pick up: konfirmasi (butuh foto) -> done_pickup, lalu Selesai/Retur
-  // sama seperti alur gojek.
-  absen_ambil_customer: [{ to: 'done_pickup', label: '✅ Konfirmasi Pengambilan' }],
+  // Self pick up: konfirmasi pengambilan (butuh foto) -> langsung selesai,
+  // atau langsung retur. Same untuk alur gojek.
+  absen_ambil_customer: [
+    { to: 'selesai', label: '✅ Konfirmasi Pengambilan' },
+    { to: 'retur', label: '↩️ Retur' },
+  ],
   absen_gojek: [{ to: 'mencari_driver', label: '🔍 Cari Driver' }],
-  mencari_driver: [{ to: 'data_driver_ready', label: '🛵 Input Data Driver' }],
-  data_driver_ready: [{ to: 'driver_sampai_kios', label: '🛵 Driver Sampai Kios' }],
-  driver_sampai_kios: [{ to: 'done_pickup', label: '✅ Done Pickup' }],
-  done_pickup: [
-    { to: 'selesai', label: '🏁 Selesai' },
+  mencari_driver: [{ to: 'driver_sampai_kios', label: '🛵 Driver Sampai Kios' }],
+  driver_sampai_kios: [
+    { to: 'selesai', label: '✅ Done Pickup' },
     { to: 'retur', label: '↩️ Retur' },
   ],
   retur: [

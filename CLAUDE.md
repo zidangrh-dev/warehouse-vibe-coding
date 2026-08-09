@@ -46,14 +46,17 @@ cd app && npm install && npx expo start      # tekan 'w' untuk web; scan QR untu
    atau `absen_gojek` (sesuai pickup_type). Tidak cocok → form input manual.
 3. **Self Pick Up** (modul `selfpickup`, dulu "Customer"): Sales generate pickup code
    (QR + kirim WA bila nomor tak tersensor); customer datang → admin scan kode (membuka
-   detail paket) → konfirmasi WAJIB **1 foto wajah + 1 KTP + 1 barang** → `selesai`.
-4. **Gojek**: `absen_gojek` → `mencari_driver` → `driver_sampai_kios` → `done_pickup`.
-   Transisi ke `done_pickup` WAJIB **1 foto wajah driver + 1 KTP driver + 1 barang**.
+   detail paket) → konfirmasi WAJIB **1 foto wajah + 1 KTP + 1 barang** → langsung `selesai`
+   (tanpa status `done_pickup`).
+4. **Gojek**: `absen_gojek` → `mencari_driver` → `driver_sampai_kios` → **`selesai`**.
+   Konfirmasi (transisi ke `selesai`) WAJIB **1 foto wajah driver + 1 KTP driver + 1 barang**
+   + data driver. Di status pickup (`absen_ambil_customer` / `driver_sampai_kios`) ada opsi
+   paralel **"↩️ Retur"** tanpa foto.
 5. **Cancel/Retur** (modul `cancelretur`): menampung status `cancel` & `retur`; baris
    `retur` punya opsi "Cari Driver" (→ `mencari_driver`, kembali ke pipeline gojek).
 
 **Aturan foto** (tabel `package_photos`, kind: `wajah`/`ktp`/`barang`): konfirmasi
-pengambilan (gojek `done_pickup` & self-pickup `selesai`) butuh 1 masing-masing.
+pengambilan (gojek & self-pickup, transisi ke `selesai`) butuh 1 masing-masing.
 Ditegakkan server (tolak PATCH bila kurang) DAN UI (tombol terkunci). Endpoint lama
 `redeem` dihapus → diganti `find-by-code`. Kolom `gojek_at` mencatat jam masuk antrian
 gojek (dipakai di kolom "Update" tabel). Setiap datatable/kartu wajib tampilkan pickup code.
@@ -69,7 +72,8 @@ Bearer; `photoUrl()` di `app/src/api.js` menyisipkan token otomatis).
 
 - OTP saat retur = BUKAN urusan aplikasi (di-skip sengaja).
 - Satu submit = satu paket (bukan batch multi-paket per driver).
-- `done_pickup` = status final alur driver; TIDAK melacak "berhasil/gagal diantar".
+- `selesai` = status final setelah konfirmasi pengambilan (foto wajib); TIDAK
+  melacak "berhasil/gagal diantar". Tidak ada status `done_pickup` perantara.
 - Nomor telepon tersensor marketplace (mengandung `*`) → tombol WhatsApp disembunyikan.
 - Tombol "Sync" di flowchart lama tidak diperlukan (aplikasi sudah realtime via Socket.IO).
 

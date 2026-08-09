@@ -287,16 +287,16 @@ async function logEvent(pkgId, user, action, detail = '') {
 
 const STATUSES = [
   'data_masuk', 'absen_ambil_customer', 'absen_gojek', 'mencari_driver',
-  'data_driver_ready', 'driver_sampai_kios', 'done_pickup', 'retur', 'selesai', 'cancel',
+  'driver_sampai_kios', 'retur', 'selesai', 'cancel',
 ];
 
 // Tab di aplikasi -> status + (opsional) pickup_type. selfpickup & gojek
-// berbagi status done_pickup, jadi dibedakan lewat pickup_type agar tidak
+// berbagi status selesai, jadi dibedakan lewat pickup_type agar tidak
 // saling loncat modul. retur & cancel punya modul sendiri (cancelretur).
 const TAB_FILTERS = {
   scan: { statuses: ['data_masuk'] },
-  selfpickup: { statuses: ['absen_ambil_customer', 'done_pickup'], pickup_type: 'customer' },
-  gojek: { statuses: ['absen_gojek', 'mencari_driver', 'data_driver_ready', 'driver_sampai_kios', 'done_pickup', 'selesai'], pickup_type: 'gojek' },
+  selfpickup: { statuses: ['absen_ambil_customer'], pickup_type: 'customer' },
+  gojek: { statuses: ['absen_gojek', 'mencari_driver', 'driver_sampai_kios', 'selesai'], pickup_type: 'gojek' },
   cancelretur: { statuses: ['cancel', 'retur'] },
   selesai: { statuses: ['selesai'] },
 };
@@ -336,7 +336,7 @@ const PHOTO_LABEL = { wajah: 'pengambil/driver + barang', ktp: 'KTP', barang: 'b
 // Mode daftar: paginasi (page/pageSize) supaya tabel besar tetap ringan.
 // Mode cari: bila ada filter / query q, cari ke seluruh data tanpa batas (unlimited).
 app.get('/api/packages', requireAuth, wrap(async (req, res) => {
-  const { tab, q, invoice, customer, toko, courier, code, status, pickup_type } = req.query;
+  const { tab, q, invoice, customer, toko, courier, code, status, pickup_type, date } = req.query;
   const cond = [];
   const values = [];
 
@@ -345,15 +345,27 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
     return res.status(403).json({ error: 'Hanya Admin & Super Admin yang dapat membuka papan Kanban.' });
   }
 
-  // Tab arsip khusus Super Admin (archived = true)
-  // Tab lain (scan, selfpickup, gojek, cancelretur, semua) hanya menampilkan data aktif (archived = false)
+  // Filter arsip:
+  //   arsip         -> hanya paket arsip (archived = true)
+  //   kanban + date -> SEMUA paket hari itu (aktif + arsip) = snapshot papan tanggal tsb
+  //   kanban        -> hanya paket aktif (papan operasional)
+  //   semua         -> SEMUA paket (aktif + arsip) — arsip hanya menghilangkan
+  //                    dari kanban, tetap ada di Semua.
+  //   lainnya       -> hanya paket aktif
   if (tab === 'arsip') {
     if (req.user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengakses tabel arsip' });
     }
     cond.push('archived = true');
-  } else {
+  } else if (req.query.kanban === '1' && !date) {
     cond.push('archived = false');
+  } else if (req.query.kanban !== '1' && tab !== 'semua') {
+    cond.push('archived = false');
+  }
+
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+    values.push(String(date));
+    cond.push(`archived_at::date = $${values.length}`);
   }
 
   const filter = tab && TAB_FILTERS[tab];
@@ -468,7 +480,7 @@ app.post('/api/packages/:id/photos', requireAuth, requireRole('superadmin', 'adm
     if (pkg.archived) {
       return res.status(400).json({ error: 'Paket ini telah diarsip dan tidak dapat diubah oleh siapapun.' });
     }
-    if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(pkg.status)) {
+    if (['selesai', 'retur', 'cancel'].includes(pkg.status)) {
       return res.status(400).json({ error: 'Foto terkunci! Tidak dapat menambah foto pada transaksi yang sudah dikonfirmasi.' });
     }
 
@@ -515,7 +527,7 @@ app.delete('/api/photos/:id', requireAuth, requireRole('superadmin', 'admin'), w
   if (photo.archived) {
     return res.status(400).json({ error: 'Paket ini telah diarsip dan foto tidak dapat dihapus.' });
   }
-  if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(photo.status)) {
+  if (['selesai', 'retur', 'cancel'].includes(photo.status)) {
     return res.status(400).json({ error: 'Foto terkunci! Tidak dapat menghapus foto pada transaksi yang sudah dikonfirmasi.' });
   }
 
@@ -563,8 +575,8 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   }
 
   // Data driver & pickup code TERKUNCI setelah transaksi tuntas/dikonfirmasi
-  // (done_pickup, selesai, retur, cancel) — tidak boleh diubah lagi.
-  if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(chkArc.rows[0]?.status)) {
+  // (selesai, retur, cancel) — tidak boleh diubah lagi.
+  if (['selesai', 'retur', 'cancel'].includes(chkArc.rows[0]?.status)) {
     const bad = Object.keys(req.body).filter((k) => k === 'driver_info' || k === 'pickup_code');
     if (bad.length > 0) {
       return res.status(400).json({ error: bad.includes('pickup_code') ? 'Pickup code terkunci setelah transaksi tuntas.' : 'Data driver terkunci setelah transaksi tuntas — tidak dapat diubah.' });
@@ -602,40 +614,32 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   }
   if (!sets.length) return res.status(400).json({ error: 'Tidak ada field yang diubah' });
 
-  // Konfirmasi pengambilan (transisi ke done_pickup) wajib bukti foto
+  // Konfirmasi pengambilan (transisi ke selesai) wajib bukti foto
   // 1 wajah + 1 KTP + 1 barang — berlaku untuk gojek maupun self pick up.
-  if (req.body.status === 'done_pickup') {
+  if (req.body.status === 'selesai') {
     const chk = await photoStatus(id);
     if (!chk.ok) {
       const need = chk.missing.map((k) => `foto ${PHOTO_LABEL[k]}`).join(', ');
       return res.status(400).json({ error: `Belum bisa dikonfirmasi — lengkapi ${need} (1 masing-masing).` });
     }
   }
-  // Done Pickup untuk paket GOJEK juga WAJIB punya data driver; selain dijaga
-  // di UI, diamankan juga di server.
-  if (req.body.status === 'done_pickup') {
+  // Konfirmasi pengambilan untuk paket GOJEK juga WAJIB punya data driver;
+  // selain dijaga di UI, diamankan juga di server.
+  if (req.body.status === 'selesai') {
     const d = await pool.query('SELECT pickup_type, driver_info FROM packages WHERE id=$1', [id]);
     if (d.rows[0]?.pickup_type === 'gojek') {
       const info = String(d.rows[0]?.driver_info ?? '').trim();
       if (!info) {
-        return res.status(400).json({ error: 'Data driver wajib diisi sebelum Done Pickup.' });
+        return res.status(400).json({ error: 'Data driver wajib diisi sebelum konfirmasi.' });
       }
     }
   }
-  // Status 'data_driver_ready' & 'driver_sampai_kios' WAJIB punya data driver
-  // (diinput admin dari marketplace). Tanpa itu, tak boleh lanjut.
-  if (req.body.status === 'data_driver_ready' || req.body.status === 'driver_sampai_kios') {
-    const d = await pool.query('SELECT driver_info FROM packages WHERE id=$1', [id]);
-    const info = String(req.body.driver_info ?? d.rows[0]?.driver_info ?? '').trim();
-    if (!info) {
-      return res.status(400).json({ error: 'Data driver wajib diisi sebelum lanjut.' });
-    }
-  }
+  // Status 'driver_sampai_kios' tidak lagi membutuhkan validasi data driver.
   // Catat jam masuk antrian ambilan gojek.
   if (req.body.status === 'absen_gojek') sets.push('gojek_at=now()');
-  if (req.body.status === 'selesai' || req.body.status === 'done_pickup') sets.push('done_at=now()');
-  // Done Pickup = data driver terkunci PERMANEN (walau retur & diantrikan lagi).
-  if (req.body.status === 'done_pickup') sets.push('driver_locked=true');
+  if (req.body.status === 'selesai') sets.push('done_at=now()');
+  // Konfirmasi (selesai) = data driver terkunci PERMANEN (walau retur & diantrikan lagi).
+  if (req.body.status === 'selesai') sets.push('driver_locked=true');
 
   // Paket yang pernah diangkut (driver_locked=true) lalu DI-RETUR dan diklik
   // "Cari Driver" => kembali ke mencari_driver: data driver LAMA direset dari
@@ -657,8 +661,8 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   res.json(r.rows[0]);
 }));
 
-// Arsip data paket berdasarkan tanggal cutoff (Khusus Super Admin)
-app.post('/api/packages/archive', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+// Arsip data paket berdasarkan tanggal cutoff (Admin & Super Admin)
+app.post('/api/packages/archive', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const { beforeDate, mode = 'before', onlyCompleted = true } = req.body;
   if (!beforeDate) return res.status(400).json({ error: 'Tanggal batas (beforeDate) wajib diisi' });
 
@@ -671,7 +675,7 @@ app.post('/api/packages/archive', requireAuth, requireRole('superadmin'), wrap(a
 
   let statusCondition = '';
   if (onlyCompleted) {
-    statusCondition = `AND status IN ('selesai', 'done_pickup', 'retur', 'cancel')`;
+    statusCondition = `AND status IN ('selesai', 'retur', 'cancel')`;
   }
 
   const r = await pool.query(
@@ -686,8 +690,8 @@ app.post('/api/packages/archive', requireAuth, requireRole('superadmin'), wrap(a
   res.json({ ok: true, count: r.rowCount });
 }));
 
-// Pulihkan / Batalkan arsip paket (Khusus Super Admin)
-app.post('/api/packages/:id/unarchive', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+// Pulihkan / Batalkan arsip paket (Admin & Super Admin)
+app.post('/api/packages/:id/unarchive', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
   const { id } = req.params;
   const r = await pool.query(
     `UPDATE packages SET archived = false, archived_at = NULL WHERE id = $1 RETURNING *`,
@@ -699,16 +703,32 @@ app.post('/api/packages/:id/unarchive', requireAuth, requireRole('superadmin'), 
   res.json({ ok: true, package: r.rows[0] });
 }));
 
-app.post('/api/packages/unarchive-bulk', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
-  const { ids } = req.body;
-  if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: 'Pilih minimal satu paket' });
+// Ringkasan arsip per tanggal pengarsipan (Admin & Super Admin) — untuk chips
+// tanggal di tab Kanban.
+app.get('/api/archives/summary', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
+  const limit = Math.min(60, Math.max(1, parseInt(req.query.limit, 10) || 30));
+  const r = await pool.query(
+    `SELECT to_char(archived_at, 'YYYY-MM-DD') AS date, count(*)::int AS count
+     FROM packages WHERE archived = true
+     GROUP BY to_char(archived_at, 'YYYY-MM-DD')
+     ORDER BY to_char(archived_at, 'YYYY-MM-DD') DESC LIMIT $1`,
+    [limit]
+  );
+  res.json({ items: r.rows });
+}));
+
+// Pulihkan SEMUA paket yang diarsip pada tanggal tertentu (Khusus Super Admin).
+app.post('/api/archives/restore-by-date', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const { date } = req.body;
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+    return res.status(400).json({ error: 'Tanggal wajib diisi (format YYYY-MM-DD)' });
   }
   const r = await pool.query(
-    `UPDATE packages SET archived = false, archived_at = NULL WHERE id = ANY($1::int[]) RETURNING id`,
-    [ids]
+    `UPDATE packages SET archived = false, archived_at = NULL
+     WHERE archived = true AND archived_at::date = $1 RETURNING id`,
+    [String(date)]
   );
-  await logEvent(null, req.user, 'unarchive_bulk', `Mengembalikan ${r.rowCount} paket dari arsip ke data aktif`);
+  await logEvent(null, req.user, 'unarchive_date', `Mengembalikan ${r.rowCount} paket arsip tanggal ${date}`);
   notify();
   res.json({ ok: true, count: r.rowCount });
 }));
@@ -1023,8 +1043,7 @@ app.get('/api/dashboard/activity', requireAuth, requireRole('superadmin', 'admin
     SELECT pe.user_name, u.role, pe.action, count(*)::int AS n
     FROM package_events pe
     LEFT JOIN users u ON u.id = pe.user_id
-    LEFT JOIN packages pkg ON pkg.id = pe.package_id
-    WHERE (pe.package_id IS NULL OR pkg.archived = false) AND ${timeClause} ${userClause}
+    WHERE ${timeClause} ${userClause}
     GROUP BY pe.user_name, u.role, pe.action
     ORDER BY pe.user_name, pe.action`, params);
 
