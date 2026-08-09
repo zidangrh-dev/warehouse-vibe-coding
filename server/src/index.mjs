@@ -305,7 +305,7 @@ const TAB_FILTERS = {
 const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
   platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
   received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at,
-  driver_name, driver_phone, driver_locked`;
+  driver_info, driver_locked`;
 
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
@@ -339,6 +339,11 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   const { tab, q, invoice, customer, toko, courier, code, status, pickup_type } = req.query;
   const cond = [];
   const values = [];
+
+  // Papan Kanban hanya untuk Admin & Super Admin.
+  if (req.query.kanban === '1' && !['superadmin', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Hanya Admin & Super Admin yang dapat membuka papan Kanban.' });
+  }
 
   // Tab arsip khusus Super Admin (archived = true)
   // Tab lain (scan, selfpickup, gojek, cancelretur, semua) hanya menampilkan data aktif (archived = false)
@@ -379,7 +384,7 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   }
   if (code && String(code).trim()) {
     values.push(`%${String(code).trim()}%`);
-    cond.push(`(pickup_code ILIKE $${values.length} OR driver_name ILIKE $${values.length})`);
+    cond.push(`(pickup_code ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
   }
   if (status && String(status).trim()) {
     values.push(String(status).trim());
@@ -403,13 +408,21 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
 
   if (q && String(q).trim()) {
     values.push(`%${String(q).trim()}%`);
-    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR driver_name ILIKE $${values.length} OR driver_phone ILIKE $${values.length})`);
+    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
   }
 
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
 
   const countRes = await pool.query(`SELECT count(*)::int AS n FROM packages ${where}`, values);
   const total = countRes.rows[0].n;
+
+  // Mode Kanban: kembalikan seluruh baris aktif tanpa paginasi (cap aman 2000)
+  // supaya papan bisa menampilkan semua kolom status sekaligus.
+  if (req.query.kanban === '1') {
+    const r = await pool.query(
+      `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages ${where} ORDER BY updated_at DESC LIMIT 2000`, values);
+    return res.json({ items: r.rows, total, page: 1, pageSize: 2000, searching });
+  }
 
   // Pencarian DAN daftar sama-sama dipaginasi: server selalu mengembalikan halaman
   // kecil (max 200 baris) sehingga payload & render tetap ringan, walau pencarian
@@ -545,15 +558,14 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // Kunci PERMANEN data driver: setelah paket sekali dilakukan Done Pickup,
   // data driver TIDAK boleh diganti — berlaku bahkan jika paket diretur lalu
   // dimasukkan ke antrian lagi (status berubah, flag driver_locked tetap).
-  if (chkArc.rows[0]?.driver_locked &&
-      ('driver_name' in req.body || 'driver_phone' in req.body)) {
+  if (chkArc.rows[0]?.driver_locked && 'driver_info' in req.body) {
     return res.status(400).json({ error: 'Data driver terkunci permanen karena paket ini sudah pernah diangkut — tidak dapat diubah.' });
   }
 
   // Data driver & pickup code TERKUNCI setelah transaksi tuntas/dikonfirmasi
   // (done_pickup, selesai, retur, cancel) — tidak boleh diubah lagi.
   if (['done_pickup', 'selesai', 'retur', 'cancel'].includes(chkArc.rows[0]?.status)) {
-    const bad = Object.keys(req.body).filter((k) => k === 'driver_name' || k === 'driver_phone' || k === 'pickup_code');
+    const bad = Object.keys(req.body).filter((k) => k === 'driver_info' || k === 'pickup_code');
     if (bad.length > 0) {
       return res.status(400).json({ error: bad.includes('pickup_code') ? 'Pickup code terkunci setelah transaksi tuntas.' : 'Data driver terkunci setelah transaksi tuntas — tidak dapat diubah.' });
     }
@@ -561,7 +573,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 
   // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
   // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
-  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_name', 'driver_phone'];
+  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info'];
 
   // Role operasional (admin/warehouse) boleh field utama; pickup code boleh
   // sales ATAU admin (admin juga membutuhkannya saat mengisi data driver dari
@@ -599,26 +611,24 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
       return res.status(400).json({ error: `Belum bisa dikonfirmasi — lengkapi ${need} (1 masing-masing).` });
     }
   }
-  // Done Pickup untuk paket GOJEK juga WAJIB punya data driver (nama + no HP);
-  // selain dijaga di UI, diamankan juga di server.
+  // Done Pickup untuk paket GOJEK juga WAJIB punya data driver; selain dijaga
+  // di UI, diamankan juga di server.
   if (req.body.status === 'done_pickup') {
-    const d = await pool.query('SELECT pickup_type, driver_name, driver_phone FROM packages WHERE id=$1', [id]);
+    const d = await pool.query('SELECT pickup_type, driver_info FROM packages WHERE id=$1', [id]);
     if (d.rows[0]?.pickup_type === 'gojek') {
-      const name = String(d.rows[0]?.driver_name ?? '').trim();
-      const phone = String(d.rows[0]?.driver_phone ?? '').trim();
-      if (!name || !phone) {
-        return res.status(400).json({ error: 'Data driver (nama & no HP) wajib diisi sebelum Done Pickup.' });
+      const info = String(d.rows[0]?.driver_info ?? '').trim();
+      if (!info) {
+        return res.status(400).json({ error: 'Data driver wajib diisi sebelum Done Pickup.' });
       }
     }
   }
   // Status 'data_driver_ready' & 'driver_sampai_kios' WAJIB punya data driver
-  // (nama + no HP) — diinput admin dari marketplace. Tanpa itu, tak boleh lanjut.
+  // (diinput admin dari marketplace). Tanpa itu, tak boleh lanjut.
   if (req.body.status === 'data_driver_ready' || req.body.status === 'driver_sampai_kios') {
-    const d = await pool.query('SELECT driver_name, driver_phone FROM packages WHERE id=$1', [id]);
-    const name = String(req.body.driver_name ?? d.rows[0]?.driver_name ?? '').trim();
-    const phone = String(req.body.driver_phone ?? d.rows[0]?.driver_phone ?? '').trim();
-    if (!name || !phone) {
-      return res.status(400).json({ error: 'Nama driver dan No HP driver wajib diisi sebelum lanjut.' });
+    const d = await pool.query('SELECT driver_info FROM packages WHERE id=$1', [id]);
+    const info = String(req.body.driver_info ?? d.rows[0]?.driver_info ?? '').trim();
+    if (!info) {
+      return res.status(400).json({ error: 'Data driver wajib diisi sebelum lanjut.' });
     }
   }
   // Catat jam masuk antrian ambilan gojek.
@@ -631,8 +641,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // "Cari Driver" => kembali ke mencari_driver: data driver LAMA direset dari
   // awal sehingga admin menginput driver BARU dari nol (driver_locked dibuka lagi).
   if (req.body.status === 'mencari_driver' && chkArc.rows[0]?.driver_locked) {
-    if (!('driver_name' in req.body)) sets.push(`driver_name=''`);
-    if (!('driver_phone' in req.body)) sets.push(`driver_phone=''`);
+    if (!('driver_info' in req.body)) sets.push(`driver_info=''`);
     sets.push(`driver_locked=false`);
   }
   const r = await pool.query(
@@ -641,8 +650,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // Riwayat detail: status + data driver disebut eksplisit biar jelas record-nya.
   const detailParts = [];
   if (req.body.status) detailParts.push(`status -> ${req.body.status}`);
-  if ('driver_name' in req.body) detailParts.push(`driver (nama): ${req.body.driver_name.trim() || '—'}`);
-  if ('driver_phone' in req.body) detailParts.push(`driver (no HP): ${req.body.driver_phone.trim() || '—'}`);
+  if ('driver_info' in req.body) detailParts.push(`driver: ${req.body.driver_info.trim() || '—'}`);
   if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
   await logEvent(id, req.user, 'update', detailParts.join(' | '));
   notify();

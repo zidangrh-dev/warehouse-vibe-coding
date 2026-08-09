@@ -81,10 +81,23 @@ ALTER TABLE package_photos ADD CONSTRAINT package_photos_kind_check
 -- Waktu paket masuk ke antrian ambilan gojek (untuk kolom "Update" modul Gojek).
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS gojek_at TIMESTAMPTZ;
 
--- Data driver (status 'data_driver_ready'): nama & no HP driver yang diinput
--- admin dari data marketplace sebelum paket dijemput driver.
-ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_name TEXT NOT NULL DEFAULT '';
-ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_phone TEXT NOT NULL DEFAULT '';
+-- Data driver (status 'data_driver_ready'): info driver diinput admin dalam
+-- SATU field gabungan (nama / no HP / dll), di-copy sekaligus dari marketplace.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_info TEXT NOT NULL DEFAULT '';
+-- Migrasi: gabung driver_name + driver_phone lama ke driver_info, lalu hapus
+-- kolom lama. Idempoten — hanya jalan sekali (saat kolom lama masih ada).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'packages' AND column_name = 'driver_name') THEN
+    UPDATE packages SET driver_info = trim(
+      CASE WHEN driver_name <> '' THEN driver_name
+        || CASE WHEN driver_phone <> '' THEN ' / ' || driver_phone ELSE '' END
+        ELSE driver_phone END);
+    ALTER TABLE packages DROP COLUMN driver_name;
+    ALTER TABLE packages DROP COLUMN IF EXISTS driver_phone;
+  END IF;
+END $$;
 
 -- Kunci PERMANEN data driver: diset true saat status bergerak ke done_pickup.
 -- Setelah paket sekali selesai diangkut, data driver TIDAK boleh diubah lagi

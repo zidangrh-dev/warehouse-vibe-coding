@@ -1,7 +1,8 @@
-// Modal input data driver (alur Gojek): admin mengisi nama, no HP, dan pickup
-// code dari data marketplace sebelum paket dijemput driver.
+// Modal input data driver (alur Gojek): admin mengisi info driver (nama / no
+// HP / dll digabung dalam SATU field, di-copy sekaligus dari marketplace) dan
+// pickup code sebelum paket dijemput driver.
 //  - "Tutup & Simpan": simpan data + lanjutkan ke status 'data_driver_ready'
-//    (hanya jika nama & no HP terisi; pickup code opsional / jika belum ada).
+//    (hanya jika info driver terisi; pickup code opsional / jika belum ada).
 //  - Klik di luar modal: simpan draft yang sedang diketik, tanpa lanjut status.
 import { useEffect, useState } from "react";
 import {
@@ -17,31 +18,27 @@ import { api } from "./api";
 import { colors, radius, shadow, notice } from "./theme";
 
 export default function DriverInfoModal({ visible, pkg, onClose, onSaved }) {
-  const [driverName, setDriverName] = useState("");
-  const [driverPhone, setDriverPhone] = useState("");
+  const [driverInfo, setDriverInfo] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (visible && pkg) {
-      setDriverName(pkg.driver_name || "");
-      setDriverPhone(pkg.driver_phone || "");
+      setDriverInfo(pkg.driver_info || "");
       setCode(pkg.pickup_code || "");
     }
   }, [visible, pkg]);
 
   if (!visible || !pkg) return null;
 
-  const valid = !!driverName.trim() && !!driverPhone.trim();
+  const valid = !!driverInfo.trim();
   // Hanya kirim field yang BENAR-BENAR berubah dari nilai tersimpan. Jika tidak
   // ada perubahan, PATCH di-skip sehingga updated_at / last update TIDAK berubah.
   const changed = () => {
     const b = {};
-    const n = driverName.trim();
-    const p = driverPhone.trim();
+    const n = driverInfo.trim();
     const c = code.trim();
-    if (n !== (pkg.driver_name || "").trim()) b.driver_name = n;
-    if (p !== (pkg.driver_phone || "").trim()) b.driver_phone = p;
+    if (n !== (pkg.driver_info || "").trim()) b.driver_info = n;
     if (c !== (pkg.pickup_code || "").trim()) b.pickup_code = c;
     return b;
   };
@@ -51,7 +48,7 @@ export default function DriverInfoModal({ visible, pkg, onClose, onSaved }) {
     const b = changed();
     if (!valid && Object.keys(b).length === 0) {
       // Kosong & tidak ada input: jangan ubah apa pun, jangan sentuh last update.
-      notice("Nama driver & No HP wajib diisi agar bisa lanjut ke step berikutnya.");
+      notice("Data driver wajib diisi agar bisa lanjut ke step berikutnya.");
       onClose();
       return;
     }
@@ -62,7 +59,7 @@ export default function DriverInfoModal({ visible, pkg, onClose, onSaved }) {
       if (valid) {
         notice('✅ Data driver tersimpan — lanjut ke "Driver Sampai Kios".');
       } else {
-        notice("Nama driver & No HP wajib diisi agar bisa lanjut ke step berikutnya.");
+        notice("Data driver wajib diisi agar bisa lanjut ke step berikutnya.");
       }
       onSaved?.();
       onClose();
@@ -111,23 +108,15 @@ export default function DriverInfoModal({ visible, pkg, onClose, onSaved }) {
             {pkg.invoice_no}
             {pkg.customer_name ? ` · ${pkg.customer_name}` : ""}
           </Text>
-          <Text style={s.label}>Nama driver</Text>
+          <Text style={s.label}>Data driver</Text>
           <TextInput
             style={s.input}
-            placeholder="Contoh: Budi (Gojek)"
+            placeholder="Nama / No HP / dll (copy dari marketplace)"
             placeholderTextColor={colors.faint}
-            value={driverName}
-            onChangeText={setDriverName}
+            value={driverInfo}
+            onChangeText={setDriverInfo}
             autoFocus
-          />
-          <Text style={s.label}>Nomor HP driver</Text>
-          <TextInput
-            style={s.input}
-            placeholder="Contoh: 0812xxxx"
-            placeholderTextColor={colors.faint}
-            value={driverPhone}
-            onChangeText={setDriverPhone}
-            keyboardType="phone-pad"
+            multiline
           />
           <Text style={s.label}>Pickup code (jika belum ada)</Text>
           <TextInput

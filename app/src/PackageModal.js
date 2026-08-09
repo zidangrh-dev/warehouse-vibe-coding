@@ -48,8 +48,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [codeVal, setCodeVal] = useState("");
   const [editingCode, setEditingCode] = useState(false);
 
-  const [driverName, setDriverName] = useState("");
-  const [driverPhone, setDriverPhone] = useState("");
+  const [driverInfo, setDriverInfo] = useState("");
 
   const load = async () => {
     if (!pkgId) return;
@@ -57,8 +56,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setPkg(p);
     setNote(p.admin_note || "");
     setCodeVal(p.pickup_code || "");
-    setDriverName(p.driver_name || "");
-    setDriverPhone(p.driver_phone || "");
+    setDriverInfo(p.driver_info || "");
     setEditingCode(false);
   };
   useEffect(() => {
@@ -124,9 +122,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     : wajahPhotos.length >= 1 && barangPhotos.length >= 1;
   const gatedStatus = "done_pickup";
   // Data driver WAJIB terisi sebelum Done Pickup (paket gojek).
-  const driverReady =
-    !!String(pkg.driver_name || "").trim() &&
-    !!String(pkg.driver_phone || "").trim();
+  const driverReady = !!String(pkg.driver_info || "").trim();
   const driverLocked = isGojek && pkg.status === "driver_sampai_kios" && !driverReady;
 
   const addPhoto = async (kind, fromCamera) => {
@@ -333,8 +329,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setBusy(true);
     try {
       await api.updatePackage(pkg.id, {
-        driver_name: driverName.trim(),
-        driver_phone: driverPhone.trim(),
+        driver_info: driverInfo.trim(),
       });
       notice("✅ Data driver tersimpan");
       onChanged();
@@ -346,13 +341,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   };
 
   const saveDriverAdvance = async () => {
-    if (!driverName.trim() || !driverPhone.trim()) return;
+    if (!driverInfo.trim()) return;
     setBusy(true);
     try {
       await api.updatePackage(pkg.id, {
         status: "data_driver_ready",
-        driver_name: driverName.trim(),
-        driver_phone: driverPhone.trim(),
+        driver_info: driverInfo.trim(),
       });
       notice("✅ Data driver tersimpan");
       onChanged();
@@ -538,20 +532,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               <Field label="Data driver (Gojek)">
                 <TextInput
                   style={s.driverInput}
-                  placeholder="Nama driver (dari marketplace)"
+                  placeholder="Nama / No HP / dll (copy dari marketplace)"
                   placeholderTextColor={colors.faint}
-                  value={driverName}
-                  onChangeText={setDriverName}
+                  value={driverInfo}
+                  onChangeText={setDriverInfo}
                   editable={canAct && !lockDriver}
-                />
-                <TextInput
-                  style={[s.driverInput, { marginTop: 6 }]}
-                  placeholder="Nomor HP driver"
-                  placeholderTextColor={colors.faint}
-                  value={driverPhone}
-                  onChangeText={setDriverPhone}
-                  editable={canAct && !lockDriver}
-                  keyboardType="phone-pad"
+                  multiline
                 />
                 {canAct && !lockDriver && (
                   <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
@@ -629,7 +615,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   const locked =
                     (a.to === gatedStatus && needsPhotos && !photosOk) ||
                     (a.to === gatedStatus && driverLocked) ||
-                    (a.to === "data_driver_ready" && (!driverName.trim() || !driverPhone.trim()));
+                    (a.to === "data_driver_ready" && !driverInfo.trim());
                   return (
                     <TouchableOpacity
                       key={a.to}
@@ -645,11 +631,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                         if (locked) {
                           notice(
                             a.to === "data_driver_ready"
-                              ? "Isi dulu nama & no HP driver di bagian Data Driver — baru bisa lanjut."
+                              ? "Isi dulu data driver di bagian Data Driver — baru bisa lanjut."
                               : driverLocked && !photosOk
-                              ? "Lengkapi dulu: data driver (nama & no HP), foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
+                              ? "Lengkapi dulu: data driver, foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : driverLocked
-                              ? "Data driver (nama & no HP) masih kosong — isi dulu sebelum Done Pickup."
+                              ? "Data driver masih kosong — isi dulu sebelum Done Pickup."
                               : isGojek
                               ? "Lengkapi dulu: foto wajah driver, KTP driver, dan foto barang (masing-masing 1)."
                               : "Lengkapi dulu: foto pengambil + barang dan foto barang (masing-masing 1).",

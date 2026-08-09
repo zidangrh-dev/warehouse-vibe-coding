@@ -30,7 +30,7 @@ function fmtUpdate(pkg) {
 // Nama toko: gabungkan marketplace (Commerce Platform) + nama toko yang
 // diparsing dari kolom Title/item. Title berformat "MARKETPLACE - NAMA TOKO"
 // (mis. "Tiktok - Digitech Mall" => toko "Digitech Mall").
-function tokoLabel(pkg) {
+export function tokoLabel(pkg) {
   const p = (pkg.platform || '').trim();
   const t = (pkg.item_desc || '').trim();
   if (!t) return p || '—';
@@ -68,8 +68,8 @@ export function PackageRow({ pkg, onPress, action }) {
       </View>
       <View style={s.cardRowMeta}>
         <Text style={s.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code || '—'}</Text>
-        {!!pkg.driver_name && (
-          <Text style={s.driverChip} numberOfLines={1}>🛵 {pkg.driver_name}</Text>
+        {!!pkg.driver_info && (
+          <Text style={s.driverChip} numberOfLines={1}>🛵 {pkg.driver_info}</Text>
         )}
       </View>
     </TouchableOpacity>
@@ -163,7 +163,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       if (courF && !`${pkg.courier || ''}`.toLowerCase().includes(courF)) return false;
 
       const codeF = (filters.code || '').trim().toLowerCase();
-      if (codeF && !`${pkg.pickup_code || ''} ${pkg.driver_name || ''}`.toLowerCase().includes(codeF)) return false;
+      if (codeF && !`${pkg.pickup_code || ''} ${pkg.driver_info || ''}`.toLowerCase().includes(codeF)) return false;
 
       const typeF = (filters.pickup_type || '').trim().toLowerCase();
       if (typeF && (pkg.pickup_type || '').toLowerCase() !== typeF) return false;
@@ -354,11 +354,11 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
             <Text style={[s.td, { fontFamily: font.mono, fontWeight: '700', color: pkg.pickup_code ? colors.ink : colors.faint }]} numberOfLines={1}>
               {pkg.pickup_code || '—'}
             </Text>
-            {!!pkg.driver_name && (
-              <Text style={[s.td, { color: colors.primary, fontSize: 10.5, fontWeight: '700', marginTop: 1 }]} numberOfLines={1}>
-                🛵 {pkg.driver_name}
-              </Text>
-            )}
+{!!pkg.driver_info && (
+                <Text style={[s.td, { color: colors.primary, fontSize: 10.5, fontWeight: '700', marginTop: 1 }]} numberOfLines={1}>
+                  🛵 {pkg.driver_info}
+                </Text>
+              )}
           </View>
           <View style={{ flex: 1.0 }}><StatusPill status={pkg.status} /></View>
           <Text style={[s.td, { flex: 0.9, color: colors.faint, fontSize: 10.5 }]} numberOfLines={1}>

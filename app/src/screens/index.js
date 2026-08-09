@@ -5,3 +5,4 @@ export { default as GojekScreen } from './GojekScreen';
 export { default as CancelReturScreen } from './CancelReturScreen';
 export { default as SemuaScreen } from './SemuaScreen';
 export { default as ArsipScreen } from './ArsipScreen';
+export { default as KanbanScreen } from './KanbanScreen';

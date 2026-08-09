@@ -92,6 +92,13 @@ const ICONS = {
       <Line x1="3" y1="10" x2="21" y2="10" {...p} />
     </>
   ),
+  columns: (p) => (
+    <>
+      <Rect x="3" y="5" width="5" height="14" rx="1" {...p} fill="none" />
+      <Rect x="10" y="5" width="5" height="14" rx="1" {...p} fill="none" />
+      <Rect x="17" y="5" width="5" height="14" rx="1" {...p} fill="none" />
+    </>
+  ),
 };
 
 export default function Icon({ name, size = 20, color = '#0F172A', strokeWidth = 1.8 }) {

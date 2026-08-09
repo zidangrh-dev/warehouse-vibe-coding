@@ -84,6 +84,7 @@ export const api = {
   getPackage: (id) => req('GET', `/api/packages/${id}`),
   createPackage: (data) => req('POST', '/api/packages', data),
   updatePackage: (id, data) => req('PATCH', `/api/packages/${id}`, data),
+  kanbanBoard: (q, filters) => api.listPackages('semua', q, { ...(filters || {}), kanban: '1' }),
   arrive: (invoice_no) => req('POST', '/api/packages/arrive', { invoice_no }),
   generateCode: (id) => req('POST', `/api/packages/${id}/pickup-code`),
   findByCode: (code) => req('POST', '/api/packages/find-by-code', { code }),
