@@ -16,7 +16,8 @@ import ManualInputModal from './ManualInputModal';
 // tanpa sentuh apa pun. Feedback cukup pill visual yang tidak menutup layar.
 export default function ScanScreen({ user }) {
   const [q, setQ] = useState('');
-  const { items, total, page, setPage, loading, searching, refetch } = usePackages('scan', q);
+  const [colFilters, setColFilters] = useState({});
+  const { items, total, page, setPage, loading, searching, refetch } = usePackages('scan', q, colFilters);
   const [scanOpen, setScanOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualInvoice, setManualInvoice] = useState('');
@@ -158,6 +159,9 @@ export default function ScanScreen({ user }) {
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
         pagination={{ page, total, onPage: setPage }}
+        onSearchQuery={setQ}
+        onColumnFilterChange={setColFilters}
+        tab="scan"
       />
       <ScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
       <ManualInputModal

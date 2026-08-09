@@ -202,8 +202,8 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
 
   const allPresetChips = [
     { label: 'Semua', type: '', status: '' },
-    { label: '🧍 Ambil Customer', type: 'customer', status: '', allowedTabs: ['semua', 'arsip', 'selfpickup'] },
-    { label: '🛵 Gojek / Instant', type: 'gojek', status: '', allowedTabs: ['semua', 'arsip', 'gojek'] },
+    { label: '🧍 Ambil Customer', type: 'customer', status: '', allowedTabs: ['semua', 'arsip', 'selfpickup', 'scan'] },
+    { label: '🛵 Gojek / Instant', type: 'gojek', status: '', allowedTabs: ['semua', 'arsip', 'gojek', 'scan'] },
     { label: '✅ Selesai', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
     { label: '↩️ Retur', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
     { label: '❌ Cancel', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },

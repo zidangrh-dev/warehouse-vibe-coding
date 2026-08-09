@@ -118,10 +118,14 @@ export default function KanbanScreen({ user }) {
     }
   };
 
-  const saveDriver = async (pkg, info) => {
+  const saveDriver = async (pkg, info, code) => {
     if (!String(info || '').trim()) return notice('Isi data driver dulu (nama / no HP).');
     try {
-      await api.updatePackage(pkg.id, { status: 'data_driver_ready', driver_info: info.trim() });
+      await api.updatePackage(pkg.id, {
+        status: 'data_driver_ready',
+        driver_info: info.trim(),
+        ...(String(code || '').trim() ? { pickup_code: String(code).trim() } : {}),
+      });
       load();
     } catch (e) {
       notice(e.message);
@@ -195,7 +199,7 @@ export default function KanbanScreen({ user }) {
                 regNode={regNode}
                 onOpen={() => setOpenId(pkg.id)}
                 onMove={(t) => moveTo(pkg, t)}
-                onSaveDriver={(info) => saveDriver(pkg, info)}
+                onSaveDriver={(info, code) => saveDriver(pkg, info, code)}
                 onDragStart={() => (dragging.current = pkg)}
                 onDragEnd={() => (dragging.current = null)}
               />
@@ -318,6 +322,7 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
 // ---- Kartu papan (input inline sesuai status) ----
 function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
   const [driverDraft, setDriverDraft] = useState('');
+  const [codeDraft, setCodeDraft] = useState('');
   const ref = useRef(null);
   const setNode = (n) => { ref.current = n; regNode?.(n); };
 
@@ -368,6 +373,16 @@ function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver
       <View style={kb.actions}>
         {showsDriverInput && (
           <View style={kb.driverBox}>
+            {!pkg.pickup_code && (
+              <TextInput
+                style={kb.codeInput}
+                placeholder="Pickup code (jika belum ada)"
+                placeholderTextColor={colors.faint}
+                value={codeDraft}
+                onChangeText={setCodeDraft}
+                autoCapitalize="characters"
+              />
+            )}
             <TextInput
               style={kb.inlineInput}
               placeholder="Nama / No HP / dll"
@@ -378,7 +393,7 @@ function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver
             />
             <TouchableOpacity
               style={[kb.bigSave, { backgroundColor: statusColor('data_driver_ready') }]}
-              onPress={() => onSaveDriver(driverDraft)}
+              onPress={() => onSaveDriver(driverDraft, codeDraft)}
               activeOpacity={0.85}
             >
               <Text style={kb.bigSaveText}>💾 Simpan Data Driver</Text>
@@ -482,6 +497,11 @@ const kb = StyleSheet.create({
     flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.input,
     backgroundColor: colors.bg, padding: 8, fontSize: 13, color: colors.ink,
     minHeight: 38, textAlignVertical: 'center',
+  },
+  codeInput: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.input,
+    backgroundColor: colors.bg, paddingVertical: 5, paddingHorizontal: 8,
+    fontSize: 12, color: colors.ink, fontFamily: font.mono,
   },
   bigSave: {
     borderRadius: radius.pill, paddingVertical: 10, paddingHorizontal: 14,
