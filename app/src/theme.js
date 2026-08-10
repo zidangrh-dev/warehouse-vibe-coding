@@ -47,6 +47,8 @@ export const STATUS_META = {
   retur: { label: 'Retur', color: '#E5484D', tint: '#E5484D1A' },
   selesai: { label: 'Selesai', color: '#16A34A', tint: '#16A34A1A' },
   cancel: { label: 'Cancel', color: '#475569', tint: '#4755691F' },
+  dikirim_ke_gudang: { label: 'Dikirim ke Gudang', color: '#D97706', tint: '#D977061A' },
+  diterima_gudang: { label: 'Diterima Gudang', color: '#059669', tint: '#0596691A' },
 };
 
 export const NEXT_ACTIONS = {
@@ -59,6 +61,8 @@ export const NEXT_ACTIONS = {
     { to: 'mencari_driver', label: '🔍 Cari Driver' },
     { to: 'cancel', label: '✖️ Cancel' },
   ],
+  cancel: [{ to: 'dikirim_ke_gudang', label: '🚚 Dikirim ke Gudang' }],
+  dikirim_ke_gudang: [{ to: 'diterima_gudang', label: '📥 Diterima Gudang' }],
 };
 
 // Palet chart dashboard — reuse warna status supaya legend konsisten se-app.

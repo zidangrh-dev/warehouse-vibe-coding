@@ -198,6 +198,8 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
     { label: '✅ Selesai', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
     { label: '↩️ Retur', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
     { label: '❌ Cancel', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: '🚚 Dikirim ke Gudang', type: '', status: 'dikirim_ke_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: '📥 Diterima Gudang', type: '', status: 'diterima_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
     // Filter cepat per-status untuk tab Gojek (termasuk selesai agar paket
     // yang sudah tuntas tetap terlihat di tab gojek).
     { label: 'Absen Gojek', type: '', status: 'absen_gojek', allowedTabs: ['gojek'] },

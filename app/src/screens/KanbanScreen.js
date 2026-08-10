@@ -35,6 +35,8 @@ const COLUMNS = [
   'selesai',
   'retur',
   'cancel',
+  'dikirim_ke_gudang',
+  'diterima_gudang',
 ];
 
 const TYPE_CHIPS = [
@@ -63,7 +65,11 @@ function fmtDate(d) {
 export default function KanbanScreen({ user }) {
   const { isWeb } = useBreakpoint();
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+  const isWarehouse = user.role === 'warehouse';
   const isSuperadmin = user.role === 'superadmin';
+
+  const canShip = isAdmin || isSuperadmin;       // Admin Kios & Super Admin
+  const canReceive = isWarehouse || isSuperadmin; // Warehouse & Super Admin
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [items, setItems] = useState([]);
@@ -134,10 +140,18 @@ export default function KanbanScreen({ user }) {
   const total = items.length;
   const searching = !!(q.trim() || typeFilter);
 
-  const moveTo = async (pkg, target) => {
-    if (pkg.status === target) return;
+  const moveTo = async (pkg, target, extraData) => {
+    if (pkg.status === target && !extraData) return;
     if (!allowedTargets(pkg.status).includes(target)) {
       notice(`Tidak bisa langsung pindah ke "${statusLabel(target)}".`);
+      return;
+    }
+    if (target === 'dikirim_ke_gudang' && !canShip) {
+      notice('Hanya Admin Kios yang berhak menyerahkan barang ke Kurir.');
+      return;
+    }
+    if (target === 'diterima_gudang' && !canReceive) {
+      notice('Hanya Tim Warehouse yang berhak menerima barang di Gudang Utama.');
       return;
     }
     if (modalTargets.has(target)) {
@@ -145,7 +159,7 @@ export default function KanbanScreen({ user }) {
       return;
     }
     try {
-      await api.updatePackage(pkg.id, { status: target });
+      await api.updatePackage(pkg.id, { status: target, ...(extraData || {}) });
       load();
     } catch (e) {
       notice(e.message);
@@ -246,6 +260,8 @@ export default function KanbanScreen({ user }) {
                 key={pkg.id}
                 pkg={pkg}
                 isAdmin={isAdmin}
+                canShip={canShip}
+                canReceive={canReceive}
                 isWeb={isWeb}
                 regNode={regNode}
                 onOpen={() => setOpenId(pkg.id)}
@@ -446,14 +462,15 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
 }
 
 // ---- Kartu papan (input inline sesuai status) ----
-function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
+function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
   const [driverDraft, setDriverDraft] = useState('');
   const [codeDraft, setCodeDraft] = useState('');
   const ref = useRef(null);
   const setNode = (n) => { ref.current = n; regNode?.(n); };
 
-  // web: jadikan kartu draggable (HTML5 DnD) hanya bila admin & ada transisi.
-  const draggable = isWeb && isAdmin && allowedTargets(pkg.status).length > 0;
+  const canOperate = isAdmin || canShip || canReceive;
+  // web: jadikan kartu draggable (HTML5 DnD) jika berhak beroperasi & ada transisi.
+  const draggable = isWeb && canOperate && allowedTargets(pkg.status).length > 0;
   useEffect(() => {
     if (!draggable || !ref.current) return;
     const node = ref.current;
@@ -534,16 +551,27 @@ function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver
           </View>
         )}
 
-        {actions.map((a) =>
-          showsDriverInput && a.to === 'driver_sampai_kios' ? null : (
+        {actions.map((a) => {
+          const allowed = a.to === 'dikirim_ke_gudang' ? canShip : a.to === 'diterima_gudang' ? canReceive : isAdmin;
+          if (!allowed) return null;
+          return (
             <ActionBtn
               key={a.to}
               label={a.label.replace(/^\S+\s/, '')}
               color={statusColor(a.to)}
-              onPress={() => (isAdmin ? onMove(a.to) : onOpen())}
+              onPress={() => {
+                const extra = {};
+                if (showsDriverInput && driverDraft.trim()) {
+                  extra.driver_info = driverDraft.trim();
+                }
+                if (showsDriverInput && codeDraft.trim()) {
+                  extra.pickup_code = codeDraft.trim();
+                }
+                onMove(a.to, Object.keys(extra).length > 0 ? extra : undefined);
+              }}
             />
-          )
-        )}
+          );
+        })}
       </View>
     </View>
   );

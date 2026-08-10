@@ -304,7 +304,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const setStatus = async (to) => {
     setBusy(true);
     try {
-      await api.updatePackage(pkg.id, { status: to });
+      const payload = { status: to };
+      if (isGojek && !lockDriver) {
+        if (driverInfo.trim() !== (pkg.driver_info || '').trim()) {
+          payload.driver_info = driverInfo.trim();
+        }
+        if (driverRefreshed !== !!pkg.driver_refreshed) {
+          payload.driver_refreshed = driverRefreshed;
+        }
+      }
+      await api.updatePackage(pkg.id, payload);
       onChanged();
       await load();
     } catch (e) {

@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
 --                         (konfirmasi pengambilan dgn foto langsung ke sini)
 --   retur                : driver mengembalikan barang (bisa dicari driver lagi)
 --   cancel               : dibatalkan customer
+--   dikirim_ke_gudang    : admin kios menyerahkan barang cancel ke kurir untuk dikirim ke gudang
+--   diterima_gudang      : tim warehouse menerima fisik barang cancel di gudang utama
 CREATE TABLE IF NOT EXISTS packages (
   id SERIAL PRIMARY KEY,
   invoice_no TEXT UNIQUE NOT NULL,

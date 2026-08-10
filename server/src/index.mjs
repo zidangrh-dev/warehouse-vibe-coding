@@ -311,7 +311,7 @@ async function logEvent(pkgId, user, action, detail = '') {
 
 const STATUSES = [
   'data_masuk', 'absen_ambil_customer', 'absen_gojek', 'mencari_driver',
-  'driver_sampai_kios', 'retur', 'selesai', 'cancel',
+  'driver_sampai_kios', 'retur', 'selesai', 'cancel', 'dikirim_ke_gudang', 'diterima_gudang',
 ];
 
 // Tab di aplikasi -> status + (opsional) pickup_type. selfpickup & gojek
@@ -321,7 +321,7 @@ const TAB_FILTERS = {
   scan: { statuses: ['data_masuk'] },
   selfpickup: { statuses: ['absen_ambil_customer'], pickup_type: 'customer' },
   gojek: { statuses: ['absen_gojek', 'mencari_driver', 'driver_sampai_kios', 'selesai'], pickup_type: 'gojek' },
-  cancelretur: { statuses: ['cancel', 'retur'] },
+  cancelretur: { statuses: ['cancel', 'retur', 'dikirim_ke_gudang', 'diterima_gudang'] },
   selesai: { statuses: ['selesai'] },
 };
 
@@ -787,6 +787,50 @@ app.post('/api/packages/arrive', requireAuth, requireRole('admin'), wrap(async (
        updated_at=now() WHERE id=$1 RETURNING *`,
     [pkg.id, st]);
   await logEvent(pkg.id, req.user, 'scan_sampai', `status -> ${st}`);
+  notify();
+  res.json(r.rows[0]);
+}));
+
+// Admin Kios menyerahkan fisik barang cancel ke Kurir untuk dikirim ke Gudang Utama.
+// Hak akses: Admin Kios & Super Admin saja (role warehouse & sales ditolak).
+app.post('/api/packages/ship-to-warehouse', requireAuth, requireRole('admin', 'superadmin'), wrap(async (req, res) => {
+  const code = String(req.body.invoice_no || req.body.code || '').trim();
+  if (!code) return res.status(400).json({ error: 'Nomor invoice / AWB kosong' });
+
+  const found = await pool.query('SELECT * FROM packages WHERE invoice_no=$1 OR awb_no=$1', [code]);
+  const pkg = found.rows[0];
+  if (!pkg) return res.status(404).json({ error: 'Data paket tidak ditemukan.' });
+  if (pkg.status !== 'cancel') {
+    return res.status(400).json({ error: `Hanya paket berstatus Cancel yang dapat dikirim ke Gudang (status saat ini: ${pkg.status})` });
+  }
+
+  const r = await pool.query(
+    `UPDATE packages SET status='dikirim_ke_gudang', updated_at=now() WHERE id=$1 RETURNING *`,
+    [pkg.id]
+  );
+  await logEvent(pkg.id, req.user, 'dikirim_ke_gudang', 'Admin Kios menyerahkan fisik barang cancel ke Kurir untuk dikirim ke Gudang Utama');
+  notify();
+  res.json(r.rows[0]);
+}));
+
+// Tim Warehouse menerima fisik barang cancel di Gudang Utama.
+// Hak akses: Tim Warehouse & Super Admin saja (role admin kios & sales ditolak).
+app.post('/api/packages/receive-at-warehouse', requireAuth, requireRole('warehouse', 'superadmin'), wrap(async (req, res) => {
+  const code = String(req.body.invoice_no || req.body.code || '').trim();
+  if (!code) return res.status(400).json({ error: 'Nomor invoice / AWB kosong' });
+
+  const found = await pool.query('SELECT * FROM packages WHERE invoice_no=$1 OR awb_no=$1', [code]);
+  const pkg = found.rows[0];
+  if (!pkg) return res.status(404).json({ error: 'Data paket tidak ditemukan.' });
+  if (pkg.status !== 'dikirim_ke_gudang') {
+    return res.status(400).json({ error: `Hanya paket berstatus Dikirim ke Gudang yang dapat diterima di Gudang (status saat ini: ${pkg.status})` });
+  }
+
+  const r = await pool.query(
+    `UPDATE packages SET status='diterima_gudang', updated_at=now() WHERE id=$1 RETURNING *`,
+    [pkg.id]
+  );
+  await logEvent(pkg.id, req.user, 'diterima_gudang', 'Tim Warehouse menerima fisik barang cancel di Gudang Utama');
   notify();
   res.json(r.rows[0]);
 }));
