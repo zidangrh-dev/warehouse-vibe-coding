@@ -1,13 +1,13 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking, Platform,
+  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking, Platform, ActivityIndicator,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, {
   Rect, Circle, Path, Line as SvgLine, Defs, Stop, LinearGradient as SvgGradient,
 } from 'react-native-svg';
 import Icon from './Icon';
-import { colors, radius, shadow, spacing, font, STATUS_META, statusLabel, statusColor, statusTint } from './theme';
+import { colors, radius, shadow, spacing, font, notice, STATUS_META, statusLabel, statusColor, statusTint } from './theme';
 import { fmtUpdate } from './utils/format';
 
 export function StatusPill({ status }) {
@@ -635,9 +635,13 @@ export function SimpleDonutChart({ data, size = 140, valueKey = 'value', colorKe
   );
 }
 
-// Tampilkan pickup code sebagai QR + tombol kirim WhatsApp ke customer.
+// Tampilkan pickup code sebagai QR + tombol copy gambar & kirim WhatsApp ke customer.
 export function CodeModal({ pkg, onClose }) {
+  const qrRef = useRef(null);
+  const [copying, setCopying] = useState(false);
+
   if (!pkg) return null;
+
   const waText = encodeURIComponent(
     `Halo ${pkg.customer_name || ''}, paket ${pkg.invoice_no} sudah siap diambil di kios. ` +
     `Tunjukkan kode pickup ini ke admin: ${pkg.pickup_code}`
@@ -646,6 +650,110 @@ export function CodeModal({ pkg, onClose }) {
   // tombol WA untuk nomor sensor, hasil bersihannya akan jadi nomor orang lain.
   const masked = (pkg.customer_phone || '').includes('*');
   const phone = masked ? '' : (pkg.customer_phone || '').replace(/[^0-9]/g, '').replace(/^0/, '62');
+
+  const copyCardImage = async () => {
+    if (copying) return;
+    if (!qrRef.current) return notice('QR Code belum siap');
+    setCopying(true);
+
+    qrRef.current.toDataURL(async (dataUrl) => {
+      try {
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof document !== 'undefined') {
+          const qrImg = new window.Image();
+          qrImg.crossOrigin = 'anonymous';
+          qrImg.onload = async () => {
+            const canvas = document.createElement('canvas');
+            const W = 420;
+            const H = 500;
+            canvas.width = W;
+            canvas.height = H;
+            const ctx = canvas.getContext('2d');
+
+            // Background Card dengan rounded border & Shadow aesthetic
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, W, H);
+
+            // Border luar card
+            ctx.strokeStyle = '#E2E8F0';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(2, 2, W - 4, H - 4);
+
+            // Header Banner
+            ctx.fillStyle = '#2E5AAC';
+            ctx.fillRect(0, 0, W, 52);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('📦 PickHub · KIOS PICKUP', W / 2, 33);
+
+            // Invoice & Customer Info
+            ctx.fillStyle = '#64748B';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.fillText(`Invoice: ${pkg.invoice_no}`, W / 2, 82);
+
+            ctx.fillStyle = '#0F172A';
+            ctx.font = '14px sans-serif';
+            const cust = pkg.customer_name ? `Customer: ${pkg.customer_name}` : '';
+            if (cust) ctx.fillText(cust, W / 2, 104);
+
+            // QR Code Image (ukuran 200x200 di tengah)
+            const qrSize = 200;
+            const qrX = (W - qrSize) / 2;
+            const qrY = 125;
+
+            // Background petak QR Code
+            ctx.fillStyle = '#F8FAFC';
+            ctx.fillRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20);
+            ctx.strokeStyle = '#CBD5E1';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(qrX - 10, qrY - 10, qrSize + 20, qrSize + 20);
+
+            ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+            // Label Pickup Code
+            ctx.fillStyle = '#64748B';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText('KODE PICKUP / PASSCODE', W / 2, 375);
+
+            // Kode Pickup Besar
+            ctx.fillStyle = '#1E3F80';
+            ctx.font = 'bold 36px monospace, sans-serif';
+            ctx.fillText(String(pkg.pickup_code || '—'), W / 2, 420);
+
+            // Footer Subtitle
+            ctx.fillStyle = '#94A3B8';
+            ctx.font = '11px sans-serif';
+            ctx.fillText('Tunjukkan kode ini ke admin kios saat pengambilan paket', W / 2, 465);
+
+            canvas.toBlob(async (blob) => {
+              try {
+                if (navigator.clipboard && window.ClipboardItem) {
+                  await navigator.clipboard.write([
+                    new window.ClipboardItem({ 'image/png': blob }),
+                  ]);
+                  notice('📋 Gambar kartu pickup (QR + Kode) berhasil disalin ke clipboard!');
+                } else {
+                  notice('Browser Anda tidak mendukung salin gambar langsung.');
+                }
+              } catch (err) {
+                notice('Gagal menyalin gambar: ' + err.message);
+              } finally {
+                setCopying(false);
+              }
+            }, 'image/png');
+          };
+          qrImg.src = `data:image/png;base64,${dataUrl}`;
+        } else {
+          notice('Fitur salin gambar ke clipboard didukung di browser web.');
+          setCopying(false);
+        }
+      } catch (err) {
+        notice('Gagal memproses gambar: ' + err.message);
+        setCopying(false);
+      }
+    });
+  };
+
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <View style={s.backdrop}>
@@ -654,9 +762,22 @@ export function CodeModal({ pkg, onClose }) {
           <Text style={s.sheetTitle}>Pickup Code</Text>
           <Text style={s.sheetSub}>{pkg.invoice_no} · {pkg.customer_name}</Text>
           <View style={s.qrWrap}>
-            <QRCode value={String(pkg.pickup_code)} size={170} />
+            <QRCode getRef={(c) => (qrRef.current = c)} value={String(pkg.pickup_code)} size={170} />
           </View>
           <Text style={s.codeText}>{pkg.pickup_code}</Text>
+
+          <TouchableOpacity
+            style={[s.btn, { backgroundColor: colors.primary, marginBottom: 8 }]}
+            onPress={copyCardImage}
+            disabled={copying}
+          >
+            {copying ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={s.btnText}>📋 Copy Gambar Card (QR + Kode)</Text>
+            )}
+          </TouchableOpacity>
+
           {!!phone && (
             <TouchableOpacity
               style={[s.btn, { backgroundColor: '#25D366' }]}
@@ -665,6 +786,7 @@ export function CodeModal({ pkg, onClose }) {
               <Text style={s.btnText}>Kirim via WhatsApp</Text>
             </TouchableOpacity>
           )}
+
           <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={onClose}>
             <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
           </TouchableOpacity>
