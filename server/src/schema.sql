@@ -104,6 +104,9 @@ END $$;
 -- Idempoten: tidak mengubah apa pun pada run berikutnya.
 UPDATE packages SET status='selesai' WHERE status='done_pickup';
 
+-- Flag manual "REFRESH": menandai bahwa driver pernah diganti/cancel di tengah alur.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_refreshed BOOLEAN NOT NULL DEFAULT false;
+
 -- Kunci PERMANEN data driver: diset true saat status bergerak ke selesai.
 -- Setelah paket sekali selesai diangkut, data driver TIDAK boleh diubah lagi
 -- (tetap terkunci walaupun paket diretur lalu dimasukkan ke antrian lagi).

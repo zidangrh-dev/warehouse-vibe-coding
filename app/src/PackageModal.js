@@ -49,6 +49,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [editingCode, setEditingCode] = useState(false);
 
   const [driverInfo, setDriverInfo] = useState("");
+  const [driverRefreshed, setDriverRefreshed] = useState(false);
 
   const load = async () => {
     if (!pkgId) return;
@@ -57,6 +58,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setNote(p.admin_note || "");
     setCodeVal(p.pickup_code || "");
     setDriverInfo(p.driver_info || "");
+    setDriverRefreshed(!!p.driver_refreshed);
     setEditingCode(false);
   };
   useEffect(() => {
@@ -330,6 +332,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     try {
       await api.updatePackage(pkg.id, {
         driver_info: driverInfo.trim(),
+        driver_refreshed: driverRefreshed,
       });
       notice("✅ Data driver tersimpan");
       onChanged();
@@ -521,6 +524,30 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   editable={canAct && !lockDriver}
                   multiline
                 />
+                {canAct && !lockDriver && (
+                  <TouchableOpacity
+                    style={{
+                      alignSelf: 'flex-start',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: 8,
+                      marginBottom: 4,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: radius.pill,
+                      backgroundColor: driverRefreshed ? '#FEF2F2' : colors.surfaceAlt,
+                      borderWidth: 1.5,
+                      borderColor: driverRefreshed ? colors.danger : colors.border,
+                    }}
+                    onPress={() => setDriverRefreshed(!driverRefreshed)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: driverRefreshed ? colors.danger : colors.sub }}>
+                      {driverRefreshed ? '✓ REFRESH (Driver Berganti)' : '+ Tag REFRESH (Driver Berganti)'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {canAct && !lockDriver && (
                   <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
                     <Text style={s.btnText}>Simpan Data Driver</Text>

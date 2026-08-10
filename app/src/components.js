@@ -61,6 +61,11 @@ export function PackageRow({ pkg, onPress, action }) {
       </View>
       <View style={s.cardRowMeta}>
         <Text style={s.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code || '—'}</Text>
+        {!!pkg.driver_refreshed && (
+          <View style={s.refreshBadge}>
+            <Text style={s.refreshBadgeText}>🔄 REFRESH</Text>
+          </View>
+        )}
         {!!pkg.driver_info && (
           <Text style={s.driverChip} numberOfLines={1}>🛵 {pkg.driver_info}</Text>
         )}
@@ -325,14 +330,21 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
             {pkg.courier || '—'}
           </Text>
           <View style={{ flex: 0.9 }}>
-            <Text style={[s.td, { fontFamily: font.mono, fontWeight: '700', color: pkg.pickup_code ? colors.ink : colors.faint }]} numberOfLines={1}>
-              {pkg.pickup_code || '—'}
-            </Text>
-{!!pkg.driver_info && (
-                <Text style={[s.td, { color: colors.primary, fontSize: 10.5, fontWeight: '700', marginTop: 1 }]} numberOfLines={1}>
-                  🛵 {pkg.driver_info}
-                </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+              <Text style={[s.td, { fontFamily: font.mono, fontWeight: '700', color: pkg.pickup_code ? colors.ink : colors.faint }]} numberOfLines={1}>
+                {pkg.pickup_code || '—'}
+              </Text>
+              {!!pkg.driver_refreshed && (
+                <View style={s.refreshBadge}>
+                  <Text style={s.refreshBadgeText}>🔄 REFRESH</Text>
+                </View>
               )}
+            </View>
+            {!!pkg.driver_info && (
+              <Text style={[s.td, { color: colors.primary, fontSize: 10.5, fontWeight: '700', marginTop: 1 }]} numberOfLines={1}>
+                🛵 {pkg.driver_info}
+              </Text>
+            )}
           </View>
           <View style={{ flex: 1.0 }}><StatusPill status={pkg.status} /></View>
           <Text style={[s.td, { flex: 0.9, color: colors.faint, fontSize: 10.5 }]} numberOfLines={1}>
@@ -706,6 +718,8 @@ export const s = StyleSheet.create({
   },
   time: { color: colors.faint, fontSize: 10.5, fontWeight: '600' },
   codeChip: { color: colors.sub, fontSize: 11.5, fontWeight: '700', fontFamily: font.mono },
+  refreshBadge: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  refreshBadgeText: { color: colors.danger, fontSize: 9, fontWeight: '800' },
   driverChip: { color: colors.primary, fontSize: 11.5, fontWeight: '700' },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,

@@ -32,7 +32,7 @@ export default function GojekScreen({ user }) {
       <TouchableOpacity
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
         onPress={async () => {
-          if (next.to === 'selesai') return setOpenId(pkg.id);
+          if (next.to === 'selesai' || next.to === 'retur' || next.to === 'cancel') return setOpenId(pkg.id);
           if (next.to === 'driver_sampai_kios') {
             try {
               await api.updatePackage(pkg.id, { status: next.to });

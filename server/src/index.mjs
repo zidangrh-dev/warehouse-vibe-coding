@@ -309,7 +309,7 @@ const TAB_FILTERS = {
 const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
   platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
   received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at,
-  driver_info, driver_locked`;
+  driver_info, driver_locked, driver_refreshed`;
 
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
@@ -589,7 +589,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 
   // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
   // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
-  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info'];
+  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info', 'driver_refreshed'];
 
   // Role operasional (admin/warehouse) boleh field utama; pickup code boleh
   // sales ATAU admin (admin juga membutuhkannya saat mengisi data driver dari
@@ -659,6 +659,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const detailParts = [];
   if (req.body.status) detailParts.push(`status -> ${req.body.status}`);
   if ('driver_info' in req.body) detailParts.push(`driver: ${req.body.driver_info.trim() || '—'}`);
+  if ('driver_refreshed' in req.body) detailParts.push(`tag REFRESH: ${req.body.driver_refreshed ? 'AKTIF' : 'NON-AKTIF'}`);
   if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
   await logEvent(id, req.user, 'update', detailParts.join(' | '));
   notify();

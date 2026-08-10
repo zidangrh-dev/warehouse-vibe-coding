@@ -44,8 +44,8 @@ const TYPE_CHIPS = [
 ];
 
 const allowedTargets = (status) => (NEXT_ACTIONS[status] || []).map((a) => a.to);
-// Transisi yang butuh input/foto di modal -> jangan PATCH langsung.
-const modalTargets = new Set(['selesai']);
+// Transisi yang butuh input/foto/konfirmasi di modal -> jangan PATCH langsung.
+const modalTargets = new Set(['selesai', 'retur', 'cancel']);
 
 // Teks yang dicari pada kartu (satukan semua field, lowercase).
 const searchable = (pkg) =>
@@ -487,9 +487,16 @@ function KanbanCard({ pkg, isAdmin, isWeb, regNode, onOpen, onMove, onSaveDriver
         </View>
         <Text style={kb.customer} numberOfLines={1}>{pkg.customer_name || '(tanpa nama)'}</Text>
         <Text style={kb.toko} numberOfLines={1}>{tokoLabel(pkg)}</Text>
-        {!!pkg.pickup_code && (
-          <Text style={kb.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code}</Text>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+          {!!pkg.pickup_code && (
+            <Text style={kb.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code}</Text>
+          )}
+          {!!pkg.driver_refreshed && (
+            <View style={kb.refreshBadge}>
+              <Text style={kb.refreshBadgeText}>🔄 REFRESH</Text>
+            </View>
+          )}
+        </View>
         {!!pkg.driver_info && (
           <Text style={kb.driverChip} numberOfLines={1}>🛵 {pkg.driver_info}</Text>
         )}
@@ -664,7 +671,9 @@ const kb = StyleSheet.create({
   time: { color: colors.faint, fontSize: 10 },
   customer: { marginTop: 6, fontWeight: '700', fontSize: 12.5, color: colors.ink },
   toko: { color: colors.sub, fontSize: 11, marginTop: 2 },
-  codeChip: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10.5, fontWeight: '700', color: colors.primary },
+  codeChip: { alignSelf: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10.5, fontWeight: '700', color: colors.primary },
+  refreshBadge: { alignSelf: 'flex-start', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  refreshBadgeText: { color: colors.danger, fontSize: 9.5, fontWeight: '800' },
   driverChip: { alignSelf: 'flex-start', marginTop: 4, fontSize: 10.5, fontWeight: '700', color: colors.primary },
 
   actions: { padding: 8, borderTopWidth: 1, borderTopColor: colors.border, gap: 6 },
