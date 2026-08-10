@@ -32,8 +32,8 @@ const COLUMNS = [
   'absen_gojek',
   'mencari_driver',
   'driver_sampai_kios',
-  'retur',
   'selesai',
+  'retur',
   'cancel',
 ];
 

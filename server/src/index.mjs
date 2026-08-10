@@ -961,11 +961,18 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
       }
 
       try {
-        const ex = existingMap.get(cleanInvoice) || (cleanAwb ? existingMap.get(cleanAwb) : null);
         const isReturnRow = cleanInvoice.startsWith('R/') || cleanInvoice.startsWith('r/') ||
                             (m.raw?.Status || '').toLowerCase() === 'return' ||
                             String(m.raw?.['Is Return (Credit Note)'] || '') === '1';
-        const initialStatus = isReturnRow ? 'retur' : 'data_masuk';
+
+        // Data yang berstatus return/retur dari CSV dilewati (skipped), tidak diimpor / di-update.
+        if (isReturnRow) {
+          skipped++;
+          continue;
+        }
+
+        const ex = existingMap.get(cleanInvoice) || (cleanAwb ? existingMap.get(cleanAwb) : null);
+        const initialStatus = 'data_masuk';
 
         if (!ex) {
           // Paket BARU! Insert ke DB
@@ -982,9 +989,6 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
           const updates = [];
           const vals = [ex.id];
 
-          if (isReturnRow && ex.status !== 'retur') {
-            hasChange = true; vals.push('retur'); updates.push(`status=$${vals.length}`);
-          }
           if (codeToSet && codeToSet !== norm(ex.pickup_code) && (!ex.pickup_code || ex.pickup_code === '')) {
             hasChange = true; vals.push(codeToSet); updates.push(`pickup_code=$${vals.length}`);
           }
