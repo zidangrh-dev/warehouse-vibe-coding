@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS packages (
   customer_name TEXT NOT NULL DEFAULT '',
   customer_phone TEXT NOT NULL DEFAULT '',
   item_desc TEXT NOT NULL DEFAULT '',
-  pickup_type TEXT NOT NULL DEFAULT 'customer' CHECK (pickup_type IN ('customer', 'gojek')),
+  pickup_type TEXT NOT NULL DEFAULT 'customer' CHECK (pickup_type IN ('customer', 'gojek', 'anteran')),
   status TEXT NOT NULL DEFAULT 'data_masuk',
   pickup_code TEXT UNIQUE,
   admin_note TEXT NOT NULL DEFAULT '',
@@ -104,8 +104,18 @@ END $$;
 -- Idempoten: tidak mengubah apa pun pada run berikutnya.
 UPDATE packages SET status='selesai' WHERE status='done_pickup';
 
+-- Status 'done_pickup' dihapus dari alur — konfirmasi pengambilan langsung ke
+-- 'selesai'. Paket yang masih di status itu dianggap sudah selesai.
+-- Idempoten: tidak mengubah apa pun pada run berikutnya.
+UPDATE packages SET status='selesai' WHERE status='done_pickup';
+
 -- Flag manual "REFRESH": menandai bahwa driver pernah diganti/cancel di tengah alur.
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_refreshed BOOLEAN NOT NULL DEFAULT false;
+
+-- Migrasi constraint pickup_type: dukung 'anteran' (kurir internal).
+-- Idempoten — selalu aman dijalankan saat restart server.
+ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_pickup_type_check;
+ALTER TABLE packages ADD CONSTRAINT packages_pickup_type_check CHECK (pickup_type IN ('customer', 'gojek', 'anteran'));
 
 -- Kunci PERMANEN data driver: diset true saat status bergerak ke selesai.
 -- Setelah paket sekali selesai diangkut, data driver TIDAK boleh diubah lagi

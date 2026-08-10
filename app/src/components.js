@@ -41,7 +41,7 @@ export function PackageRow({ pkg, onPress, action }) {
     <TouchableOpacity style={s.card} onPress={() => onPress(pkg)} activeOpacity={0.7}>
       <View style={s.cardTop}>
         <View style={[s.iconBox, { backgroundColor: statusTint(pkg.status) }]}>
-          <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : 'box'} size={20} color={statusColor(pkg.status)} />
+          <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : pkg.pickup_type === 'anteran' ? 'box' : 'box'} size={20} color={statusColor(pkg.status)} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.awb} numberOfLines={1}>
@@ -61,6 +61,11 @@ export function PackageRow({ pkg, onPress, action }) {
       </View>
       <View style={s.cardRowMeta}>
         <Text style={s.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code || '—'}</Text>
+        {pkg.pickup_type === 'anteran' && (
+          <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 }}>
+            <Text style={{ color: '#92400E', fontSize: 9.5, fontWeight: '800' }}>📦 ANTERAN</Text>
+          </View>
+        )}
         {!!pkg.driver_refreshed && (
           <View style={s.refreshBadge}>
             <Text style={s.refreshBadgeText}>🔄 REFRESH</Text>
@@ -189,6 +194,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
     { label: 'Semua', type: '', status: '' },
     { label: '🧍 Ambil Customer', type: 'customer', status: '', allowedTabs: ['semua', 'arsip', 'selfpickup', 'scan'] },
     { label: '🛵 Gojek / Instant', type: 'gojek', status: '', allowedTabs: ['semua', 'arsip', 'gojek', 'scan'] },
+    { label: '📦 Anteran Internal', type: 'anteran', status: '', allowedTabs: ['semua', 'arsip', 'scan'] },
     { label: '✅ Selesai', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
     { label: '↩️ Retur', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
     { label: '❌ Cancel', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
@@ -334,6 +340,11 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
               <Text style={[s.td, { fontFamily: font.mono, fontWeight: '700', color: pkg.pickup_code ? colors.ink : colors.faint }]} numberOfLines={1}>
                 {pkg.pickup_code || '—'}
               </Text>
+              {pkg.pickup_type === 'anteran' && (
+                <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1 }}>
+                  <Text style={{ color: '#92400E', fontSize: 9, fontWeight: '800' }}>📦 ANTERAN</Text>
+                </View>
+              )}
               {!!pkg.driver_refreshed && (
                 <View style={s.refreshBadge}>
                   <Text style={s.refreshBadgeText}>🔄 REFRESH</Text>

@@ -32,7 +32,10 @@ export default function App() {
   }, [user, doLogout]);
 
   useEffect(() => {
-    loadSession().then((u) => { setUser(u); setReady(true); });
+    loadSession()
+      .then((u) => setUser(u))
+      .catch(() => setUser(null))
+      .finally(() => setReady(true));
     setUnauthorizedHandler(() => { doLogout(false); });
   }, [doLogout]);
 

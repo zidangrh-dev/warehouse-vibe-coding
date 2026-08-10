@@ -50,6 +50,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   const [driverInfo, setDriverInfo] = useState("");
   const [driverRefreshed, setDriverRefreshed] = useState(false);
+  const [confirmAnteranOpen, setConfirmAnteranOpen] = useState(false);
 
   const load = async () => {
     if (!pkgId) return;
@@ -327,6 +328,22 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     }
   };
 
+  const changeAnteranToAmbilan = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.updatePackage(pkg.id, { pickup_type: 'customer', status: 'absen_ambil_customer' });
+      notice('✅ Jenis ambilan berhasil diubah menjadi Ambil Customer!');
+      setConfirmAnteranOpen(false);
+      onChanged();
+      await load();
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveDriver = async () => {
     setBusy(true);
     try {
@@ -363,7 +380,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         <View style={[s.sheet, isWide && { maxWidth: 640 }]}>
           <ScrollView>
             <Text style={s.invoice}>{pkg.invoice_no}</Text>
-            <Text style={[s.status, { color: statusColor(pkg.status) }]}>
+            <Text style={[s.status, { color: statusColor(pkg.status), marginTop: 2 }]}>
               ● {statusLabel(pkg.status)}
             </Text>
 
@@ -408,16 +425,41 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {pkg.courier ? ` · ${pkg.courier}` : ""}
               </Text>
             </Field>
-            <Field label="Jenis ambilan">
-              {/* Dikunci: ditentukan oleh data dari admin gudang, tidak bisa diganti. */}
-              <View style={s.rowWrap}>
-                <Text style={s.value}>
-                  {pkg.pickup_type === "gojek"
-                    ? `🛵 ${pkg.courier || "Driver"}`
-                    : "🧍 Ambil Customer"}
-                </Text>
-                <Text style={s.lockTag}>🔒 terkunci</Text>
-              </View>
+            <Field label="Jenis Ambilan">
+              {pkg.pickup_type === 'anteran' ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#92400E' }}>📦 Anteran Kurir Internal</Text>
+                  </View>
+                  {!isArchived && (user.role === 'warehouse' || user.role === 'superadmin') && (
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: colors.primarySoft,
+                        borderWidth: 1,
+                        borderColor: colors.primary,
+                        borderRadius: radius.pill,
+                        paddingVertical: 4,
+                        paddingHorizontal: 10,
+                      }}
+                      onPress={() => setConfirmAnteranOpen(true)}
+                      disabled={busy}
+                    >
+                      <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 11 }}>
+                        🔄 Ubah ke Ambilan
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <View style={s.rowWrap}>
+                  <Text style={s.value}>
+                    {pkg.pickup_type === 'gojek'
+                      ? `🛵 ${pkg.courier || 'Driver'}`
+                      : '🧍 Ambil Customer'}
+                  </Text>
+                  <Text style={s.lockTag}>🔒 terkunci</Text>
+                </View>
+              )}
             </Field>
             <Field label="Pickup Code / PIN">
               {canEditCode ? (
@@ -696,6 +738,62 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         }}
       />
 
+      {/* Modal Konfirmasi Ubah ke Ambilan Customer */}
+      {confirmAnteranOpen && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setConfirmAnteranOpen(false)}>
+          <View style={s.pvBackdrop}>
+            <View style={s.pvCard}>
+              <View style={s.pvHead}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 24 }}>📦</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.pvTitle, { fontSize: 17 }]}>Ubah Jenis Ambilan</Text>
+                  <Text style={[s.pvSub, { fontWeight: '600' }]}>Tindakan ini memerlukan konfirmasi</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 13.5, color: colors.sub, lineHeight: 20, marginBottom: 16 }}>
+                Apakah Anda yakin ingin mengubah paket Kurir Internal ini menjadi <Text style={{ fontWeight: '800', color: colors.ink }}>Ambilan Customer (Kios)</Text>?
+              </Text>
+              <View style={s.pvInfoCard}>
+                <View style={s.pvInfoRow}>
+                  <Text style={s.pvInfoLabel}>No Invoice:</Text>
+                  <Text style={s.pvInfoValue}>{pkg.invoice_no}</Text>
+                </View>
+                <View style={s.pvInfoRow}>
+                  <Text style={s.pvInfoLabel}>Customer:</Text>
+                  <Text style={s.pvInfoValue}>{pkg.customer_name || '—'} {pkg.customer_phone ? `(${pkg.customer_phone})` : ''}</Text>
+                </View>
+                <View style={s.pvInfoRow}>
+                  <Text style={s.pvInfoLabel}>Kurir:</Text>
+                  <Text style={s.pvInfoValue}>{pkg.courier || '—'}</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: radius.pill, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, alignItems: 'center' }}
+                  onPress={() => setConfirmAnteranOpen(false)}
+                  disabled={busy}
+                >
+                  <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13.5 }}>Batal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center' }}
+                  onPress={changeAnteranToAmbilan}
+                  disabled={busy}
+                >
+                  {busy ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13.5 }}>Ya, Ubah ke Ambilan</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
       {viewingPhoto && (
         <Modal
           visible
@@ -958,5 +1056,31 @@ const s = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '700',
+  },
+  pvInfoCard: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.card,
+    padding: 12,
+    gap: 6,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pvInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pvInfoLabel: {
+    fontSize: 12.5,
+    color: colors.sub,
+    fontWeight: '600',
+    width: 75,
+  },
+  pvInfoValue: {
+    fontSize: 13.5,
+    color: colors.ink,
+    fontWeight: '800',
+    flex: 1,
   },
 });

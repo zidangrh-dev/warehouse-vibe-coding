@@ -41,6 +41,7 @@ const TYPE_CHIPS = [
   { label: 'Semua', value: '' },
   { label: '🛵 Gojek', value: 'gojek' },
   { label: '🧍 Self Pickup', value: 'customer' },
+  { label: '📦 Anteran', value: 'anteran' },
 ];
 
 const allowedTargets = (status) => (NEXT_ACTIONS[status] || []).map((a) => a.to);

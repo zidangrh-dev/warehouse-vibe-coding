@@ -172,6 +172,26 @@ app.post('/api/login', rateLimitLogin, wrap(async (req, res) => {
 
 app.get('/api/me', requireAuth, (req, res) => res.json(req.user));
 
+// Ganti password akun sendiri (semua role)
+app.post('/api/change-password', requireAuth, wrap(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Password saat ini dan password baru wajib diisi' });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({ error: 'Password baru minimal 6 karakter' });
+  }
+  const r = await pool.query('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
+  const user = r.rows[0];
+  if (!user || !bcrypt.compareSync(String(currentPassword), user.password_hash)) {
+    return res.status(400).json({ error: 'Password saat ini salah' });
+  }
+  const hash = bcrypt.hashSync(String(newPassword), 10);
+  await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, req.user.id]);
+  await logEvent(null, req.user, 'change_password', 'Mengubah password akun');
+  res.json({ ok: true });
+}));
+
 // ---- User Management (Super Admin Only) ----
 const ALLOWED_ROLES = ['superadmin', 'admin', 'sales', 'warehouse'];
 
@@ -587,9 +607,18 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     }
   }
 
-  // pickup_type sengaja TIDAK termasuk: jenis ambilan dikunci pada data yang
-  // ditentukan admin gudang saat input/import, tidak boleh diubah sesudahnya.
-  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info', 'driver_refreshed'];
+  // Khusus pickup_type: HANYA boleh diubah dari 'anteran' -> 'customer' oleh role warehouse atau superadmin.
+  if ('pickup_type' in req.body) {
+    if (!['warehouse', 'superadmin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Hanya Tim Warehouse yang berhak merubah paket Anteran menjadi Ambilan.' });
+    }
+    const currentPkg = await pool.query('SELECT pickup_type FROM packages WHERE id=$1', [id]);
+    if (currentPkg.rows[0]?.pickup_type !== 'anteran' || req.body.pickup_type !== 'customer') {
+      return res.status(400).json({ error: 'Jenis ambilan hanya bisa diubah dari Anteran ke Ambil Customer.' });
+    }
+  }
+
+  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info', 'driver_refreshed', 'pickup_type'];
 
   // Role operasional (admin/warehouse) boleh field utama; pickup code boleh
   // sales ATAU admin (admin juga membutuhkannya saat mengisi data driver dari
@@ -660,6 +689,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   if (req.body.status) detailParts.push(`status -> ${req.body.status}`);
   if ('driver_info' in req.body) detailParts.push(`driver: ${req.body.driver_info.trim() || '—'}`);
   if ('driver_refreshed' in req.body) detailParts.push(`tag REFRESH: ${req.body.driver_refreshed ? 'AKTIF' : 'NON-AKTIF'}`);
+  if ('pickup_type' in req.body) detailParts.push(`jenis ambilan -> ${req.body.pickup_type}`);
   if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
   await logEvent(id, req.user, 'update', detailParts.join(' | '));
   notify();
@@ -838,15 +868,14 @@ function mapRow(row) {
 // Jenis ambilan ditentukan dari nama kurir (kolom "Courier Name" VEF):
 //   - "Ambil Customer Langsung" (mengandung "ambil")            -> 'customer'
 //   - Gojek / Grab / GoSend serta SPX Instant & SPX Same Day    -> 'gojek'
-//   - selain itu (SPX Hemat/Standard, J&T, JNE, Anteraja, Paxel,
-//     Kurir Internal, kosong)                                   -> null = tidak diimpor
-// SPX Express punya banyak varian: Hemat/Standard = kurir reguler (bukan ojol),
-// sedangkan Instant/Same Day = kurir instan/ojol.
-// Nama kurir asli tetap disimpan apa adanya (tidak diseragamkan jadi "Gojek").
+//   - Ambil di Kios / Self Pickup                                -> 'customer'
+//   - Kurir Internal                                            -> 'anteran'
+//   - selain itu (SPX Hemat/Standard, J&T, JNE, Anteraja, dll) -> null = tidak diimpor
 function classifyPickup(courierName) {
   const c = (courierName || '').toLowerCase();
   if (!c) return null;
   if (c.includes('ambil')) return 'customer';
+  if (c.includes('kurir internal') || c.includes('internal')) return 'anteran';
   if (c.includes('spx')) {
     return /instant|same[\s-]*day/.test(c) ? 'gojek' : null;
   }
@@ -942,7 +971,7 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
         [codeArr]
       );
       for (const row of codeRes.rows) {
-        codeUsedByOther.set(`${row.pickup_code}:${row.invoice_no}`);
+        codeUsedByOther.add(`${row.pickup_code}:${row.invoice_no}`);
       }
     }
 
@@ -1018,7 +1047,7 @@ app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'
   let byStatus, totals;
   if (startDate && endDate) {
     byStatus = await pool.query(
-      `SELECT status, count(*)::int AS n FROM packages WHERE archived = false AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day') GROUP BY status`,
+      `SELECT status, count(*)::int AS n FROM packages WHERE created_at >= $1::date AND created_at <= ($2::date + interval '1 day') GROUP BY status`,
       [startDate, endDate]
     );
      totals = await pool.query(
@@ -1027,20 +1056,18 @@ app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'
          count(*) FILTER (WHERE created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS week,
          count(*) FILTER (WHERE pickup_type='selfpickup' AND status NOT IN ('selesai','cancel') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending_selfpickup,
          count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending_gojek
-       FROM packages
-       WHERE archived = false`,
+       FROM packages`,
        [startDate, endDate]
      );
    } else {
-     byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages WHERE archived = false GROUP BY status`);
+     byStatus = await pool.query(`SELECT status, count(*)::int AS n FROM packages GROUP BY status`);
      totals = await pool.query(`
        SELECT
          count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
          count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS week,
          count(*) FILTER (WHERE pickup_type='selfpickup' AND status NOT IN ('selesai','cancel'))::int AS pending_selfpickup,
          count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur'))::int AS pending_gojek
-       FROM packages
-       WHERE archived = false`);
+       FROM packages`);
    }
   res.json({ by_status: byStatus.rows, ...totals.rows[0] });
 }));
@@ -1051,18 +1078,18 @@ app.get('/api/dashboard/throughput', requireAuth, requireRole('superadmin', 'adm
   if (startDate && endDate) {
     r = await pool.query(`
       SELECT d::date AS day,
-        (SELECT count(*) FROM packages WHERE archived = false AND (received_at::date = d::date OR created_at::date = d::date))::int AS received,
-        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='selesai')::int AS completed,
-        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='retur')::int AS retur
+        (SELECT count(*) FROM packages WHERE (received_at::date = d::date OR created_at::date = d::date))::int AS received,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
       FROM generate_series($1::date, $2::date, interval '1 day') d
       ORDER BY d`, [startDate, endDate]);
   } else {
     const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
     r = await pool.query(`
       SELECT d::date AS day,
-        (SELECT count(*) FROM packages WHERE archived = false AND (received_at::date = d::date OR created_at::date = d::date))::int AS received,
-        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='selesai')::int AS completed,
-        (SELECT count(*) FROM packages WHERE archived = false AND done_at::date = d::date AND status='retur')::int AS retur
+        (SELECT count(*) FROM packages WHERE (received_at::date = d::date OR created_at::date = d::date))::int AS received,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='selesai')::int AS completed,
+        (SELECT count(*) FROM packages WHERE done_at::date = d::date AND status='retur')::int AS retur
       FROM generate_series(current_date - ($1::int - 1), current_date, interval '1 day') d
       ORDER BY d`, [days]);
   }

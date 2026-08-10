@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
-import { colors, shadow, spacing, confirmAsync } from './theme';
+import { colors, shadow, spacing, radius, confirmAsync } from './theme';
 import { useBreakpoint } from './responsive';
 import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, KanbanScreen } from './screens/index';
 import DashboardScreen from './DashboardScreen';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 // Tab yang tampil menyesuaikan role user.
 const ALL_TABS = [
@@ -32,10 +33,13 @@ const TAB_STORAGE_KEY = 'gudang_active_tab';
 
 export default function MainTabs({ user, onLogout }) {
   const { isDesktop } = useBreakpoint();
-  const tabs = ALL_TABS.filter((t) => t.roles.includes(user.role));
-  const [active, setActive] = useState(tabs[0].key);
+  const tabs = ALL_TABS.filter((t) => t.roles?.includes(user?.role));
+  const [active, setActive] = useState(() => (tabs[0]?.key || 'semua'));
+  const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const ActiveScreen = tabs.find((t) => t.key === active)?.Screen || SemuaScreen;
-  const initials = user.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+
+  const userName = user?.name || user?.display_name || user?.username || 'User';
+  const initials = userName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
   // Pulihkan tab terakhir user (refresh web/Android tidak balik ke tab pertama).
   useEffect(() => {
@@ -53,7 +57,7 @@ export default function MainTabs({ user, onLogout }) {
   };
 
   const logout = async () => {
-    if (await confirmAsync('Keluar?', `Logout dari akun ${user.name}.`)) onLogout();
+    if (await confirmAsync('Keluar?', `Logout dari akun ${userName}.`)) onLogout();
   };
 
   if (isDesktop) {
@@ -79,35 +83,56 @@ export default function MainTabs({ user, onLogout }) {
               );
             })}
           </View>
-          <TouchableOpacity style={s.userCard} onPress={logout}>
-            <View style={s.avatarSm}><Text style={s.avatarSmText}>{initials}</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.userName} numberOfLines={1}>{user.name}</Text>
-              <Text style={s.userRole}>{ROLE_LABEL[user.role] || user.role}</Text>
+
+          <View style={s.userCardCol}>
+            <View style={s.userCardHead}>
+              <View style={s.avatarSm}><Text style={s.avatarSmText}>{initials}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.userName} numberOfLines={1}>{userName}</Text>
+                <Text style={s.userRole}>{ROLE_LABEL[user?.role] || user?.role}</Text>
+              </View>
             </View>
-            <Icon name="logout" size={16} color={colors.faint} />
-          </TouchableOpacity>
+            <View style={s.userCardActions}>
+              <TouchableOpacity style={s.userActionBtn} onPress={() => setPwdModalOpen(true)}>
+                <Text style={s.userActionBtnText}>🔑 Ganti Password</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.userActionBtn, { backgroundColor: '#FEF2F2' }]} onPress={logout}>
+                <Text style={[s.userActionBtnText, { color: colors.danger }]}>🚪 Log Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
+
         <View style={s.desktopBody}>
           <View style={s.desktopInner}>
             <ActiveScreen user={user} />
           </View>
         </View>
+
+        <ChangePasswordModal visible={pwdModalOpen} onClose={() => setPwdModalOpen(false)} />
       </View>
     );
   }
+
+  const handleMobileAvatarPress = async () => {
+    if (await confirmAsync('Pengaturan Akun', 'Pilih tindakan untuk akun Anda: OK = Ganti Password, Batal = Logout')) {
+      setPwdModalOpen(true);
+    } else {
+      logout();
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <View style={s.header}>
         <View style={{ flex: 1 }}>
           <Text style={s.hello}>{greeting()},</Text>
-          <Text style={s.name}>{user.name}</Text>
-          <Text style={s.role}>{ROLE_LABEL[user.role] || user.role} · PickHub</Text>
+          <Text style={s.name}>{userName}</Text>
+          <Text style={s.role}>{ROLE_LABEL[user?.role] || user?.role} · PickHub</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Image source={require('../assets/icon.png')} style={{ width: 34, height: 34, borderRadius: 8 }} resizeMode="contain" />
-          <TouchableOpacity style={s.avatar} onPress={logout}>
+          <TouchableOpacity style={s.avatar} onPress={handleMobileAvatarPress}>
             <Text style={s.avatarText}>{initials}</Text>
           </TouchableOpacity>
         </View>
@@ -134,6 +159,8 @@ export default function MainTabs({ user, onLogout }) {
           );
         })}
       </View>
+
+      <ChangePasswordModal visible={pwdModalOpen} onClose={() => setPwdModalOpen(false)} />
     </View>
   );
 }
@@ -184,9 +211,22 @@ const s = StyleSheet.create({
   navItemActive: { backgroundColor: colors.primarySoft },
   navLabel: { color: colors.sub, fontWeight: '600', fontSize: 13.5 },
   navLabelActive: { color: colors.primary, fontWeight: '700' },
-  userCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+  userCardCol: {
     padding: spacing.sm, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  userCardHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8,
+  },
+  userCardActions: {
+    gap: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  userActionBtn: {
+    paddingVertical: 5, paddingHorizontal: 8, borderRadius: radius.pill,
+    backgroundColor: colors.surfaceAlt, alignItems: 'center',
+  },
+  userActionBtnText: {
+    fontSize: 11, fontWeight: '700', color: colors.ink,
   },
   avatarSm: {
     width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft,

@@ -26,9 +26,16 @@ let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
 export async function loadSession() {
-  token = await AsyncStorage.getItem('gudang_token');
-  const user = await AsyncStorage.getItem('gudang_user');
-  return token && user ? JSON.parse(user) : null;
+  try {
+    token = await AsyncStorage.getItem('gudang_token');
+    const rawUser = await AsyncStorage.getItem('gudang_user');
+    if (!token || !rawUser || rawUser === 'undefined') return null;
+    return JSON.parse(rawUser);
+  } catch (e) {
+    token = null;
+    await AsyncStorage.multiRemove(['gudang_token', 'gudang_user']).catch(() => {});
+    return null;
+  }
 }
 
 export async function login(username, password) {
@@ -119,6 +126,7 @@ export const api = {
   createUser: (data) => req('POST', '/api/users', data),
   updateUser: (id, data) => req('PATCH', `/api/users/${id}`, data),
   deleteUser: (id) => req('DELETE', `/api/users/${id}`),
+  changePassword: (currentPassword, newPassword) => req('POST', '/api/change-password', { currentPassword, newPassword }),
 };
 
 // Upload bukti foto (kind: 'wajah' | 'ktp' | 'barang').
