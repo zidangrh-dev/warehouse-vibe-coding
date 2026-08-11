@@ -53,7 +53,7 @@ export default function LoginScreen({ onLogin }) {
       <TouchableOpacity style={s.btn} onPress={submit} disabled={busy} activeOpacity={0.85}>
         {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Masuk</Text>}
       </TouchableOpacity>
-      <Text style={s.footer}>Warehouse · Admin Kios · Sales</Text>
+      <Text style={s.footer}>© 2026 zidangrh-dev</Text>
     </View>
   );
 
