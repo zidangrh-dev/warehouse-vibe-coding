@@ -18,7 +18,7 @@ export default function SelfPickupScreen({ user }) {
   const [codePkg, setCodePkg] = useState(null);
   const [openId, setOpenId] = useState(null);
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
-  const isSales = user.role === 'sales';
+  const canGenerateCode = user.role === 'sales' || user.role === 'superadmin';
 
   const generate = async (pkg) => {
     try {
@@ -39,14 +39,14 @@ export default function SelfPickupScreen({ user }) {
   };
 
   const rowAction = (p) => {
-    if (isSales) {
+    if (canGenerateCode) {
       return (
         <TouchableOpacity style={s.rowBtn} onPress={() => generate(p)}>
           <Text style={s.rowBtnText}>{p.pickup_code ? 'Lihat Kode' : 'Buat Kode'}</Text>
         </TouchableOpacity>
       );
     }
-    // Admin/superadmin hanya boleh MELIHAT kode yang sudah ada (tidak membuat).
+    // Admin hanya boleh MELIHAT kode yang sudah ada (tidak membuat).
     if (isAdmin && p.pickup_code) {
       return (
         <TouchableOpacity style={s.rowBtn} onPress={() => setCodePkg(p)}>
