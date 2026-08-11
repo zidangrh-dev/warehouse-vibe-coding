@@ -769,7 +769,7 @@ app.post('/api/archives/restore-by-date', requireAuth, requireRole('superadmin')
 }));
 
 // Scan paket sampai kios: cocokkan invoice hasil scan dengan data import.
-app.post('/api/packages/arrive', requireAuth, requireRole('admin'), wrap(async (req, res) => {
+app.post('/api/packages/arrive', requireAuth, requireRole('admin', 'superadmin'), wrap(async (req, res) => {
   const code = String(req.body.invoice_no || '').trim();
   if (!code) return res.status(400).json({ error: 'Invoice kosong' });
   // Label fisik paket biasanya memuat AWB/resi, kadang no order — cocokkan keduanya.
@@ -836,7 +836,7 @@ app.post('/api/packages/receive-at-warehouse', requireAuth, requireRole('warehou
 }));
 
 // Cari paket berdasarkan pickup code (untuk konfirmasi self pick up).
-app.post('/api/packages/find-by-code', requireAuth, requireRole('admin', 'sales'), wrap(async (req, res) => {
+app.post('/api/packages/find-by-code', requireAuth, requireRole('admin', 'sales', 'superadmin'), wrap(async (req, res) => {
   const code = String(req.body.code || '').trim();
   if (!code) return res.status(400).json({ error: 'Kode kosong' });
   const r = await pool.query('SELECT * FROM packages WHERE pickup_code=$1', [code]);
@@ -845,7 +845,7 @@ app.post('/api/packages/find-by-code', requireAuth, requireRole('admin', 'sales'
 }));
 
 // Sales membuat pickup code untuk paket.
-app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales'), wrap(async (req, res) => {
+app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales', 'superadmin'), wrap(async (req, res) => {
   const id = Number(req.params.id);
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = crypto.randomInt(0, 100000000).toString().padStart(8, '0');

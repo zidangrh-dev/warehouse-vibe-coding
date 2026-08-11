@@ -22,7 +22,7 @@ export default function ScanScreen({ user }) {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualInvoice, setManualInvoice] = useState('');
   const [openId, setOpenId] = useState(null);
-  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+  const canScan = user.role === 'admin' || user.role === 'superadmin';
 
   const scanInputRef = useRef(null);
   const scanLockRef = useRef(false);
@@ -101,7 +101,7 @@ export default function ScanScreen({ user }) {
           value={q}
           onChangeText={setQ}
         />
-        {isAdmin && (
+        {canScan && (
           <>
             <TouchableOpacity
               style={[s.bigBtn, { backgroundColor: colors.primary }]}
@@ -120,7 +120,7 @@ export default function ScanScreen({ user }) {
       </View>
 
       {/* Kolom scan permanen untuk scanner hardware (web/PC) — loop kontinu */}
-      {isAdmin && (
+      {canScan && (
         <View style={scanBarStyle.wrap}>
           <View style={scanBarStyle.row}>
             <TextInput

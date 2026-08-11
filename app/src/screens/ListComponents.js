@@ -37,11 +37,11 @@ export function PaginationBar({ page, total, pageSize, onPage }) {
 }
 
 export function PackageList({ items, loading, onOpen, rowAction, pagination, onSearchQuery, onColumnFilterChange, tab }) {
-  const { isDesktop } = useBreakpoint();
+  const { isDesktop, isUltraWide } = useBreakpoint();
   if (loading && !items.length) return <ActivityIndicator style={{ marginTop: 30 }} color={colors.primary} />;
 
   const body = isDesktop ? (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 24 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: isUltraWide ? 0 : 14, paddingBottom: 24 }}>
       <PackageTable
         items={items}
         onPress={onOpen}

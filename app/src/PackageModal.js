@@ -362,6 +362,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       });
       notice("✅ Data driver tersimpan");
       onChanged();
+      await load();
     } catch (e) {
       notice(e.message);
     } finally {

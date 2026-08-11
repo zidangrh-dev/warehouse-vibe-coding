@@ -32,7 +32,7 @@ function greeting() {
 const TAB_STORAGE_KEY = 'gudang_active_tab';
 
 export default function MainTabs({ user, onLogout }) {
-  const { isDesktop } = useBreakpoint();
+  const { isDesktop, isUltraWide } = useBreakpoint();
   const tabs = ALL_TABS.filter((t) => t.roles?.includes(user?.role));
   const [active, setActive] = useState(() => (tabs[0]?.key || 'semua'));
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
@@ -104,7 +104,7 @@ export default function MainTabs({ user, onLogout }) {
         </View>
 
         <View style={s.desktopBody}>
-          <View style={s.desktopInner}>
+          <View style={[s.desktopInner, isUltraWide && s.desktopInnerUltraWide]}>
             <ActiveScreen user={user} />
           </View>
         </View>
@@ -237,4 +237,5 @@ const s = StyleSheet.create({
   userRole: { color: colors.faint, fontSize: 11 },
   desktopBody: { flex: 1, ...shadow.card },
   desktopInner: { flex: 1, maxWidth: 1400, width: '100%', alignSelf: 'center' },
+  desktopInnerUltraWide: { maxWidth: '100%', paddingHorizontal: spacing.xxl },
 });

@@ -16,12 +16,9 @@ export default function CancelReturScreen({ user }) {
   const [openId, setOpenId] = useState(null);
   const [scanMode, setScanMode] = useState(null); // 'ship' | 'receive' | null
 
-  const isSuper = user.role === 'superadmin';
-  const isAdminKios = user.role === 'admin';
+  const canShip = user.role === 'admin' || user.role === 'superadmin';
+  const canReceive = user.role === 'warehouse' || user.role === 'superadmin';
   const isWarehouse = user.role === 'warehouse';
-
-  const canShip = isAdminKios || isSuper;       // Admin Kios & Super Admin: serahkan ke kurir
-  const canReceive = isWarehouse || isSuper;   // Warehouse & Super Admin: terima fisik di gudang
 
   // Hardware Scanner State & Refs (pilihan A pintar per role)
   const scanInputRef = useRef(null);
@@ -45,7 +42,7 @@ export default function CancelReturScreen({ user }) {
 
   const processHardwareScan = useCallback(async (code) => {
     try {
-      if (isWarehouse && !isSuper) {
+      if (isWarehouse) {
         // Tim Warehouse: Otomatis Diterima Gudang
         const p = await api.receiveAtWarehouse(code);
         setScanResult({
@@ -64,7 +61,7 @@ export default function CancelReturScreen({ user }) {
     } catch (e) {
       setScanResult({ ok: false, text: `⚠ ${code}: ${e.message}` });
     }
-  }, [isWarehouse, isSuper, refetch]);
+  }, [isWarehouse, refetch]);
 
   const submitHardwareScan = async () => {
     const code = scanInput.trim();
@@ -158,7 +155,7 @@ export default function CancelReturScreen({ user }) {
               ref={scanInputRef}
               style={[s.input, scanBarStyle.input]}
               placeholder={
-                isWarehouse && !isSuper
+                isWarehouse
                   ? "🖥 Scan barcode / AWB untuk Diterima Gudang lalu Enter..."
                   : "🖥 Scan barcode / AWB untuk Dikirim ke Gudang lalu Enter..."
               }
@@ -179,7 +176,7 @@ export default function CancelReturScreen({ user }) {
             )}
           </View>
           <Text style={scanBarStyle.hint}>
-            Scanner hardware: cukup arahkan & tekan trigger berulang — otomatis memproses {isWarehouse && !isSuper ? 'Diterima Gudang' : 'Dikirim ke Gudang'}.
+            Scanner hardware: cukup arahkan & tekan trigger berulang — otomatis memproses {isWarehouse ? 'Diterima Gudang' : 'Dikirim ke Gudang'}.
           </Text>
         </View>
       )}
