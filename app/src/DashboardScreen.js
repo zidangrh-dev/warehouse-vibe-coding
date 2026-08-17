@@ -238,7 +238,7 @@ export default function DashboardScreen({ user }) {
                 style={[s.dayBtn, { backgroundColor: colors.primary, paddingVertical: 8, paddingHorizontal: 14 }]}
                 onPress={() => setUserModalOpen(true)}
               >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>👥 Kelola Karyawan</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>Kelola Karyawan</Text>
               </TouchableOpacity>
             </>
           )}

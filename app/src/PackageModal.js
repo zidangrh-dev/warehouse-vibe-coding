@@ -163,7 +163,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   const removePhoto = async (photo) => {
     if (isPhotoLocked) {
-      return notice('🔒 Foto telah dikunci secara permanen dan tidak dapat dihapus.');
+      return notice('Foto telah dikunci secara permanen dan tidak dapat dihapus.');
     }
     if (!(await confirmAsync('Hapus foto?'))) return;
     await api.deletePhoto(photo.id);
@@ -174,12 +174,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   // Satu tombol -> pilih sumber (Kamera / File). Di web langsung buka file.
   const pickPhoto = (kind) => {
     if (isPhotoLocked) {
-      return notice('🔒 Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
+      return notice('Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
     }
     if (Platform.OS === 'web') return addPhoto(kind, false);
     Alert.alert('Tambah Foto', 'Pilih sumber foto', [
-      { text: '📸 Kamera', onPress: () => addPhoto(kind, true) },
-      { text: '🗂 File / Galeri', onPress: () => addPhoto(kind, false) },
+      { text: 'Kamera', onPress: () => addPhoto(kind, true) },
+      { text: 'File / Galeri', onPress: () => addPhoto(kind, false) },
       { text: 'Batal', style: 'cancel' },
     ]);
   };
@@ -294,7 +294,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             onPress={() => pickPhoto(kind)}
             disabled={busy}
           >
-            <Text style={s.photoAddText}>＋{'\n'}Tambah</Text>
+            <Text style={s.photoAddText}>{'+\n'}Tambah</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -329,7 +329,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       await api.updatePackage(pkg.id, { pickup_code: codeVal.trim() });
       onChanged();
       await load();
-      notice("✅ Pickup code berhasil disimpan!");
+      notice("Pickup code berhasil disimpan!");
     } catch (e) {
       notice(e.message);
     } finally {
@@ -342,7 +342,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setBusy(true);
     try {
       await api.updatePackage(pkg.id, { pickup_type: 'customer', status: 'absen_ambil_customer' });
-      notice('✅ Jenis ambilan berhasil diubah menjadi Ambil Customer!');
+      notice('Jenis ambilan berhasil diubah menjadi Ambil Customer!');
       setConfirmAnteranOpen(false);
       onChanged();
       await load();
@@ -360,7 +360,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         driver_info: driverInfo.trim(),
         driver_refreshed: driverRefreshed,
       });
-      notice("✅ Data driver tersimpan");
+      notice("Data driver tersimpan");
       onChanged();
       await load();
     } catch (e) {
@@ -374,7 +374,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setBusy(true);
     try {
       await api.unarchivePackage(pkg.id);
-      notice("✅ Berhasil mengembalikan paket dari arsip ke data aktif!");
+      notice("Berhasil mengembalikan paket dari arsip ke data aktif!");
       onChanged();
       onClose();
     } catch (e) {
@@ -385,7 +385,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
       <View style={s.backdrop}>
         <View style={[s.sheet, isWide && { maxWidth: 640 }]}>
           <ScrollView>
@@ -396,7 +396,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
             {isArchived && (
               <View style={s.archivedBanner}>
-                <Text style={s.archivedBannerTitle}>📦 PAKET TELAH DIARSIP</Text>
+                <Text style={s.archivedBannerTitle}>PAKET TELAH DIARSIP</Text>
                 <Text style={s.archivedBannerText}>
                   {user.role === 'superadmin'
                     ? 'Data ini sedang dikunci. Sebagai Super Admin, Anda dapat mengembalikan paket ini ke data aktif.'
@@ -409,7 +409,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                     disabled={busy}
                   >
                     <Text style={s.unarchiveBtnText}>
-                      {busy ? 'Processing...' : '🔄 Pulihkan Paket ke Data Aktif'}
+                      {busy ? 'Processing...' : 'Pulihkan Paket ke Data Aktif'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -439,7 +439,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               {pkg.pickup_type === 'anteran' ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#92400E' }}>📦 Anteran Kurir Internal</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#92400E' }}>Anteran Kurir Internal</Text>
                   </View>
                   {!isArchived && (user.role === 'warehouse' || user.role === 'superadmin') && (
                     <TouchableOpacity
@@ -454,9 +454,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       onPress={() => setConfirmAnteranOpen(true)}
                       disabled={busy}
                     >
-                      <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 11 }}>
-                        🔄 Ubah ke Ambilan
-                      </Text>
+                        <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 11 }}>
+                          Ubah ke Ambilan
+                        </Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -464,10 +464,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 <View style={s.rowWrap}>
                   <Text style={s.value}>
                     {pkg.pickup_type === 'gojek'
-                      ? `🛵 ${pkg.courier || 'Driver'}`
-                      : '🧍 Ambil Customer'}
+                      ? `${pkg.courier || 'Driver'}`
+                      : 'Ambil Customer'}
                   </Text>
-                  <Text style={s.lockTag}>🔒 terkunci</Text>
+                  <Text style={s.lockTag}>terkunci</Text>
                 </View>
               )}
             </Field>
@@ -537,7 +537,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       style={{ backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 }}
                       onPress={() => setEditingCode(true)}
                     >
-                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>✏️ Edit Code</Text>
+                      <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 12 }}>Edit Code</Text>
                     </TouchableOpacity>
                   </View>
                 )
@@ -661,7 +661,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {canAct && (
                   <Text style={s.hint}>
                     {isPhotoLocked
-                      ? '🔒 Bukti foto telah dikunci secara permanen (tidak dapat ditambah/dihapus).'
+                      ? 'Bukti foto telah dikunci secara permanen (tidak dapat ditambah/dihapus).'
                       : 'Tekan lama foto untuk menghapus.'}
                   </Text>
                 )}
@@ -709,7 +709,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       <Text
                         style={[s.btnText, locked && { color: colors.sub }]}
                       >
-                        {locked ? "🔒 " : ""}
                         {a.label}
                       </Text>
                     </TouchableOpacity>
@@ -750,12 +749,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
       {/* Modal Konfirmasi Ubah ke Ambilan Customer */}
       {confirmAnteranOpen && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setConfirmAnteranOpen(false)}>
+        <Modal visible transparent animationType="slide" onRequestClose={() => setConfirmAnteranOpen(false)}>
           <View style={s.pvBackdrop}>
             <View style={s.pvCard}>
               <View style={s.pvHead}>
                 <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 24 }}>📦</Text>
+                  <Icon name="box" size={24} color="#D97706" strokeWidth={2} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.pvTitle, { fontSize: 17 }]}>Ubah Jenis Ambilan</Text>
@@ -808,14 +807,14 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         <Modal
           visible
           transparent
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setViewingPhoto(null)}
         >
           <View style={s.pvBackdrop}>
             <View style={s.pvCard}>
               <View style={s.pvHead}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.pvTitle}>📷 Foto Bukti ({viewingPhoto.kind})</Text>
+                  <Text style={s.pvTitle}>Foto Bukti ({viewingPhoto.kind})</Text>
                   <Text style={s.pvSub}>{viewingPhoto.filename}</Text>
                 </View>
                 <TouchableOpacity

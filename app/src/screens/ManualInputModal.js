@@ -37,7 +37,7 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.backdrop}>
         <View style={s.box}>
           <Text style={s.boxTitle}>Input Paket Manual</Text>
@@ -75,7 +75,7 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
             autoCapitalize="characters"
           />
           <View style={s.typeRow}>
-            {[['customer', '🧍 Ambil Customer'], ['gojek', '🛵 Absen Gojek']].map(([val, label]) => (
+            {[['customer', 'Ambil Customer'], ['gojek', 'Absen Gojek']].map(([val, label]) => (
               <TouchableOpacity
                 key={val}
                 style={[s.typeChip, f.pickup_type === val && s.typeChipActive]}

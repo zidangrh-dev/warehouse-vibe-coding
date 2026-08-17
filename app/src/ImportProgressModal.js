@@ -1,8 +1,9 @@
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import { colors, radius, font } from './theme';
 
 export default function ImportProgressModal({ visible, progress, error, onClose }) {
-  if (!visible) return null;
+  const barWidth = useRef(new Animated.Value(0)).current;
 
   const {
     processed = 0,
@@ -14,17 +15,23 @@ export default function ImportProgressModal({ visible, progress, error, onClose 
     done = false,
   } = progress || {};
 
+  useEffect(() => {
+    Animated.timing(barWidth, { toValue: percent, duration: 400, useNativeDriver: false }).start();
+  }, [percent]);
+
+  if (!visible) return null;
+
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={done ? onClose : undefined}>
+    <Modal visible transparent animationType="slide" onRequestClose={done ? onClose : undefined}>
       <View style={s.backdrop}>
         <View style={s.card}>
           <View style={s.header}>
-            <Text style={s.title}>📄 Import Data CSV</Text>
+            <Text style={s.title}>Import Data CSV</Text>
             <Text style={s.subtitle}>
               {done
-                ? '✅ Proses import selesai sepenuhnya!'
+                ? 'Proses import selesai sepenuhnya!'
                 : error
-                ? '❌ Terjadi kesalahan saat import'
+                ? 'Terjadi kesalahan saat import'
                 : 'Sedang memproses data dari file CSV ke database...'}
             </Text>
           </View>
@@ -41,7 +48,7 @@ export default function ImportProgressModal({ visible, progress, error, onClose 
             </View>
 
             <View style={s.track}>
-              <View style={[s.bar, { width: `${percent}%` }]} />
+              <Animated.View style={[s.bar, { width: barWidth.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) }]} />
             </View>
           </View>
 
@@ -49,17 +56,17 @@ export default function ImportProgressModal({ visible, progress, error, onClose 
           <View style={s.statsGrid}>
             <View style={[s.statBox, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
               <Text style={[s.statVal, { color: '#15803D' }]}>{inserted}</Text>
-              <Text style={[s.statLabel, { color: '#166534' }]}>✨ Baru</Text>
+              <Text style={[s.statLabel, { color: '#166534' }]}>Baru</Text>
             </View>
 
             <View style={[s.statBox, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
               <Text style={[s.statVal, { color: '#1D4ED8' }]}>{updated}</Text>
-              <Text style={[s.statLabel, { color: '#1E40AF' }]}>🔄 Diperbarui</Text>
+              <Text style={[s.statLabel, { color: '#1E40AF' }]}>Diperbarui</Text>
             </View>
 
             <View style={[s.statBox, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
               <Text style={[s.statVal, { color: '#64748B' }]}>{skipped}</Text>
-              <Text style={[s.statLabel, { color: '#475569' }]}>⏭️ Dilewati</Text>
+              <Text style={[s.statLabel, { color: '#475569' }]}>Dilewati</Text>
             </View>
           </View>
 

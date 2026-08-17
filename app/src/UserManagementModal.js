@@ -126,16 +126,16 @@ export default function UserManagementModal({ visible, user, onClose }) {
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.backdrop}>
         <View style={s.sheet}>
           <View style={s.head}>
             <View style={{ flex: 1 }}>
-              <Text style={s.title}>👥 Kelola Karyawan / User</Text>
+              <Text style={s.title}>Kelola Karyawan / User</Text>
               <Text style={s.subTitle}>Daftar pengguna sistem & peranan hak akses</Text>
             </View>
             <TouchableOpacity style={s.closeBtn} onPress={onClose}>
-              <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
+              <Icon name="x" size={18} color={colors.sub} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
@@ -207,7 +207,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
                   style={[s.btn, { paddingVertical: 8, paddingHorizontal: 14, backgroundColor: colors.primary }]}
                   onPress={() => { resetForm(); setShowAdd(true); }}
                 >
-                  <Text style={s.btnText}>＋ Tambah User</Text>
+                  <Text style={s.btnText}>Tambah User</Text>
                 </TouchableOpacity>
               </View>
 
@@ -242,7 +242,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
                             </TouchableOpacity>
                             {!isSelf && (
                               <TouchableOpacity style={[s.iconBtn, { backgroundColor: '#FEF2F2' }]} onPress={() => handleDelete(u)}>
-                                <Text style={{ color: colors.danger, fontWeight: '800', fontSize: 13 }}>✕</Text>
+                                <Icon name="x" size={13} color={colors.danger} strokeWidth={2.5} />
                               </TouchableOpacity>
                             )}
                           </View>

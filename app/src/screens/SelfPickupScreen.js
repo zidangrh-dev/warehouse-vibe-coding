@@ -62,7 +62,7 @@ export default function SelfPickupScreen({ user }) {
       <View style={s.topBar}>
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
-          placeholder="🔍 Cari invoice / nama / kode..."
+          placeholder="Cari invoice / nama / kode..."
           value={q}
           onChangeText={setQ}
         />
@@ -71,7 +71,7 @@ export default function SelfPickupScreen({ user }) {
             style={[s.bigBtn, { backgroundColor: colors.ok }]}
             onPress={() => setScanOpen(true)}
           >
-            <Text style={s.btnText}>📷 Scan Pickup Code</Text>
+            <Text style={s.btnText}>Scan Pickup Code</Text>
           </TouchableOpacity>
         )}
       </View>

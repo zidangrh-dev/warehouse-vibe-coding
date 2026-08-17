@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Modal } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
 import { colors, shadow, spacing, radius, confirmAsync } from './theme';
@@ -51,6 +51,22 @@ export default function MainTabs({ user, onLogout }) {
     })();
   }, []);
 
+  const screenOpacity = useRef(new Animated.Value(1)).current;
+  const screenTranslateY = useRef(new Animated.Value(0)).current;
+  const prevTabRef = useRef(active);
+
+  useEffect(() => {
+    if (prevTabRef.current !== active) {
+      screenOpacity.setValue(0);
+      screenTranslateY.setValue(6);
+      Animated.parallel([
+        Animated.timing(screenOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.timing(screenTranslateY, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+      prevTabRef.current = active;
+    }
+  }, [active]);
+
   const switchTab = (key) => {
     setActive(key);
     AsyncStorage.setItem(TAB_STORAGE_KEY, key).catch(() => {});
@@ -94,10 +110,16 @@ export default function MainTabs({ user, onLogout }) {
             </View>
             <View style={s.userCardActions}>
               <TouchableOpacity style={s.userActionBtn} onPress={() => setPwdModalOpen(true)}>
-                <Text style={s.userActionBtnText}>🔑 Ganti Password</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icon name="key" size={11} color={colors.ink} strokeWidth={2.5} />
+                  <Text style={s.userActionBtnText}>Ganti Password</Text>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity style={[s.userActionBtn, { backgroundColor: '#FEF2F2' }]} onPress={logout}>
-                <Text style={[s.userActionBtnText, { color: colors.danger }]}>🚪 Log Out</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icon name="logout" size={11} color={colors.danger} strokeWidth={2.5} />
+                  <Text style={[s.userActionBtnText, { color: colors.danger }]}>Log Out</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -140,7 +162,9 @@ export default function MainTabs({ user, onLogout }) {
 
       <View style={{ flex: 1 }}>
         <View style={s.body}>
-          <ActiveScreen user={user} />
+          <Animated.View style={{ flex: 1, opacity: screenOpacity, transform: [{ translateY: screenTranslateY }] }}>
+            <ActiveScreen user={user} />
+          </Animated.View>
         </View>
       </View>
 

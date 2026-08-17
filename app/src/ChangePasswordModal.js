@@ -43,7 +43,7 @@ export function ChangePasswordModal({ visible, onClose }) {
     setBusy(true);
     try {
       await api.changePassword(currentPassword, newPassword);
-      notice('✅ Password berhasil diubah!');
+      notice('Password berhasil diubah!', 'success');
       resetForm();
       onClose();
     } catch (e) {
@@ -54,7 +54,7 @@ export function ChangePasswordModal({ visible, onClose }) {
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
       <View style={s.backdrop}>
         <View style={s.card}>
           <View style={s.head}>
@@ -62,11 +62,11 @@ export function ChangePasswordModal({ visible, onClose }) {
               <Icon name="user" size={20} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.title}>🔑 Ganti Password</Text>
+              <Text style={s.title}>Ganti Password</Text>
               <Text style={s.sub}>Perbarui password akun Anda secara mandiri</Text>
             </View>
             <TouchableOpacity style={s.closeBtn} onPress={handleClose} disabled={busy}>
-              <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
+              <Icon name="x" size={18} color={colors.sub} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 

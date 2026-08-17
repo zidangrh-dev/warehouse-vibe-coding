@@ -1,13 +1,15 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, ActivityIndicator, View, Platform, PanResponder } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 import { loadSession, logout, setUnauthorizedHandler } from './src/api';
 import LoginScreen from './src/LoginScreen';
 import MainTabs from './src/MainTabs';
 import { colors, notice } from './src/theme';
 
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 Menit idle timeout (Auto Logout saat tidak ada aktivitas)
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -19,7 +21,7 @@ export default function App() {
     await logout();
     setUser(null);
     if (isIdle) {
-      notice('Sesi Anda telah berakhir karena tidak ada aktivitas (Auto Logout).');
+      notice('Sesi Anda telah berakhir karena tidak ada aktivitas (Auto Logout).', 'warning');
     }
   }, []);
 
@@ -68,18 +70,21 @@ export default function App() {
   ).current;
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={styles.container} {...(user ? panResponder.panHandlers : {})}>
-        <StatusBar style="dark" />
-        {!ready ? (
-          <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
-        ) : user ? (
-          <MainTabs user={user} onLogout={() => doLogout(false)} />
-        ) : (
-          <LoginScreen onLogin={setUser} />
-        )}
-      </SafeAreaView>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.container} {...(user ? panResponder.panHandlers : {})}>
+          <StatusBar style="dark" />
+          {!ready ? (
+            <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
+          ) : user ? (
+            <MainTabs user={user} onLogout={() => doLogout(false)} />
+          ) : (
+            <LoginScreen onLogin={setUser} />
+          )}
+        </SafeAreaView>
+      </SafeAreaProvider>
+      <Toast />
+    </GestureHandlerRootView>
   );
 }
 

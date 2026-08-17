@@ -41,9 +41,9 @@ const COLUMNS = [
 
 const TYPE_CHIPS = [
   { label: 'Semua', value: '' },
-  { label: '🛵 Gojek', value: 'gojek' },
-  { label: '🧍 Self Pickup', value: 'customer' },
-  { label: '📦 Anteran', value: 'anteran' },
+  { label: 'Gojek', icon: 'scooter', value: 'gojek' },
+  { label: 'Self Pickup', icon: 'user', value: 'customer' },
+  { label: 'Anteran', icon: 'box', value: 'anteran' },
 ];
 
 const allowedTargets = (status) => (NEXT_ACTIONS[status] || []).map((a) => a.to);
@@ -100,7 +100,7 @@ export default function KanbanScreen({ user }) {
     if (!(await confirmAsync('Pulihkan arsip?', `Yakin ingin mengembalikan semua paket arsip tanggal ${fmtDate(date)} ke kanban?`))) return;
     try {
       const res = await api.restoreArchiveByDate(date);
-      notice(`✅ Berhasil memulihkan ${res.count} paket tanggal ${fmtDate(date)} ke kanban!`);
+      notice(`Berhasil memulihkan ${res.count} paket tanggal ${fmtDate(date)} ke kanban!`);
       if (selectedDate === date) setSelectedDate(null);
       loadSummary();
       load();
@@ -197,7 +197,7 @@ export default function KanbanScreen({ user }) {
       <View style={s.topBar}>
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
-          placeholder="🔍 Cari invoice / nama / driver..."
+          placeholder="Cari invoice / nama / driver..."
           value={q}
           onChangeText={setQ}
         />
@@ -205,7 +205,7 @@ export default function KanbanScreen({ user }) {
           style={[s.bigBtn, { backgroundColor: colors.primary }]}
           onPress={() => setArchiveListOpen(true)}
         >
-          <Text style={s.btnText}>🗄 Arsip</Text>
+          <Text style={s.btnText}>Arsip</Text>
         </TouchableOpacity>
       </View>
 
@@ -213,7 +213,7 @@ export default function KanbanScreen({ user }) {
       {selectedDate && (
         <View style={kb.banner}>
           <Text style={kb.bannerText}>
-            📅 Menampilkan kanban {fmtDate(selectedDate)} — {total} paket
+            Menampilkan kanban {fmtDate(selectedDate)} — {total} paket
           </Text>
           <TouchableOpacity style={kb.bannerBtn} onPress={() => setSelectedDate(null)}>
             <Text style={kb.bannerBtnText}>← Kembali ke Aktif</Text>
@@ -230,7 +230,10 @@ export default function KanbanScreen({ user }) {
               style={[kb.chip, active && kb.chipActive]}
               onPress={() => setTypeFilter(c.value)}
             >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {c.icon && <Icon name={c.icon} size={12} color={active ? '#fff' : colors.sub} strokeWidth={2} />}
               <Text style={[kb.chipText, active && kb.chipTextActive]}>{c.label}</Text>
+            </View>
             </TouchableOpacity>
           );
         })}
@@ -301,18 +304,18 @@ export default function KanbanScreen({ user }) {
 function ArchiveListModal({ visible, groups, customDate, onCustomDate, onPick, onArchive, canRestore, onRestore, onClose }) {
   if (!visible) return null;
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={kb.modalBackdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity style={kb.modalSheet} activeOpacity={1} onPress={(e) => e?.stopPropagation?.()}>
           <View style={kb.modalHead}>
-            <Text style={kb.modalTitle}>🗄 Arsip</Text>
+            <Text style={kb.modalTitle}>Arsip</Text>
             <TouchableOpacity style={kb.modalClose} onPress={onClose}>
-              <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
+              <Icon name="x" size={18} color={colors.sub} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={kb.archiveBtn} onPress={onArchive}>
-            <Text style={kb.archiveBtnText}>📦 Arsipkan Tanggal…</Text>
+            <Text style={kb.archiveBtnText}>Arsipkan Tanggal…</Text>
           </TouchableOpacity>
 
           <View style={kb.customRow}>
@@ -429,14 +432,16 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
       <View style={kb.colSearchBox}>
         <TextInput
           style={kb.colSearchInput}
-          placeholder="🔍 cari invoice/driver/toko..."
+          placeholder="cari invoice/driver/toko..."
           placeholderTextColor={colors.faint}
           value={search}
           onChangeText={onSearch}
         />
         {!!search && (
           <TouchableOpacity style={kb.colSearchClear} onPress={() => onSearch('')}>
-            <Text style={kb.colSearchClearText}>✕</Text>
+            <Text style={kb.colSearchClearText}>
+              <Icon name="x" size={11} color={colors.sub} strokeWidth={3} />
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -498,7 +503,7 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
       <TouchableOpacity onPress={onOpen} style={kb.cardBody} activeOpacity={0.7}>
         <View style={kb.cardTop}>
           <View style={[kb.boxIcon, { backgroundColor: statusTint(pkg.status) }]}>
-            <Text style={{ fontSize: 12 }}>{pkg.pickup_type === 'gojek' ? '🛵' : '📦'}</Text>
+            <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : 'box'} size={12} color={statusColor(pkg.status)} strokeWidth={2} />
           </View>
           <Text style={kb.awb} numberOfLines={1}>{pkg.awb_no || pkg.invoice_no}</Text>
           <Text style={kb.time} numberOfLines={1}>{fmtTime(pkg.updated_at)}</Text>
@@ -507,16 +512,22 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
         <Text style={kb.toko} numberOfLines={1}>{tokoLabel(pkg)}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
           {!!pkg.pickup_code && (
-            <Text style={kb.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <Icon name="key" size={10} color={colors.primary} strokeWidth={2} />
+              <Text style={kb.codeChip} numberOfLines={1}>{pkg.pickup_code}</Text>
+            </View>
           )}
           {!!pkg.driver_refreshed && (
             <View style={kb.refreshBadge}>
-              <Text style={kb.refreshBadgeText}>🔄 REFRESH</Text>
+              <Text style={kb.refreshBadgeText}>REFRESH</Text>
             </View>
           )}
         </View>
         {!!pkg.driver_info && (
-          <Text style={kb.driverChip} numberOfLines={1}>🛵 {pkg.driver_info}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 }}>
+            <Icon name="scooter" size={10} color={colors.primary} strokeWidth={2} />
+            <Text style={kb.driverChip} numberOfLines={1}>{pkg.driver_info}</Text>
+          </View>
         )}
       </TouchableOpacity>
 
@@ -546,7 +557,7 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
               onPress={() => onSaveDriver(driverDraft, codeDraft)}
               activeOpacity={0.85}
             >
-              <Text style={kb.bigSaveText}>💾 Simpan Data Driver</Text>
+              <Text style={kb.bigSaveText}>Simpan Data Driver</Text>
             </TouchableOpacity>
           </View>
         )}

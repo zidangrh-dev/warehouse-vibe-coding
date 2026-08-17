@@ -48,11 +48,11 @@ export default function ScanScreen({ user }) {
       const p = await api.arrive(code);
       setScanResult({
         ok: true,
-        text: `✅ ${p.invoice_no} → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Ambil Customer'}`,
+        text: `${p.invoice_no} → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Ambil Customer'}`,
       });
     } catch (e) {
       if (e.status === 404) {
-        setScanResult({ ok: false, text: `⚠ ${code} tidak ditemukan` });
+        setScanResult({ ok: false, text: `${code} tidak ditemukan` });
         setManualInvoice(code);
         setManualOpen(true);
       } else {
@@ -80,7 +80,7 @@ export default function ScanScreen({ user }) {
   const onScanned = async (code) => {
     try {
       const p = await api.arrive(code);
-      notice(`✅ ${p.invoice_no} sampai kios → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Absen Ambil Customer'}`);
+      notice(`${p.invoice_no} sampai kios → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Absen Ambil Customer'}`);
     } catch (e) {
       if (e.status === 404) {
         setManualInvoice(code);
@@ -97,7 +97,7 @@ export default function ScanScreen({ user }) {
       <View style={s.topBar}>
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
-          placeholder="🔍 Cari invoice / nama / kode..."
+          placeholder="Cari invoice / nama / kode..."
           value={q}
           onChangeText={setQ}
         />
@@ -107,13 +107,13 @@ export default function ScanScreen({ user }) {
               style={[s.bigBtn, { backgroundColor: colors.primary }]}
               onPress={() => setScanOpen(true)}
             >
-              <Text style={s.btnText}>📷 Scan Paket Sampai</Text>
+              <Text style={s.btnText}>Scan Paket Sampai</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.bigBtn, { backgroundColor: colors.sub }]}
               onPress={() => { setManualInvoice(''); setManualOpen(true); }}
             >
-              <Text style={s.btnText}>＋ Manual</Text>
+              <Text style={s.btnText}>Manual</Text>
             </TouchableOpacity>
           </>
         )}
@@ -126,7 +126,7 @@ export default function ScanScreen({ user }) {
             <TextInput
               ref={scanInputRef}
               style={[s.input, scanBarStyle.input]}
-              placeholder="🖥 Scan barcode / AWB paket sampai lalu Enter..."
+              placeholder="Scan barcode / AWB paket sampai lalu Enter..."
               value={scanInput}
               onChangeText={setScanInput}
               onSubmitEditing={submitScan}

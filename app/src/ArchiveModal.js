@@ -33,7 +33,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
     setBusy(true);
     try {
       const res = await api.archivePackages(beforeDate, mode, onlyCompleted);
-      notice(`✅ Berhasil mengarsip ${res.count} paket!`);
+      notice(`Berhasil mengarsip ${res.count} paket!`);
       if (onArchived) onArchived();
       setConfirming(false);
       onClose();
@@ -57,7 +57,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
       <View style={s.backdrop}>
         <View style={s.card}>
           {/* Header */}
@@ -67,14 +67,14 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.title}>
-                {confirming ? '⚠️ Konfirmasi Pengarsipan Paket' : '📦 Arsip Data Paket'}
+                {confirming ? 'Konfirmasi Pengarsipan Paket' : 'Arsip Data Paket'}
               </Text>
               <Text style={s.sub}>
                 {confirming ? 'Paket dipindah dari kanban; masih bisa dipulihkan kapan saja' : 'Pengaturan Arsip Otomatis (Super Admin)'}
               </Text>
             </View>
             <TouchableOpacity style={s.closeBtn} onPress={handleClose} disabled={busy}>
-              <Text style={{ fontSize: 18, color: colors.sub }}>✕</Text>
+              <Icon name="x" size={18} color={colors.sub} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
@@ -82,7 +82,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
             /* Step 2: Custom Professional Confirmation Card */
             <View style={{ marginTop: 14 }}>
               <View style={s.confirmWarningBox}>
-                <Text style={s.confirmWarningTitle}>📦 KONFIRMASI PENGARSIPAN</Text>
+                <Text style={s.confirmWarningTitle}>KONFIRMASI PENGARSIPAN</Text>
                 <Text style={s.confirmWarningText}>
                   Apakah Anda yakin ingin mengarsip paket sesuai kriteria di bawah ini?
                   Paket akan hilang dari kanban (tetap ada di tab Semua) dan dapat dipulihkan lagi.
@@ -137,7 +137,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
             /* Step 1: Date & Mode Selection Form */
             <View style={{ marginTop: 14 }}>
               <View style={s.alertBox}>
-                <Text style={s.alertTitle}>📦 Arsip = Keluar dari Kanban</Text>
+                <Text style={s.alertTitle}>Arsip = Keluar dari Kanban</Text>
                 <Text style={s.alertText}>
                   Paket diarsip tidak tampil di kanban, tapi tetap ada di tab Semua dan bisa dipulihkan lagi dari tab Arsip kapan saja.
                 </Text>
@@ -188,7 +188,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
                 onPress={() => setOnlyCompleted(!onlyCompleted)}
               >
                 <View style={[s.checkbox, onlyCompleted && s.checkboxActive]}>
-                  {onlyCompleted && <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800' }}>✓</Text>}
+                  {onlyCompleted && <Icon name="check" size={10} color="#fff" strokeWidth={3} />}
                 </View>
                 <Text style={s.toggleText}>Hanya arsip paket yang sudah Selesai / Retur / Cancel</Text>
               </TouchableOpacity>
@@ -198,7 +198,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
                   style={[s.btn, { flex: 1, backgroundColor: colors.danger }]}
                   onPress={handleStartArchive}
                 >
-                  <Text style={s.btnText}>📦 Eksekusi Pengarsipan</Text>
+                  <Text style={s.btnText}>Eksekusi Pengarsipan</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[s.btn, s.btnGhost]}

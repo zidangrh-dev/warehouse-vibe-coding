@@ -65,7 +65,7 @@ export default function GojekScreen({ user }) {
       <View style={s.topBar}>
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
-          placeholder="🔍 Cari invoice / nama / kode..."
+          placeholder="Cari invoice / nama / kode..."
           value={q}
           onChangeText={setQ}
         />

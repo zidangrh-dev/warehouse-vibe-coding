@@ -47,19 +47,19 @@ export default function CancelReturScreen({ user }) {
         const p = await api.receiveAtWarehouse(code);
         setScanResult({
           ok: true,
-          text: `✅ ${p.invoice_no} → Diterima Gudang Utama`,
+          text: `${p.invoice_no} → Diterima Gudang Utama`,
         });
       } else {
         // Admin Kios / Super Admin: Otomatis Dikirim ke Gudang
         const p = await api.shipToWarehouse(code);
         setScanResult({
           ok: true,
-          text: `✅ ${p.invoice_no} → Dikirim ke Gudang (Kurir)`,
+          text: `${p.invoice_no} → Dikirim ke Gudang (Kurir)`,
         });
       }
       refetch();
     } catch (e) {
-      setScanResult({ ok: false, text: `⚠ ${code}: ${e.message}` });
+      setScanResult({ ok: false, text: `${code}: ${e.message}` });
     }
   }, [isWarehouse, refetch]);
 
@@ -82,10 +82,10 @@ export default function CancelReturScreen({ user }) {
     try {
       if (scanMode === 'ship') {
         const p = await api.shipToWarehouse(code);
-        notice(`✅ ${p.invoice_no} diserahkan ke Kurir untuk dikirim ke Gudang Utama!`);
+        notice(`${p.invoice_no} diserahkan ke Kurir untuk dikirim ke Gudang Utama!`);
       } else if (scanMode === 'receive') {
         const p = await api.receiveAtWarehouse(code);
-        notice(`✅ ${p.invoice_no} berhasil diterima fisik di Gudang Utama!`);
+        notice(`${p.invoice_no} berhasil diterima fisik di Gudang Utama!`);
       }
       refetch();
     } catch (e) {
@@ -125,7 +125,7 @@ export default function CancelReturScreen({ user }) {
       <View style={s.topBar}>
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
-          placeholder="🔍 Cari invoice / nama / kode..."
+          placeholder="Cari invoice / nama / kode..."
           value={q}
           onChangeText={setQ}
         />
@@ -134,7 +134,7 @@ export default function CancelReturScreen({ user }) {
             style={[s.bigBtn, { backgroundColor: '#D97706' }]}
             onPress={() => setScanMode('ship')}
           >
-            <Text style={s.btnText}>🚚 Scan Dikirim ke Gudang</Text>
+            <Text style={s.btnText}>Scan Dikirim ke Gudang</Text>
           </TouchableOpacity>
         )}
         {canReceive && (
@@ -142,7 +142,7 @@ export default function CancelReturScreen({ user }) {
             style={[s.bigBtn, { backgroundColor: '#059669' }]}
             onPress={() => setScanMode('receive')}
           >
-            <Text style={s.btnText}>📥 Scan Diterima Gudang</Text>
+            <Text style={s.btnText}>Scan Diterima Gudang</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -156,8 +156,8 @@ export default function CancelReturScreen({ user }) {
               style={[s.input, scanBarStyle.input]}
               placeholder={
                 isWarehouse
-                  ? "🖥 Scan barcode / AWB untuk Diterima Gudang lalu Enter..."
-                  : "🖥 Scan barcode / AWB untuk Dikirim ke Gudang lalu Enter..."
+                  ? "Scan barcode / AWB untuk Diterima Gudang lalu Enter..."
+                  : "Scan barcode / AWB untuk Dikirim ke Gudang lalu Enter..."
               }
               value={scanInput}
               onChangeText={setScanInput}

@@ -3,6 +3,7 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { colors, radius, shadow } from './theme';
+import Icon from './Icon';
 
 export function ConfirmActionModal({ visible, targetStatus, pkg, onConfirm, onClose, busy }) {
   if (!visible || !targetStatus || !pkg) return null;
@@ -13,7 +14,7 @@ export function ConfirmActionModal({ visible, targetStatus, pkg, onConfirm, onCl
   const badgeBg = isRetur ? '#FEF2F2' : '#F1F5F9';
   const badgeBorder = isRetur ? '#FCA5A5' : '#CBD5E1';
   const actionColor = isRetur ? colors.danger : '#475569';
-  const iconEmoji = isRetur ? '↩️' : '✖️';
+  const iconEmoji = isRetur ? 'rotate' : 'x_circle';
 
   const title = isRetur ? 'Konfirmasi Retur Paket' : 'Konfirmasi Batalkan Paket';
   const description = isRetur
@@ -23,13 +24,13 @@ export function ConfirmActionModal({ visible, targetStatus, pkg, onConfirm, onCl
   const confirmText = isRetur ? 'Ya, Proses Retur' : 'Ya, Batalkan Paket';
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.backdrop}>
         <View style={s.card}>
           {/* Header Badge & Title */}
           <View style={s.head}>
             <View style={[s.badgeIcon, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
-              <Text style={{ fontSize: 24 }}>{iconEmoji}</Text>
+              <Icon name={iconEmoji} size={24} color={actionColor} strokeWidth={2} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.title}>{title}</Text>

@@ -10,6 +10,14 @@ import Icon from './Icon';
 import { colors, radius, shadow, spacing, font, notice, STATUS_META, statusLabel, statusColor, statusTint } from './theme';
 import { fmtUpdate } from './utils/format';
 
+// Helper: inline icon + text
+const IL = ({ icon, text, color, size = 13 }) => (
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+    <Icon name={icon} size={size} color={color || colors.sub} strokeWidth={2} />
+    <Text style={{ color: color || colors.sub, fontSize: size, fontWeight: '600' }}>{text}</Text>
+  </View>
+);
+
 export function StatusPill({ status }) {
   const c = statusColor(status);
   return (
@@ -49,8 +57,8 @@ export function PackageRow({ pkg, onPress, action }) {
           </Text>
           <Text style={s.detail} numberOfLines={1}>
             {pkg.customer_name || '(tanpa nama)'}
-            {tokoLabel(pkg) !== '—' ? `  ·  🏬 ${tokoLabel(pkg)}` : ''}
-            {pkg.courier ? `  ·  🛵 ${pkg.courier}` : ''}
+            {tokoLabel(pkg) !== '—' ? `  ·  ${tokoLabel(pkg)}` : ''}
+            {pkg.courier ? `  ·  ${pkg.courier}` : ''}
           </Text>
         </View>
         {action}
@@ -60,19 +68,26 @@ export function PackageRow({ pkg, onPress, action }) {
         <Text style={s.time}>{fmtUpdate(pkg)}</Text>
       </View>
       <View style={s.cardRowMeta}>
-        <Text style={s.codeChip} numberOfLines={1}>🔑 {pkg.pickup_code || '—'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Icon name="key" size={11} color={colors.sub} strokeWidth={2} />
+          <Text style={s.codeChip} numberOfLines={1}>{pkg.pickup_code || '—'}</Text>
+        </View>
         {pkg.pickup_type === 'anteran' && (
-          <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 }}>
-            <Text style={{ color: '#92400E', fontSize: 9.5, fontWeight: '800' }}>📦 ANTERAN</Text>
+          <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Icon name="box" size={9} color="#92400E" strokeWidth={2.5} />
+            <Text style={{ color: '#92400E', fontSize: 9.5, fontWeight: '800' }}>ANTERAN</Text>
           </View>
         )}
         {!!pkg.driver_refreshed && (
           <View style={s.refreshBadge}>
-            <Text style={s.refreshBadgeText}>🔄 REFRESH</Text>
+            <Text style={s.refreshBadgeText}>REFRESH</Text>
           </View>
         )}
         {!!pkg.driver_info && (
-          <Text style={s.driverChip} numberOfLines={1}>🛵 {pkg.driver_info}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Icon name="scooter" size={11} color={colors.primary} strokeWidth={2} />
+            <Text style={s.driverChip} numberOfLines={1}>{pkg.driver_info}</Text>
+          </View>
         )}
       </View>
     </TouchableOpacity>
@@ -192,16 +207,14 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
 
   const allPresetChips = [
     { label: 'Semua', type: '', status: '' },
-    { label: '🧍 Ambil Customer', type: 'customer', status: '', allowedTabs: ['semua', 'arsip', 'selfpickup', 'scan'] },
-    { label: '🛵 Gojek / Instant', type: 'gojek', status: '', allowedTabs: ['semua', 'arsip', 'gojek', 'scan'] },
-    { label: '📦 Anteran Internal', type: 'anteran', status: '', allowedTabs: ['semua', 'arsip', 'scan'] },
-    { label: '✅ Selesai', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
-    { label: '↩️ Retur', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    { label: '❌ Cancel', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    { label: '🚚 Dikirim ke Gudang', type: '', status: 'dikirim_ke_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    { label: '📥 Diterima Gudang', type: '', status: 'diterima_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    // Filter cepat per-status untuk tab Gojek (termasuk selesai agar paket
-    // yang sudah tuntas tetap terlihat di tab gojek).
+    { label: 'Ambil Customer', icon: 'user', type: 'customer', status: '', allowedTabs: ['semua', 'arsip', 'selfpickup', 'scan'] },
+    { label: 'Gojek / Instant', icon: 'scooter', type: 'gojek', status: '', allowedTabs: ['semua', 'arsip', 'gojek', 'scan'] },
+    { label: 'Anteran Internal', icon: 'box', type: 'anteran', status: '', allowedTabs: ['semua', 'arsip', 'scan'] },
+    { label: 'Selesai', icon: 'check', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
+    { label: 'Retur', icon: 'rotate', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: 'Cancel', icon: 'x_circle', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: 'Dikirim ke Gudang', icon: 'truck', type: '', status: 'dikirim_ke_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: 'Diterima Gudang', icon: 'arrow_down', type: '', status: 'diterima_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
     { label: 'Absen Gojek', type: '', status: 'absen_gojek', allowedTabs: ['gojek'] },
     { label: 'Mencari Driver', type: '', status: 'mencari_driver', allowedTabs: ['gojek'] },
     { label: 'Driver Sampai Kios', type: '', status: 'driver_sampai_kios', allowedTabs: ['gojek'] },
@@ -218,9 +231,9 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       {/* Quick Interactive Filter Presets Bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F8FAFC', borderBottomWidth: 1, borderBottomColor: colors.border, flexWrap: 'wrap', gap: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <Text style={{ fontSize: 11, fontWeight: '800', color: colors.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            ⚡ Filter Cepat:
-          </Text>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Filter Cepat:
+                  </Text>
           {presetChips.map((chip) => {
             const isSelected = chip.type
               ? filters.pickup_type === chip.type
@@ -238,9 +251,12 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                 }}
                 onPress={() => applyQuickFilter(chip.type, chip.status)}
               >
-                <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFFFFF' : colors.sub }}>
-                  {chip.label}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {chip.icon && <Icon name={chip.icon} size={10} color={isSelected ? '#FFFFFF' : colors.sub} strokeWidth={2.5} />}
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#FFFFFF' : colors.sub }}>
+                    {chip.label}
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -274,7 +290,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       {/* Filter Row (Bersih & Elegan - Hanya Warna Teks yang Berubah per Nama/Status) */}
       <View style={[s.tableHeadRow, { backgroundColor: '#F8FAFC', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
         <View style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 11, color: colors.sub }}>🔍</Text>
+          <Icon name="search" size={11} color={colors.sub} strokeWidth={2} />
         </View>
         <FilterInputCell placeholder="Filter Invoice..." widthFlex={1.2} value={filters.invoice || ''} onChange={setF('invoice')} />
         <FilterInputCell placeholder="Filter Customer..." widthFlex={1.2} value={filters.customer || ''} onChange={setF('customer')} />
@@ -343,20 +359,24 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                 {pkg.pickup_code || '—'}
               </Text>
               {pkg.pickup_type === 'anteran' && (
-                <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1 }}>
-                  <Text style={{ color: '#92400E', fontSize: 9, fontWeight: '800' }}>📦 ANTERAN</Text>
+                <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Icon name="box" size={8} color="#92400E" strokeWidth={2.5} />
+                  <Text style={{ color: '#92400E', fontSize: 9, fontWeight: '800' }}>ANTERAN</Text>
                 </View>
               )}
               {!!pkg.driver_refreshed && (
                 <View style={s.refreshBadge}>
-                  <Text style={s.refreshBadgeText}>🔄 REFRESH</Text>
+                  <Text style={s.refreshBadgeText}>REFRESH</Text>
                 </View>
               )}
             </View>
             {!!pkg.driver_info && (
-              <Text style={[s.td, { color: colors.primary, fontSize: 10.5, fontWeight: '700', marginTop: 1 }]} numberOfLines={1}>
-                🛵 {pkg.driver_info}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 }}>
+                <Icon name="scooter" size={10} color={colors.primary} strokeWidth={2} />
+                <Text style={[s.td, { color: colors.primary, fontSize: 10.5, fontWeight: '700' }]} numberOfLines={1}>
+                  {pkg.driver_info}
+                </Text>
+              </View>
             )}
           </View>
           <View style={{ flex: 1.0 }}><StatusPill status={pkg.status} /></View>
@@ -686,7 +706,7 @@ export function CodeModal({ pkg, onClose }) {
             ctx.fillStyle = '#FFFFFF';
             ctx.font = 'bold 16px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('📦 PickHub · KIOS PICKUP', W / 2, 33);
+            ctx.fillText('PickHub · KIOS PICKUP', W / 2, 33);
 
             // Invoice & Customer Info
             ctx.fillStyle = '#64748B';
@@ -733,7 +753,7 @@ export function CodeModal({ pkg, onClose }) {
                   await navigator.clipboard.write([
                     new window.ClipboardItem({ 'image/png': blob }),
                   ]);
-                  notice('📋 Gambar kartu pickup (QR + Kode) berhasil disalin ke clipboard!');
+                  notice('Gambar kartu pickup (QR + Kode) berhasil disalin ke clipboard!');
                 } else {
                   notice('Browser Anda tidak mendukung salin gambar langsung.');
                 }
@@ -757,7 +777,7 @@ export function CodeModal({ pkg, onClose }) {
   };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.backdrop}>
         <View style={s.sheet}>
           <View style={s.grabber} />
@@ -776,7 +796,7 @@ export function CodeModal({ pkg, onClose }) {
             {copying ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={s.btnText}>📋 Copy Gambar Card (QR + Kode)</Text>
+              <Text style={s.btnText}>Copy Gambar Card (QR + Kode)</Text>
             )}
           </TouchableOpacity>
 
@@ -803,7 +823,7 @@ export function PickerNameModal({ visible, onSubmit, onClose }) {
   const [name, setName] = useState('');
   if (!visible) return null;
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={s.backdrop}>
         <View style={s.sheet}>
           <View style={s.grabber} />
