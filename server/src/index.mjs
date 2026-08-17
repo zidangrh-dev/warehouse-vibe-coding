@@ -781,11 +781,13 @@ app.post('/api/packages/arrive', requireAuth, requireRole('admin', 'superadmin')
     return res.status(409).json({ error: `Paket sudah discan (status: ${pkg.status})`, package: pkg });
   }
   const st = pkg.pickup_type === 'gojek' ? 'absen_gojek' : 'absen_ambil_customer';
+  // Anteran otomatis jadi customer (self pickup) setelah discan.
+  const newPickupType = pkg.pickup_type === 'anteran' ? 'customer' : pkg.pickup_type;
   const r = await pool.query(
-    `UPDATE packages SET status=$2, received_at=now(),
+    `UPDATE packages SET status=$2, pickup_type=$3, received_at=now(),
        gojek_at = CASE WHEN $2='absen_gojek' THEN now() ELSE gojek_at END,
        updated_at=now() WHERE id=$1 RETURNING *`,
-    [pkg.id, st]);
+    [pkg.id, st, newPickupType]);
   await logEvent(pkg.id, req.user, 'scan_sampai', `status -> ${st}`);
   notify();
   res.json(r.rows[0]);
@@ -1098,7 +1100,7 @@ app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'
        `SELECT
          count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
          count(*) FILTER (WHERE created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS week,
-         count(*) FILTER (WHERE pickup_type='selfpickup' AND status NOT IN ('selesai','cancel') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending_selfpickup,
+         count(*) FILTER (WHERE pickup_type='customer' AND status NOT IN ('selesai','cancel') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending_selfpickup,
          count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur') AND created_at >= $1::date AND created_at <= ($2::date + interval '1 day'))::int AS pending_gojek
        FROM packages`,
        [startDate, endDate]
@@ -1109,7 +1111,7 @@ app.get('/api/dashboard/summary', requireAuth, requireRole('superadmin', 'admin'
        SELECT
          count(*) FILTER (WHERE created_at::date = current_date)::int AS today,
          count(*) FILTER (WHERE created_at >= now() - interval '7 days')::int AS week,
-         count(*) FILTER (WHERE pickup_type='selfpickup' AND status NOT IN ('selesai','cancel'))::int AS pending_selfpickup,
+         count(*) FILTER (WHERE pickup_type='customer' AND status NOT IN ('selesai','cancel'))::int AS pending_selfpickup,
          count(*) FILTER (WHERE pickup_type='gojek' AND status NOT IN ('selesai','cancel','retur'))::int AS pending_gojek
        FROM packages`);
    }
