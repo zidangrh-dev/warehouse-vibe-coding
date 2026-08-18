@@ -108,7 +108,7 @@ export async function searchPackages(q, filters = {}) {
     const result = await meili.index(INDEX_NAME).search(q, opts);
     return {
       hits: result.hits,
-      total: result.estimatedTotalHits,
+      total: result.nbHits,
     };
   } catch (err) {
     console.error('Meilisearch searchPackages error:', err.message);

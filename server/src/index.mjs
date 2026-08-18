@@ -434,7 +434,7 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
     meiliFilters.offset = (page - 1) * pageSize;
 
     const meiliResult = await searchPackages(searchQuery, meiliFilters);
-    if (meiliResult) {
+    if (meiliResult && meiliResult.hits.length > 0) {
       const totalPages = Math.max(1, Math.ceil(meiliResult.total / pageSize));
       return res.json({
         items: meiliResult.hits,
