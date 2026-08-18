@@ -16,3 +16,8 @@ Thumbs.db
 gudang_dump.sql
 *_dump.sql
 *.dump
+
+# Meilisearch
+meilisearch
+meili_data/
+meili.log

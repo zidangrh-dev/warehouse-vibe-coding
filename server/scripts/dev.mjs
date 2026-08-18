@@ -29,6 +29,8 @@ const server = spawn(process.execPath, ['--watch', 'src/index.mjs'], {
   env: {
     ...process.env,
     DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:5433/postgres',
+    MEILI_HOST: process.env.MEILI_HOST || 'http://127.0.0.1:7700',
+    MEILI_MASTER_KEY: process.env.MEILI_MASTER_KEY || '',
   },
 });
 

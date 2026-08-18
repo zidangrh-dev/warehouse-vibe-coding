@@ -12,6 +12,17 @@ services:
     volumes:
       - dbdata:/var/lib/postgresql/data
 
+  meilisearch:
+    image: getmeili/meilisearch:v1.13
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set MEILI_MASTER_KEY di file .env}
+      MEILI_ENV: production
+    volumes:
+      - meilidata:/meili_data
+    ports:
+      - "127.0.0.1:7700:7700"
+
   api:
     build: ../server
     restart: unless-stopped
@@ -19,14 +30,18 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgres://gudang:${DB_PASSWORD}@db:5432/gudang
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET di file .env}
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       PORT: 4000
     volumes:
       - uploads:/app/uploads
     depends_on:
       - db
+      - meilisearch
     ports:
       - "127.0.0.1:4000:4000"
 
 volumes:
   dbdata:
   uploads:
+  meilidata:

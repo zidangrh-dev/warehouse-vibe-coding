@@ -11,6 +11,7 @@ import bcrypt from 'bcryptjs';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { Server } from 'socket.io';
 import { pool, migrate, seedIfEmpty } from './db.mjs';
+import { ensureIndex, indexPackage, removePackage, bulkIndexPackages, searchPackages } from './meili.mjs';
 
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-gudang-board';
@@ -369,6 +370,83 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
     return res.status(403).json({ error: 'Hanya Admin & Super Admin yang dapat membuka papan Kanban.' });
   }
 
+  // Cek apakah ada search text yang perlu ke Meilisearch
+  const hasSearchText = !!(
+    (q && String(q).trim()) ||
+    (invoice && String(invoice).trim()) ||
+    (customer && String(customer).trim()) ||
+    (toko && String(toko).trim()) ||
+    (courier && String(courier).trim()) ||
+    (code && String(code).trim())
+  );
+
+  // Jika ada search text dan bukan kanban mode, coba Meilisearch dulu
+  if (hasSearchText && req.query.kanban !== '1') {
+    // Build Meilisearch search query
+    let searchQuery = '';
+    if (q && String(q).trim()) {
+      searchQuery = String(q).trim();
+    } else {
+      // Gabungkan filter fields jadi satu query
+      const parts = [];
+      if (invoice && String(invoice).trim()) parts.push(String(invoice).trim());
+      if (customer && String(customer).trim()) parts.push(String(customer).trim());
+      if (toko && String(toko).trim()) parts.push(String(toko).trim());
+      if (courier && String(courier).trim()) parts.push(String(courier).trim());
+      if (code && String(code).trim()) parts.push(String(code).trim());
+      searchQuery = parts.join(' ');
+    }
+
+    // Build filters untuk Meilisearch
+    const meiliFilters = {};
+    
+    // Filter arsip
+    if (tab === 'arsip') {
+      if (req.user.role !== 'superadmin') {
+        return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengakses tabel arsip' });
+      }
+      meiliFilters.archived = true;
+    } else if (tab !== 'semua') {
+      meiliFilters.archived = false;
+    }
+
+    // Tab filters
+    const filter = tab && TAB_FILTERS[tab];
+    if (filter) {
+      meiliFilters.statuses = filter.statuses;
+      if (filter.pickup_type) {
+        meiliFilters.pickup_type = filter.pickup_type;
+      }
+    }
+
+    // Filter status & pickup_type dari query params
+    if (status && String(status).trim()) {
+      meiliFilters.statuses = [String(status).trim()];
+    }
+    if (pickup_type && String(pickup_type).trim()) {
+      meiliFilters.pickup_type = String(pickup_type).trim();
+    }
+
+    // Pagination
+    const pageSize = Math.min(200, Math.max(10, parseInt(req.query.pageSize, 10) || 50));
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    meiliFilters.limit = pageSize;
+    meiliFilters.offset = (page - 1) * pageSize;
+
+    const meiliResult = await searchPackages(searchQuery, meiliFilters);
+    if (meiliResult) {
+      const totalPages = Math.max(1, Math.ceil(meiliResult.total / pageSize));
+      return res.json({
+        items: meiliResult.hits,
+        total: meiliResult.total,
+        page: Math.min(page, totalPages),
+        pageSize,
+        searching: true,
+      });
+    }
+    // Fallback ke PostgreSQL jika Meilisearch error
+  }
+
   // Filter arsip:
   //   arsip         -> hanya paket arsip (archived = true)
   //   kanban + date -> SEMUA paket hari itu (aktif + arsip) = snapshot papan tanggal tsb
@@ -578,6 +656,7 @@ app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'wareh
   );
   if (!r.rows[0]) return res.status(409).json({ error: 'No invoice sudah terdaftar' });
   await logEvent(r.rows[0].id, req.user, 'input_manual', `status awal ${st}${cleanCode ? ` (pickup code: ${cleanCode})` : ''}`);
+  indexPackage(r.rows[0]);
   notify();
   res.status(201).json(r.rows[0]);
 }));
@@ -692,6 +771,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   if ('pickup_type' in req.body) detailParts.push(`jenis ambilan -> ${req.body.pickup_type}`);
   if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
   await logEvent(id, req.user, 'update', detailParts.join(' | '));
+  indexPackage(r.rows[0]);
   notify();
   res.json(r.rows[0]);
 }));
@@ -1082,6 +1162,15 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
         skipped++;
       }
     }
+    // Bulk index ke Meilisearch: fetch semua paket yang baru diinsert
+    if (inserted > 0) {
+      try {
+        const bulkRes = await pool.query(`SELECT ${PACKAGE_LIST_COLUMNS} FROM packages WHERE source='import' AND received_at > now() - interval '1 minute'`);
+        bulkIndexPackages(bulkRes.rows);
+      } catch (e) {
+        console.error('Meilisearch bulk index error:', e.message);
+      }
+    }
     notify();
     res.json({ inserted, updated, skipped: skipped + skippedCourier, skippedCourier, total: rows.length });
   }));
@@ -1174,6 +1263,14 @@ app.get('/api/dashboard/activity', requireAuth, requireRole('superadmin', 'admin
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+// Reindex semua paket ke Meilisearch (superadmin only)
+app.post('/api/admin/reindex', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const r = await pool.query(`SELECT ${PACKAGE_LIST_COLUMNS} FROM packages`);
+  await bulkIndexPackages(r.rows);
+  res.json({ reindexed: r.rows.length });
+}));
+
 await migrate();
 await seedIfEmpty();
+await ensureIndex();
 server.listen(PORT, () => console.log(`API siap di http://localhost:${PORT}`));
