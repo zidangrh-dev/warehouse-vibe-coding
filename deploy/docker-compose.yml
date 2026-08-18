@@ -52,8 +52,11 @@ services:
       - db
     ports:
       - "8978:8978"
+    volumes:
+      - cloudbeaverdata:/opt/cloudbeaver/workspace
 
 volumes:
   dbdata:
   uploads:
   meilidata:
+  cloudbeaverdata:
