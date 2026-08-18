@@ -36,7 +36,7 @@ export function PaginationBar({ page, total, pageSize, onPage }) {
   );
 }
 
-export function PackageList({ items, loading, onOpen, rowAction, pagination, onSearchQuery, onColumnFilterChange, tab }) {
+export function PackageList({ items, loading, onOpen, rowAction, pagination, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
   const { isDesktop, isUltraWide } = useBreakpoint();
   if (loading && !items.length) return <ActivityIndicator style={{ marginTop: 30 }} color={colors.primary} />;
 
@@ -49,6 +49,9 @@ export function PackageList({ items, loading, onOpen, rowAction, pagination, onS
         onSearchQuery={onSearchQuery}
         onColumnFilterChange={onColumnFilterChange}
         tab={tab}
+        selectedIds={selectedIds}
+        onToggleSelect={onToggleSelect}
+        onSelectAll={onSelectAll}
       />
     </ScrollView>
   ) : (
@@ -59,7 +62,7 @@ export function PackageList({ items, loading, onOpen, rowAction, pagination, onS
       contentContainerStyle={{ padding: 14, paddingBottom: 24, flexGrow: 1 }}
       ListEmptyComponent={<Text style={s.empty}>Tidak ada paket.</Text>}
       renderItem={({ item }) => (
-        <PackageRow pkg={item} onPress={onOpen} action={rowAction?.(item)} />
+        <PackageRow pkg={item} onPress={onOpen} action={rowAction?.(item)} selected={selectedIds?.has(item.id)} onToggleSelect={onToggleSelect} />
       )}
     />
   );

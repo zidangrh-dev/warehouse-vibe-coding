@@ -873,6 +873,34 @@ app.post('/api/packages/arrive', requireAuth, requireRole('admin', 'superadmin')
   res.json(r.rows[0]);
 }));
 
+// Bulk arrive: convert anteran → customer sekaligus (beberapa paket).
+app.post('/api/packages/bulk-arrive', requireAuth, requireRole('admin', 'superadmin'), wrap(async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids wajib array' });
+  const r = await pool.query(
+    `UPDATE packages SET status='absen_ambil_customer', pickup_type='customer', updated_at=now()
+     WHERE id = ANY($1::int[]) AND pickup_type='anteran' AND status='data_masuk'
+     RETURNING id`, [ids]);
+  if (r.rowCount > 0) {
+    await logEvent(null, req.user, 'bulk_arrive', `${r.rowCount} anteran → ambil customer`);
+  }
+  notify();
+  res.json({ updated: r.rowCount });
+}));
+
+// Bulk delete: hapus paket sekaligus (hanya status data_masuk).
+app.delete('/api/packages/bulk', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids wajib array' });
+  const r = await pool.query(
+    `DELETE FROM packages WHERE id = ANY($1::int[]) AND status='data_masuk' AND pickup_type='anteran' RETURNING id`, [ids]);
+  if (r.rowCount > 0) {
+    await logEvent(null, req.user, 'bulk_delete', `Hapus ${r.rowCount} paket`);
+  }
+  notify();
+  res.json({ deleted: r.rowCount });
+}));
+
 // Admin Kios menyerahkan fisik barang cancel ke Kurir untuk dikirim ke Gudang Utama.
 // Hak akses: Admin Kios & Super Admin saja (role warehouse & sales ditolak).
 app.post('/api/packages/ship-to-warehouse', requireAuth, requireRole('admin', 'superadmin'), wrap(async (req, res) => {

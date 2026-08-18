@@ -5,7 +5,7 @@ import {
   FileText, Sparkles, SkipForward, Users, KeyRound, Archive,
   CalendarDays, ScanLine, Save, Copy, UserCheck, Zap, Monitor,
   TrendingUp, TrendingDown, AlertTriangle, Store, X,
-  Circle,
+  Circle, Trash2, CheckSquare,
 } from 'lucide-react-native';
 
 const ICON_MAP = {
@@ -47,6 +47,8 @@ const ICON_MAP = {
   store: Store,
   x: X,
   circle: Circle,
+  trash: Trash2,
+  check_square: CheckSquare,
 };
 
 export default function Icon({ name, size = 20, color = '#0F172A', strokeWidth = 1.8 }) {

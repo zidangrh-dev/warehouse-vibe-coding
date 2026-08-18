@@ -44,12 +44,25 @@ export function tokoLabel(pkg) {
   return p ? `${p} ${t}`.trim() : t;
 }
 
-export function PackageRow({ pkg, onPress, action }) {
+export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
   return (
     <TouchableOpacity style={s.card} onPress={() => onPress(pkg)} activeOpacity={0.7}>
       <View style={s.cardTop}>
-        <View style={[s.iconBox, { backgroundColor: statusTint(pkg.status) }]}>
-          <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : pkg.pickup_type === 'anteran' ? 'box' : 'box'} size={20} color={statusColor(pkg.status)} />
+        <View style={s.iconBox}>
+          {onToggleSelect ? (
+            <TouchableOpacity
+              style={[s.selectBox, selected && s.selectBoxActive]}
+              onPress={(e) => { e.stopPropagation?.(); onToggleSelect(pkg.id); }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {selected && <Icon name="check" size={13} color="#fff" strokeWidth={3} />}
+            </TouchableOpacity>
+          ) : (
+            <>
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: statusTint(pkg.status), borderRadius: radius.input }]} />
+              <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : pkg.pickup_type === 'anteran' ? 'box' : 'box'} size={20} color={statusColor(pkg.status)} />
+            </>
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.awb} numberOfLines={1}>
@@ -132,7 +145,7 @@ function FilterInputCell({ placeholder, widthFlex, value, onChange }) {
   );
 }
 
-export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab }) {
+export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
   const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' });
   const debounceRef = useRef(null);
   const filtersRef = useRef(filters);
@@ -276,7 +289,16 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
 
       {/* Header Row */}
       <View style={s.tableHeadRow}>
-        <Text style={[s.th, { width: 36 }]} />
+        {onToggleSelect ? (
+          <TouchableOpacity
+            style={[s.selectBox, { marginRight: 8 }, (selectedIds && selectedIds.size === filteredItems.length && filteredItems.length > 0) && s.selectBoxActive]}
+            onPress={onSelectAll}
+          >
+            {(selectedIds && selectedIds.size === filteredItems.length && filteredItems.length > 0) && <Icon name="check" size={13} color="#fff" strokeWidth={3} />}
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 22 }} />
+        )}
         <Text style={[s.th, { flex: 1.2 }]}>AWB / Invoice</Text>
         <Text style={[s.th, { flex: 1.2 }]}>Customer</Text>
         <Text style={[s.th, { flex: 1.0 }]}>Nama Toko</Text>
@@ -289,7 +311,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
 
       {/* Filter Row (Bersih & Elegan - Hanya Warna Teks yang Berubah per Nama/Status) */}
       <View style={[s.tableHeadRow, { backgroundColor: '#F8FAFC', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-        <View style={{ width: 36, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 22, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="search" size={11} color={colors.sub} strokeWidth={2} />
         </View>
         <FilterInputCell placeholder="Filter Invoice..." widthFlex={1.2} value={filters.invoice || ''} onChange={setF('invoice')} />
@@ -340,9 +362,19 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       {/* Table Rows */}
       {filteredItems.map((pkg) => (
         <TouchableOpacity key={pkg.id} style={s.tr} onPress={() => onPress(pkg)} activeOpacity={0.6}>
-          <View style={[s.trIconBox, { backgroundColor: statusTint(pkg.status) }]}>
-            <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : 'box'} size={16} color={statusColor(pkg.status)} />
-          </View>
+          {onToggleSelect ? (
+            <TouchableOpacity
+              style={[s.selectBox, selectedIds?.has(pkg.id) && s.selectBoxActive]}
+              onPress={(e) => { e.stopPropagation?.(); onToggleSelect(pkg.id); }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              {selectedIds?.has(pkg.id) && <Icon name="check" size={13} color="#fff" strokeWidth={3} />}
+            </TouchableOpacity>
+          ) : (
+            <View style={[s.trIconBox, { backgroundColor: statusTint(pkg.status) }]}>
+              <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : 'box'} size={16} color={statusColor(pkg.status)} />
+            </View>
+          )}
           <Text style={[s.td, { flex: 1.2, fontWeight: '700', fontFamily: font.mono }]} numberOfLines={1}>
             {pkg.awb_no || pkg.invoice_no}
           </Text>
@@ -858,6 +890,15 @@ export const s = StyleSheet.create({
     padding: 14, marginBottom: 10, ...shadow.card,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  selectBox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 1.5, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.surface, flexShrink: 0,
+  },
+  selectBoxActive: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+  },
   iconBox: {
     width: 40, height: 40, borderRadius: radius.input,
     alignItems: 'center', justifyContent: 'center',
@@ -890,7 +931,7 @@ export const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
   },
   tableHeadRow: {
-    flexDirection: 'row', backgroundColor: colors.surfaceAlt,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceAlt,
     paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   th: { fontSize: 11, fontWeight: '700', color: colors.sub, textTransform: 'uppercase', letterSpacing: 0.4 },
