@@ -44,10 +44,6 @@ services:
   cloudbeaver:
     image: dbeaver/cloudbeaver:latest
     restart: unless-stopped
-    environment:
-      CB_DB_URL: "postgresql://gudang:${DB_PASSWORD}@db:5432/gudang"
-      CB_ADMIN_NAME: admin
-      CB_ADMIN_PASSWORD: ${CLOUDBEAVER_PASSWORD:?set CLOUDBEAVER_PASSWORD di file .env}
     depends_on:
       - db
     ports:
