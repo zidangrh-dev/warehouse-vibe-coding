@@ -167,47 +167,15 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const driverReady = !!String(pkg.driver_info || "").trim();
   const driverLocked = isGojek && pkg.status === "driver_sampai_kios" && !driverReady;
 
-  // Web: pilih file via <input type="file"> baru per klik (expo-image-picker sering
-  // gagal senyap di dalam React Native Web Modal — file dialog tidak terbuka).
-  const pickWebFile = () =>
-    new Promise((resolve) => {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.style.display = "none";
-      input.addEventListener("change", () => {
-        const file = input.files && input.files[0];
-        if (input.parentNode) input.parentNode.removeChild(input);
-        resolve(file || null);
-      });
-      document.body.appendChild(input);
-      input.click();
-    });
+  // Fallback upload: file asli tanpa resize (dipakai kalau resize gagal/gantung di web).
+  const fallbackPhotoBody = (rawAsset) => ({
+    file: rawAsset.file || null,
+    fileName: rawAsset.fileName || "foto.jpg",
+    uri: rawAsset.uri,
+    mimeType: rawAsset.mimeType,
+  });
 
   const addPhoto = async (kind, fromCamera) => {
-    if (Platform.OS === "web") {
-      const file = await pickWebFile();
-      if (!file) return notice("Tidak ada file yang dipilih.");
-      if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|gif)$/i.test(file.name)) {
-        return notice(`File bukan gambar (${file.type || file.name}).`);
-      }
-      console.log("[foto] file dipilih:", file.name, file.size, file.type, "kind:", kind);
-      setBusy(true);
-      try {
-        const up = await uploadPhoto(pkg.id, kind, { file, fileName: file.name || "foto.jpg" });
-        console.log("[foto] upload sukses:", up);
-        onChanged();
-        await load();
-        notice("Foto berhasil ditambahkan!", "success");
-      } catch (e) {
-        console.error("[foto] upload GAGAL:", e);
-        notice(e.message || "Upload foto gagal");
-      } finally {
-        setBusy(false);
-      }
-      return;
-    }
-
     const opts = { quality: 0.8 };
     const result = fromCamera
       ? await (async () => {
@@ -220,19 +188,44 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setBusy(true);
     try {
       const rawAsset = result.assets[0];
-      // Resize otomatis ke lebar maks 1000px dengan kompresi 0.65 -> ukuran file turun dari ~400KB menjadi ~60KB - 80KB!
-      const resized = await ImageManipulator.manipulateAsync(
-        rawAsset.uri,
-        [{ resize: { width: 1000 } }],
-        {
-          compress: 0.65,
-          format: ImageManipulator.SaveFormat.JPEG,
-          base64: true,
-        },
-      );
-      await uploadPhoto(pkg.id, kind, resized);
+      const isWeb = Platform.OS === "web";
+      let body;
+      if (isWeb) {
+        // Jaring pengaman web: resize boleh gagal/gantung, jangan sampai
+        // "diam saja". Batasi 8 detik, lalu upload file asli apa adanya.
+        const manipulations = {
+          resize: { width: 1000 },
+        };
+        const manipulateBody = ImageManipulator.manipulateAsync(
+          rawAsset.uri,
+          [manipulations],
+          {
+            compress: 0.65,
+            format: ImageManipulator.SaveFormat.JPEG,
+            base64: true,
+          },
+        )
+          .catch(() => fallbackPhotoBody(rawAsset));
+        const timeoutBody = new Promise((resolve) =>
+          setTimeout(() => resolve(fallbackPhotoBody(rawAsset)), 8000),
+        );
+        body = await Promise.race([manipulateBody, timeoutBody]);
+      } else {
+        // Resize otomatis ke lebar maks 1000px dengan kompresi 0.65 -> ukuran file turun dari ~400KB menjadi ~60KB - 80KB!
+        body = await ImageManipulator.manipulateAsync(
+          rawAsset.uri,
+          [{ resize: { width: 1000 } }],
+          {
+            compress: 0.65,
+            format: ImageManipulator.SaveFormat.JPEG,
+            base64: true,
+          },
+        );
+      }
+      await uploadPhoto(pkg.id, kind, body);
       onChanged();
       await load();
+      if (isWeb) notice("Foto berhasil ditambahkan!", "success");
     } catch (e) {
       notice(e.message);
     } finally {
@@ -465,8 +458,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
-      <Pressable style={s.backdrop} onPress={handleClose}>
-        <Pressable style={[s.sheet, isWide && { maxWidth: 640 }]} onPress={(e) => e?.stopPropagation?.()}>
+      <View style={s.modalRoot}>
+        <Pressable style={s.backdropHit} onPress={handleClose} accessibilityLabel="Tutup dialog" />
+        <View style={[s.sheet, isWide && { maxWidth: 640 }]}>
           <ScrollView>
             <Text style={s.invoice}>{pkg.invoice_no}</Text>
             <Text style={[s.status, { color: statusColor(pkg.status), marginTop: 2 }]}>
@@ -854,8 +848,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
             </TouchableOpacity>
           </ScrollView>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
 
       <ConfirmActionModal
         visible={!!pendingStatus}
@@ -890,8 +884,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       {/* Modal Konfirmasi Ubah ke Ambilan Customer */}
       {confirmAnteranOpen && (
         <Modal visible transparent animationType="slide" onRequestClose={() => setConfirmAnteranOpen(false)}>
-          <Pressable style={s.pvBackdrop} onPress={() => setConfirmAnteranOpen(false)}>
-            <Pressable style={s.pvCard} onPress={(e) => e?.stopPropagation?.()}>
+          <View style={s.modalRootDark}>
+            <Pressable style={s.backdropHit} onPress={() => setConfirmAnteranOpen(false)} />
+            <View style={s.pvCard}>
               <View style={s.pvHead}>
                 <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="box" size={24} color="#D97706" strokeWidth={2} />
@@ -938,8 +933,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   )}
                 </TouchableOpacity>
               </View>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </Modal>
       )}
 
@@ -950,8 +945,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           animationType="slide"
           onRequestClose={() => setViewingPhoto(null)}
         >
-          <Pressable style={s.pvBackdrop} onPress={() => setViewingPhoto(null)}>
-            <Pressable style={s.pvCard} onPress={(e) => e?.stopPropagation?.()}>
+          <View style={s.modalRootDark}>
+            <Pressable style={s.backdropHit} onPress={() => setViewingPhoto(null)} />
+            <View style={s.pvCard}>
               <View style={s.pvHead}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.pvTitle}>Foto Bukti ({viewingPhoto.kind})</Text>
@@ -982,8 +978,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               >
                 <Text style={[s.btnText, { color: colors.ink }]}>Tutup Pratinjau</Text>
               </TouchableOpacity>
-            </Pressable>
-          </Pressable>
+            </View>
+          </View>
         </Modal>
       )}
     </Modal>
@@ -991,12 +987,23 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 }
 
 const s = StyleSheet.create({
-  backdrop: {
+  modalRoot: {
     flex: 1,
     backgroundColor: "rgba(15,23,42,0.55)",
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
+  },
+  modalRootDark: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  backdropHit: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
   },
   sheet: {
     backgroundColor: colors.surface,
@@ -1008,6 +1015,8 @@ const s = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
     maxHeight: "90%",
+    position: "relative",
+    zIndex: 1,
   },
   invoice: {
     fontSize: 18,
@@ -1105,13 +1114,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  pvBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
   pvCard: {
     width: '100%',
     maxWidth: 540,
@@ -1122,6 +1124,8 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     ...shadow.float,
+    position: 'relative',
+    zIndex: 1,
   },
   pvHead: {
     flexDirection: 'row',
