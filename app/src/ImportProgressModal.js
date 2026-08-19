@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Pressable } from 'react-native';
 import { colors, radius, font } from './theme';
 
 export default function ImportProgressModal({ visible, progress, error, onClose }) {
@@ -23,8 +23,8 @@ export default function ImportProgressModal({ visible, progress, error, onClose 
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={done ? onClose : undefined}>
-      <View style={s.backdrop}>
-        <View style={s.card}>
+      <Pressable style={s.backdrop} onPress={done ? onClose : undefined}>
+        <Pressable style={s.card} onPress={(e) => e?.stopPropagation?.()}>
           <View style={s.header}>
             <Text style={s.title}>Import Data CSV</Text>
             <Text style={s.subtitle}>
@@ -90,8 +90,8 @@ export default function ImportProgressModal({ visible, progress, error, onClose 
               </TouchableOpacity>
             )}
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 // Tab 1: Scan Paket — paket baru datang dari kurir
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Pressable } from 'react-native';
 import { api } from '../api';
 import { notice, colors, radius, shadow } from '../theme';
 import { usePackages } from '../hooks/usePackages';
@@ -257,8 +257,8 @@ export default function ScanScreen({ user }) {
 
       {/* Modal Konfirmasi Hapus */}
       <Modal visible={confirmDeleteOpen} transparent animationType="fade" onRequestClose={() => setConfirmDeleteOpen(false)}>
-        <View style={delModal.backdrop}>
-          <View style={delModal.card}>
+        <Pressable style={delModal.backdrop} onPress={() => setConfirmDeleteOpen(false)}>
+          <Pressable style={delModal.card} onPress={(e) => e?.stopPropagation?.()}>
             <View style={delModal.head}>
               <View style={delModal.badgeIcon}>
                 <Icon name="trash" size={24} color={colors.danger} strokeWidth={2} />
@@ -291,8 +291,8 @@ export default function ScanScreen({ user }) {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

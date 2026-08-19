@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking, Platform, ActivityIndicator, ScrollView,
+  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking, Platform, ActivityIndicator, ScrollView, Pressable,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, {
@@ -827,8 +827,8 @@ export function CodeModal({ pkg, onClose }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet} onPress={(e) => e?.stopPropagation?.()}>
           <View style={s.grabber} />
           <Text style={s.sheetTitle}>Pickup Code</Text>
           <Text style={s.sheetSub}>{pkg.invoice_no} · {pkg.customer_name}</Text>
@@ -861,8 +861,8 @@ export function CodeModal({ pkg, onClose }) {
           <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={onClose}>
             <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -873,8 +873,8 @@ export function PickerNameModal({ visible, onSubmit, onClose }) {
   if (!visible) return null;
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet} onPress={(e) => e?.stopPropagation?.()}>
           <View style={s.grabber} />
           <Text style={s.sheetTitle}>Nama Pengambil</Text>
           <TextInput
@@ -894,8 +894,8 @@ export function PickerNameModal({ visible, onSubmit, onClose }) {
           <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={onClose}>
             <Text style={[s.btnText, { color: colors.ink }]}>Batal</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -922,10 +922,6 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
   useEffect(() => {
     if (!visible) return;
     loadNames();
-    setAdding(false);
-    setEditId(null);
-    setNewName('');
-    setEditName('');
   }, [visible, loadNames]);
 
   if (!visible || !pkg) return null;
@@ -995,8 +991,8 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet} onPress={(e) => e?.stopPropagation?.()}>
           <View style={s.grabber} />
           <Text style={s.sheetTitle}>Nama Pemroses Done Pickup</Text>
           <Text style={s.sheetSub}>{pkg.invoice_no} · {pkg.customer_name}</Text>
@@ -1099,8 +1095,8 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
           <TouchableOpacity style={[s.btn, s.btnGhost, { marginTop: 8 }]} onPress={onClose} disabled={busy}>
             <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

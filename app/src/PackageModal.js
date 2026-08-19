@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Pressable,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -93,9 +94,43 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     noteTimerRef.current = setTimeout(flushNote, 700);
   };
 
+  // Auto-simpan draf lain (driver info, tag REFRESH, pickup code) saat modal
+  // ditutup — pola sama seperti admin_note, supaya input tidak hilang.
+  const flushDraft = async () => {
+    if (!pkg) return;
+    try {
+      const isArchived = !!pkg.archived;
+      const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
+      const isGojek = pkg.pickup_type === 'gojek';
+      const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
+      if (canAct && !lockDriver && isGojek) {
+        const driverChanged = driverInfo.trim() !== (pkg.driver_info || '').trim();
+        const refreshChanged = driverRefreshed !== !!pkg.driver_refreshed;
+        if (driverChanged || refreshChanged) {
+          await api.updatePackage(pkg.id, {
+            driver_info: driverInfo.trim(),
+            driver_refreshed: driverRefreshed,
+          });
+          onChanged();
+        }
+      }
+      const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
+      if (canEditCode) {
+        const codeChanged = !!codeVal.trim() && codeVal.trim() !== (pkg.pickup_code || '').trim();
+        if (codeChanged) {
+          await api.updatePackage(pkg.id, { pickup_code: codeVal.trim() });
+          onChanged();
+        }
+      }
+    } catch (e) {
+      notice(e.message);
+    }
+  };
+
   // Flush catatan saat modal ditutup (termasuk lewat tombol Tutup tak langsung).
   const handleClose = () => {
     flushNote();
+    flushDraft();
     onClose();
   };
 
@@ -132,7 +167,40 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const driverReady = !!String(pkg.driver_info || "").trim();
   const driverLocked = isGojek && pkg.status === "driver_sampai_kios" && !driverReady;
 
+  // Web: pilih file via <input type="file"> baru per klik (expo-image-picker sering
+  // gagal senyap di dalam React Native Web Modal — file dialog tidak terbuka).
+  const pickWebFile = () =>
+    new Promise((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.style.display = "none";
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        if (input.parentNode) input.parentNode.removeChild(input);
+        resolve(file || null);
+      });
+      document.body.appendChild(input);
+      input.click();
+    });
+
   const addPhoto = async (kind, fromCamera) => {
+    if (Platform.OS === "web") {
+      const file = await pickWebFile();
+      if (!file) return;
+      setBusy(true);
+      try {
+        await uploadPhoto(pkg.id, kind, { file, fileName: file.name || "foto.jpg" });
+        onChanged();
+        await load();
+      } catch (e) {
+        notice(e.message);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     const opts = { quality: 0.8 };
     const result = fromCamera
       ? await (async () => {
@@ -390,8 +458,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={s.backdrop}>
-        <View style={[s.sheet, isWide && { maxWidth: 640 }]}>
+      <Pressable style={s.backdrop} onPress={handleClose}>
+        <Pressable style={[s.sheet, isWide && { maxWidth: 640 }]} onPress={(e) => e?.stopPropagation?.()}>
           <ScrollView>
             <Text style={s.invoice}>{pkg.invoice_no}</Text>
             <Text style={[s.status, { color: statusColor(pkg.status), marginTop: 2 }]}>
@@ -779,8 +847,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
 
       <ConfirmActionModal
         visible={!!pendingStatus}
@@ -815,8 +883,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       {/* Modal Konfirmasi Ubah ke Ambilan Customer */}
       {confirmAnteranOpen && (
         <Modal visible transparent animationType="slide" onRequestClose={() => setConfirmAnteranOpen(false)}>
-          <View style={s.pvBackdrop}>
-            <View style={s.pvCard}>
+          <Pressable style={s.pvBackdrop} onPress={() => setConfirmAnteranOpen(false)}>
+            <Pressable style={s.pvCard} onPress={(e) => e?.stopPropagation?.()}>
               <View style={s.pvHead}>
                 <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="box" size={24} color="#D97706" strokeWidth={2} />
@@ -863,8 +931,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       )}
 
@@ -875,8 +943,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           animationType="slide"
           onRequestClose={() => setViewingPhoto(null)}
         >
-          <View style={s.pvBackdrop}>
-            <View style={s.pvCard}>
+          <Pressable style={s.pvBackdrop} onPress={() => setViewingPhoto(null)}>
+            <Pressable style={s.pvCard} onPress={(e) => e?.stopPropagation?.()}>
               <View style={s.pvHead}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.pvTitle}>Foto Bukti ({viewingPhoto.kind})</Text>
@@ -907,8 +975,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               >
                 <Text style={[s.btnText, { color: colors.ink }]}>Tutup Pratinjau</Text>
               </TouchableOpacity>
-            </View>
-          </View>
+            </Pressable>
+          </Pressable>
         </Modal>
       )}
     </Modal>

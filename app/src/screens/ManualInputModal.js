@@ -1,6 +1,6 @@
 // Modal untuk input paket manual ketika scan barcode tidak ditemukan di database
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { api } from '../api';
 import { notice, colors } from '../theme';
 import { s } from './styles';
@@ -38,8 +38,8 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.box}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.box} onPress={(e) => e?.stopPropagation?.()}>
           <Text style={s.boxTitle}>Input Paket Manual</Text>
           <TextInput
             style={s.input}
@@ -96,8 +96,8 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
               <Text style={[s.btnText, { color: colors.ink }]}>Batal</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

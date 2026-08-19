@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator,
+  ActivityIndicator, Pressable,
 } from 'react-native';
 import { api } from './api';
 import { colors, radius, shadow, notice, confirmAsync } from './theme';
@@ -127,8 +127,8 @@ export default function UserManagementModal({ visible, user, onClose }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.sheet}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.sheet} onPress={(e) => e?.stopPropagation?.()}>
           <View style={s.head}>
             <View style={{ flex: 1 }}>
               <Text style={s.title}>Kelola Karyawan / User</Text>
@@ -254,8 +254,8 @@ export default function UserManagementModal({ visible, user, onClose }) {
               )}
             </View>
           )}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Pressable,
 } from 'react-native';
 import { api } from './api';
 import { colors, radius, shadow, notice } from './theme';
@@ -58,8 +58,8 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={s.backdrop}>
-        <View style={s.card}>
+      <Pressable style={s.backdrop} onPress={handleClose}>
+        <Pressable style={s.card} onPress={(e) => e?.stopPropagation?.()}>
           {/* Header */}
           <View style={s.head}>
             <View style={[s.iconBadge, confirming && { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
@@ -209,8 +209,8 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
               </View>
             </View>
           )}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

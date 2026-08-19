@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Pressable,
 } from 'react-native';
 import { api } from './api';
 import { colors, radius, shadow, notice } from './theme';
@@ -55,8 +55,8 @@ export function ChangePasswordModal({ visible, onClose }) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={handleClose}>
-      <View style={s.backdrop}>
-        <View style={s.card}>
+      <Pressable style={s.backdrop} onPress={handleClose}>
+        <Pressable style={s.card} onPress={(e) => e?.stopPropagation?.()}>
           <View style={s.head}>
             <View style={s.iconBadge}>
               <Icon name="user" size={20} color={colors.primary} />
@@ -128,8 +128,8 @@ export function ChangePasswordModal({ visible, onClose }) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

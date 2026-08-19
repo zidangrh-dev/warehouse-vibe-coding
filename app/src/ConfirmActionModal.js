@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Pressable,
 } from 'react-native';
 import { colors, radius, shadow } from './theme';
 import Icon from './Icon';
@@ -25,8 +25,8 @@ export function ConfirmActionModal({ visible, targetStatus, pkg, onConfirm, onCl
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View style={s.backdrop}>
-        <View style={s.card}>
+      <Pressable style={s.backdrop} onPress={onClose}>
+        <Pressable style={s.card} onPress={(e) => e?.stopPropagation?.()}>
           {/* Header Badge & Title */}
           <View style={s.head}>
             <View style={[s.badgeIcon, { backgroundColor: badgeBg, borderColor: badgeBorder }]}>
@@ -81,8 +81,8 @@ export function ConfirmActionModal({ visible, targetStatus, pkg, onConfirm, onCl
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
