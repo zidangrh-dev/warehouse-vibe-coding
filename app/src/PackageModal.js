@@ -187,14 +187,21 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const addPhoto = async (kind, fromCamera) => {
     if (Platform.OS === "web") {
       const file = await pickWebFile();
-      if (!file) return;
+      if (!file) return notice("Tidak ada file yang dipilih.");
+      if (!/^image\//.test(file.type) && !/\.(jpe?g|png|webp|gif)$/i.test(file.name)) {
+        return notice(`File bukan gambar (${file.type || file.name}).`);
+      }
+      console.log("[foto] file dipilih:", file.name, file.size, file.type, "kind:", kind);
       setBusy(true);
       try {
-        await uploadPhoto(pkg.id, kind, { file, fileName: file.name || "foto.jpg" });
+        const up = await uploadPhoto(pkg.id, kind, { file, fileName: file.name || "foto.jpg" });
+        console.log("[foto] upload sukses:", up);
         onChanged();
         await load();
+        notice("Foto berhasil ditambahkan!", "success");
       } catch (e) {
-        notice(e.message);
+        console.error("[foto] upload GAGAL:", e);
+        notice(e.message || "Upload foto gagal");
       } finally {
         setBusy(false);
       }
