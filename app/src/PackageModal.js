@@ -52,6 +52,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [driverInfo, setDriverInfo] = useState("");
   const [driverRefreshed, setDriverRefreshed] = useState(false);
   const [confirmAnteranOpen, setConfirmAnteranOpen] = useState(false);
+  const [doneByOpen, setDoneByOpen] = useState(false);
 
   const load = async () => {
     if (!pkgId) return;
@@ -103,7 +104,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const isPhotoLocked = isArchived || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
   const isAdmin = user.role === 'superadmin' || user.role === 'admin';
-  const [doneByOpen, setDoneByOpen] = useState(false);
   const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
   const canEditPhotos = canAct && !isPhotoLocked;
