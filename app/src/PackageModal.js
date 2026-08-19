@@ -28,6 +28,7 @@ import {
 } from "./theme";
 import { useBreakpoint } from "./responsive";
 import { ConfirmActionModal } from "./ConfirmActionModal";
+import { NamePickerModal } from "./components";
 import Icon from "./Icon";
 
 const Field = ({ label, children }) => (
@@ -101,6 +102,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const isArchived = !!pkg.archived;
   const isPhotoLocked = isArchived || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
+  const isAdmin = user.role === 'superadmin' || user.role === 'admin';
+  const [doneByOpen, setDoneByOpen] = useState(false);
   const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
   const canEditPhotos = canAct && !isPhotoLocked;
@@ -552,6 +555,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 <Text style={s.value}>{pkg.picker_name}</Text>
               </Field>
             )}
+            {!!pkg.done_by && (
+              <Field label="Diproses oleh">
+                <Text style={s.value}>{pkg.done_by}</Text>
+              </Field>
+            )}
 
             <Field label="Admin note">
               <TextInput
@@ -700,6 +708,14 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                           );
                         } else if (a.to === "retur" || a.to === "cancel") {
                           setPendingStatus(a.to);
+                        } else if (a.to === "selesai") {
+                          if (!(pkg.done_by || '').trim() && isAdmin) {
+                            setDoneByOpen(true);
+                          } else if (!(pkg.done_by || '').trim()) {
+                            notice("Nama staf pemroses (done pickup) wajib diisi — hubungi admin.");
+                          } else {
+                            setStatus(a.to);
+                          }
                         } else {
                           setStatus(a.to);
                         }
@@ -745,6 +761,15 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           setPendingStatus(null);
           await setStatus(st);
         }}
+      />
+
+      <NamePickerModal
+        visible={doneByOpen}
+        pkg={pkg}
+        userRole={user.role}
+        onClose={() => setDoneByOpen(false)}
+        onChanged={onChanged}
+        onChangeDone={() => setStatus('selesai')}
       />
 
       {/* Modal Konfirmasi Ubah ke Ambilan Customer */}

@@ -301,6 +301,51 @@ app.delete('/api/users/:id', requireAuth, requireRole('superadmin'), wrap(async 
   res.json({ ok: true });
 }));
 
+// ---- Daftar nama staf kios (penanda siapa yang proses done pickup) ----
+// Pengelolaan daftar HANYA untuk Super Admin & Admin. Paket menyimpan teks
+// snapshot (done_by), jadi hapus/ganti nama tidak mengubah paket lama.
+app.get('/api/staff-names', requireAuth, wrap(async (req, res) => {
+  const r = await pool.query('SELECT id, name, created_at FROM staff_names ORDER BY name ASC');
+  res.json(r.rows);
+}));
+
+app.post('/api/staff-names', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Nama wajib diisi' });
+  if (name.length > 60) return res.status(400).json({ error: 'Nama terlalu panjang (maks 60 karakter)' });
+  try {
+    const r = await pool.query(
+      'INSERT INTO staff_names (name) VALUES ($1) RETURNING id, name, created_at', [name]);
+    res.status(201).json(r.rows[0]);
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'Nama sudah ada di daftar' });
+    throw e;
+  }
+}));
+
+app.patch('/api/staff-names/:id', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Nama wajib diisi' });
+  if (name.length > 60) return res.status(400).json({ error: 'Nama terlalu panjang (maks 60 karakter)' });
+  try {
+    const r = await pool.query(
+      'UPDATE staff_names SET name=$1 WHERE id=$2 RETURNING id, name, created_at', [name, id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Nama tidak ditemukan' });
+    res.json(r.rows[0]);
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'Nama sudah ada di daftar' });
+    throw e;
+  }
+}));
+
+app.delete('/api/staff-names/:id', requireAuth, requireRole('superadmin', 'admin'), wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  const r = await pool.query('DELETE FROM staff_names WHERE id=$1 RETURNING id', [id]);
+  if (!r.rows[0]) return res.status(404).json({ error: 'Nama tidak ditemukan' });
+  res.json({ ok: true });
+}));
+
 // ---- Helpers ----
 async function logEvent(pkgId, user, action, detail = '') {
   await pool.query(
@@ -330,7 +375,7 @@ const TAB_FILTERS = {
 const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
   platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
   received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at,
-  driver_info, driver_locked, driver_refreshed`;
+  driver_info, driver_locked, driver_refreshed, done_by`;
 
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
@@ -697,7 +742,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     }
   }
 
-  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info', 'driver_refreshed', 'pickup_type'];
+  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info', 'driver_refreshed', 'pickup_type', 'done_by'];
 
   // Role operasional (admin/warehouse) boleh field utama; pickup code boleh
   // sales ATAU admin (admin juga membutuhkannya saat mengisi data driver dari
@@ -706,6 +751,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const forbidden = Object.keys(req.body).filter((k) => {
     if (!allowed.includes(k)) return false;
     if (k === 'pickup_code') return !['sales', 'admin', 'superadmin', 'warehouse'].includes(req.user.role);
+    if (k === 'done_by') return !['superadmin', 'admin'].includes(req.user.role);
     if (isOperational) return false;                            // operasional boleh
     return true;                                                // sales: field lain dilarang
   });
@@ -738,12 +784,18 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // Konfirmasi pengambilan untuk paket GOJEK juga WAJIB punya data driver;
   // selain dijaga di UI, diamankan juga di server.
   if (req.body.status === 'selesai') {
-    const d = await pool.query('SELECT pickup_type, driver_info FROM packages WHERE id=$1', [id]);
+    const d = await pool.query('SELECT pickup_type, driver_info, done_by FROM packages WHERE id=$1', [id]);
     if (d.rows[0]?.pickup_type === 'gojek') {
       const info = String(d.rows[0]?.driver_info ?? '').trim();
       if (!info) {
         return res.status(400).json({ error: 'Data driver wajib diisi sebelum konfirmasi.' });
       }
+    }
+    // Konfirmasi (selesai) WAJIB menandai siapa staf yang memproses (done_by).
+    // Bisa lewat body PATCH ini (done_by disertakan) ATAU sudah tersimpan di DB.
+    const doneBy = String(req.body.done_by ?? d.rows[0]?.done_by ?? '').trim();
+    if (!doneBy) {
+      return res.status(400).json({ error: 'Nama staf pemroses (done pickup) wajib diisi.' });
     }
   }
   // Status 'driver_sampai_kios' tidak lagi membutuhkan validasi data driver.
@@ -768,6 +820,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   if (req.body.status) detailParts.push(`status -> ${req.body.status}`);
   if ('driver_info' in req.body) detailParts.push(`driver: ${req.body.driver_info.trim() || '—'}`);
   if ('driver_refreshed' in req.body) detailParts.push(`tag REFRESH: ${req.body.driver_refreshed ? 'AKTIF' : 'NON-AKTIF'}`);
+  if ('done_by' in req.body) detailParts.push(`diproses oleh: ${req.body.done_by.trim() || '—'}`);
   if ('pickup_type' in req.body) detailParts.push(`jenis ambilan -> ${req.body.pickup_type}`);
   if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
   await logEvent(id, req.user, 'update', detailParts.join(' | '));

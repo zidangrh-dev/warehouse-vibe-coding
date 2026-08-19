@@ -137,3 +137,15 @@ CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
 CREATE INDEX IF NOT EXISTS idx_packages_pickup_code ON packages(pickup_code);
 CREATE INDEX IF NOT EXISTS idx_events_package ON package_events(package_id);
+
+-- Daftar nama staf kios (dikelola admin) sebagai pilihan penanda siapa yang
+-- memproses konfirmasi done pickup. packages.done_by menyimpan snapshot teks
+-- nama — mengubah/menghapus daftar tidak mengubah paket lama.
+CREATE TABLE IF NOT EXISTS staff_names (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Penanda staf yang memproses konfirmasi done pickup ('selesai').
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS done_by TEXT NOT NULL DEFAULT '';

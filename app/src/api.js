@@ -131,6 +131,10 @@ export const api = {
   updateUser: (id, data) => req('PATCH', `/api/users/${id}`, data),
   deleteUser: (id) => req('DELETE', `/api/users/${id}`),
   changePassword: (currentPassword, newPassword) => req('POST', '/api/change-password', { currentPassword, newPassword }),
+  staffNames: () => req('GET', '/api/staff-names'),
+  createStaffName: (name) => req('POST', '/api/staff-names', { name }),
+  updateStaffName: (id, name) => req('PATCH', `/api/staff-names/${id}`, { name }),
+  deleteStaffName: (id) => req('DELETE', `/api/staff-names/${id}`),
 };
 
 // Upload bukti foto (kind: 'wajah' | 'ktp' | 'barang').

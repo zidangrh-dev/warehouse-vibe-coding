@@ -89,6 +89,8 @@ export default function SelfPickupScreen({ user }) {
         onSearchQuery={setQ}
         onColumnFilterChange={setColFilters}
         tab="selfpickup"
+        userRole={user.role}
+        onChanged={refetch}
       />
       <ScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
       <CodeModal pkg={codePkg} onClose={() => setCodePkg(null)} />

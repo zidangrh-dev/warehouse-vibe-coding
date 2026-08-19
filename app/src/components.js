@@ -1,13 +1,14 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking, Platform, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Linking, Platform, ActivityIndicator, ScrollView,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Svg, {
   Rect, Circle, Path, Line as SvgLine, Defs, Stop, LinearGradient as SvgGradient,
 } from 'react-native-svg';
 import Icon from './Icon';
-import { colors, radius, shadow, spacing, font, notice, STATUS_META, statusLabel, statusColor, statusTint } from './theme';
+import { colors, radius, shadow, spacing, font, notice, confirmAsync, STATUS_META, statusLabel, statusColor, statusTint } from './theme';
+import { api } from './api';
 import { fmtUpdate } from './utils/format';
 
 // Helper: inline icon + text
@@ -44,7 +45,28 @@ export function tokoLabel(pkg) {
   return p ? `${p} ${t}`.trim() : t;
 }
 
-export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
+// Pill tag NAMA — penanda siapa yang memproses done pickup.
+// Klik (admin) membuka dropdown daftar nama staf kios.
+function NameTag({ pkg, userRole, onTagPress }) {
+  const canTag = userRole === 'superadmin' || userRole === 'admin';
+  if (!canTag && !pkg.done_by) return null;
+  return (
+    <TouchableOpacity
+      style={s.nameTag}
+      onPress={canTag ? () => onTagPress?.(pkg) : undefined}
+      disabled={!canTag}
+      activeOpacity={0.7}
+      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+    >
+      <Icon name="user_check" size={9} color={pkg.done_by ? colors.primary : colors.sub} strokeWidth={2.5} />
+      <Text style={[s.nameTagText, !!pkg.done_by && { color: colors.primary }]} numberOfLines={1}>
+        {pkg.done_by || 'NAMA'}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+export function PackageRow({ pkg, onPress, action, selected, onToggleSelect, userRole, onTagPress }) {
   return (
     <TouchableOpacity style={s.card} onPress={() => onPress(pkg)} activeOpacity={0.7}>
       <View style={s.cardTop}>
@@ -96,6 +118,7 @@ export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
             <Text style={s.refreshBadgeText}>REFRESH</Text>
           </View>
         )}
+        {userRole && <NameTag pkg={pkg} userRole={userRole} onTagPress={onTagPress} />}
         {!!pkg.driver_info && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <Icon name="scooter" size={11} color={colors.primary} strokeWidth={2} />
@@ -145,7 +168,7 @@ function FilterInputCell({ placeholder, widthFlex, value, onChange }) {
   );
 }
 
-export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
+export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll, userRole, onTagPress }) {
   const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' });
   const debounceRef = useRef(null);
   const filtersRef = useRef(filters);
@@ -401,6 +424,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                   <Text style={s.refreshBadgeText}>REFRESH</Text>
                 </View>
               )}
+              {userRole && <NameTag pkg={pkg} userRole={userRole} onTagPress={onTagPress} />}
             </View>
             {!!pkg.driver_info && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 }}>
@@ -883,6 +907,206 @@ export function PickerNameModal({ visible, onSubmit, onClose }) {
   );
 }
 
+// Dropdown nama staf kios: menandai siapa yang memproses done pickup.
+// Pengelolaan daftar (tambah/edit/hapus) hanya utk Super Admin & Admin.
+export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, onChangeDone }) {
+  const canManage = userRole === 'superadmin' || userRole === 'admin';
+  const [names, setNames] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editName, setEditName] = useState('');
+
+  const loadNames = useCallback(async () => {
+    try {
+      setNames(await api.staffNames());
+    } catch (e) {
+      notice(e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    loadNames();
+    setAdding(false);
+    setEditId(null);
+    setNewName('');
+    setEditName('');
+  }, [visible, loadNames]);
+
+  if (!visible || !pkg) return null;
+
+  const current = pkg.done_by || '';
+
+  const pick = async (name) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api.updatePackage(pkg.id, { done_by: name });
+      notice(name ? `Diproses oleh: ${name}` : 'Tanda nama dihapus');
+      onChangeDone?.(name);
+      onChanged?.();
+      onClose();
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitAdd = async () => {
+    const nm = newName.trim();
+    if (!nm || busy) return;
+    setBusy(true);
+    try {
+      await api.createStaffName(nm);
+      setNewName('');
+      setAdding(false);
+      await loadNames();
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitEdit = async () => {
+    const nm = editName.trim();
+    if (!nm || busy) return;
+    setBusy(true);
+    try {
+      await api.updateStaffName(editId, nm);
+      setEditId(null);
+      setEditName('');
+      await loadNames();
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (it) => {
+    if (!(await confirmAsync(`Hapus "${it.name}"?`, 'Paket yang sudah memakai nama ini tidak berubah (tetap tersimpan sebagai teks).'))) return;
+    setBusy(true);
+    try {
+      await api.deleteStaffName(it.id);
+      await loadNames();
+    } catch (e) {
+      notice(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={s.backdrop}>
+        <View style={s.sheet}>
+          <View style={s.grabber} />
+          <Text style={s.sheetTitle}>Nama Pemroses Done Pickup</Text>
+          <Text style={s.sheetSub}>{pkg.invoice_no} · {pkg.customer_name}</Text>
+
+          <ScrollView style={{ maxHeight: 280, marginTop: 8 }}>
+            {names.length === 0 && (
+              <Text style={s.nameEmpty}>
+                Belum ada nama.{canManage ? ' Tambahkan lewat tombol di bawah.' : ' Hubungi admin untuk menambah daftar.'}
+              </Text>
+            )}
+            {names.map((it) => (
+              <View key={it.id} style={s.nameRow}>
+                {editId === it.id ? (
+                  <>
+                    <TextInput
+                      style={[s.input, { flex: 1, height: 36, paddingVertical: 4, marginVertical: 0 }]}
+                      value={editName}
+                      onChangeText={setEditName}
+                      autoFocus
+                      onSubmitEditing={submitEdit}
+                      placeholder="Nama baru..."
+                      placeholderTextColor={colors.faint}
+                    />
+                    <TouchableOpacity style={s.nameMiniBtn} onPress={submitEdit} disabled={busy}>
+                      <Icon name="save" size={14} color={colors.primary} strokeWidth={2.2} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.nameMiniBtn} onPress={() => setEditId(null)} disabled={busy}>
+                      <Icon name="x" size={14} color={colors.sub} strokeWidth={2.2} />
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[s.nameItem, current === it.name && s.nameItemActive]}
+                      onPress={() => pick(it.name)}
+                      disabled={busy}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.nameItemText, current === it.name && s.nameItemTextActive]} numberOfLines={1}>
+                        {it.name}
+                      </Text>
+                      {current === it.name && <Icon name="check" size={14} color={colors.primary} strokeWidth={3} />}
+                    </TouchableOpacity>
+                    {canManage && (
+                      <>
+                        <TouchableOpacity style={s.nameMiniBtn} onPress={() => { setEditId(it.id); setEditName(it.name); }} disabled={busy}>
+                          <Icon name="edit" size={13} color={colors.sub} strokeWidth={2} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.nameMiniBtn} onPress={() => remove(it)} disabled={busy}>
+                          <Icon name="trash" size={13} color={colors.danger} strokeWidth={2} />
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+
+          {canManage &&
+            (adding ? (
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+                <TextInput
+                  style={[s.input, { flex: 1, height: 36, paddingVertical: 4, marginVertical: 0 }]}
+                  placeholder="Nama staf baru..."
+                  placeholderTextColor={colors.faint}
+                  value={newName}
+                  onChangeText={setNewName}
+                  autoFocus
+                  onSubmitEditing={submitAdd}
+                />
+                <TouchableOpacity style={[s.btn, { backgroundColor: colors.ok, alignSelf: 'stretch', paddingVertical: 8, marginTop: 0 }]} onPress={submitAdd} disabled={busy}>
+                  <Text style={s.btnText}>Simpan</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.btn, s.btnGhost, { alignSelf: 'stretch', paddingVertical: 8, marginTop: 0 }]} onPress={() => { setAdding(false); setNewName(''); }}>
+                  <Text style={[s.btnText, { color: colors.ink }]}>Batal</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[s.btn, { backgroundColor: colors.primary, marginTop: 10 }]}
+                onPress={() => setAdding(true)}
+                disabled={busy}
+              >
+                <Text style={s.btnText}>+ Tambah Nama</Text>
+              </TouchableOpacity>
+            ))}
+
+          {!!current && (
+            <TouchableOpacity style={[s.btn, s.btnGhost, { marginTop: 8 }]} onPress={() => pick('')} disabled={busy}>
+              <Text style={[s.btnText, { color: colors.danger }]}>Hapus Tanda Nama Ini</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={[s.btn, s.btnGhost, { marginTop: 8 }]} onPress={onClose} disabled={busy}>
+            <Text style={[s.btnText, { color: colors.ink }]}>Tutup</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export const s = StyleSheet.create({
   card: {
     backgroundColor: colors.surface, borderRadius: radius.card,
@@ -916,7 +1140,28 @@ export const s = StyleSheet.create({
   codeChip: { color: colors.sub, fontSize: 11.5, fontWeight: '700', fontFamily: font.mono },
   refreshBadge: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
   refreshBadgeText: { color: colors.danger, fontSize: 9, fontWeight: '800' },
+  nameTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD',
+    borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1,
+    maxWidth: 130,
+  },
+  nameTagText: { color: colors.sub, fontSize: 9, fontWeight: '800', maxWidth: 108 },
   driverChip: { color: colors.primary, fontSize: 11.5, fontWeight: '700' },
+  nameEmpty: { color: colors.faint, fontSize: 12.5, textAlign: 'center', paddingVertical: 18 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  nameItem: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.input,
+    paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.bg,
+  },
+  nameItemActive: { borderColor: colors.primary, backgroundColor: '#EFF6FF' },
+  nameItemText: { flex: 1, color: colors.ink, fontSize: 14, fontWeight: '600' },
+  nameItemTextActive: { color: colors.primary, fontWeight: '800' },
+  nameMiniBtn: {
+    width: 32, height: 36, borderRadius: 8, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface,
+  },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1,
     borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 9,

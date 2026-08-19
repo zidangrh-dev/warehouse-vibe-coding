@@ -118,6 +118,8 @@ export default function GojekScreen({ user }) {
         onSearchQuery={setQ}
         onColumnFilterChange={setColFilters}
         tab="gojek"
+        userRole={user.role}
+        onChanged={refetch}
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
     </View>

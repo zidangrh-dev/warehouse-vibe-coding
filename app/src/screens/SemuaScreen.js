@@ -76,6 +76,8 @@ export default function SemuaScreen({ user }) {
         onSearchQuery={setQ}
         onColumnFilterChange={setColFilters}
         tab="semua"
+        userRole={user.role}
+        onChanged={refetch}
       />
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={refetch} />
       <ImportProgressModal

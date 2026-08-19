@@ -16,7 +16,7 @@ import {
   colors, radius, shadow, font, notice, confirmAsync,
   statusLabel, statusColor, statusTint, NEXT_ACTIONS,
 } from '../theme';
-import { tokoLabel } from '../components';
+import { tokoLabel, NamePickerModal } from '../components';
 import { fmtTime } from '../utils/format';
 import Icon from '../Icon';
 import PackageModal from '../PackageModal';
@@ -75,6 +75,7 @@ export default function KanbanScreen({ user }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
+  const [tagPkg, setTagPkg] = useState(null);
   const dragging = useRef(null);
   // Slot drop antar kartu: { status, index } — index posisi kartu target.
   const [insert, setInsert] = useState(null);
@@ -270,6 +271,7 @@ export default function KanbanScreen({ user }) {
                 onOpen={() => setOpenId(pkg.id)}
                 onMove={(t) => moveTo(pkg, t)}
                 onSaveDriver={(info, code) => saveDriver(pkg, info, code)}
+                onTag={setTagPkg}
                 onDragStart={() => (dragging.current = pkg)}
                 onDragEnd={() => (dragging.current = null)}
               />
@@ -280,6 +282,13 @@ export default function KanbanScreen({ user }) {
       </ScrollView>
 
       <PackageModal pkgId={openId} user={user} onClose={() => setOpenId(null)} onChanged={load} />
+      <NamePickerModal
+        visible={!!tagPkg}
+        pkg={tagPkg}
+        userRole={user.role}
+        onClose={() => setTagPkg(null)}
+        onChanged={load}
+      />
       <ArchiveListModal
         visible={archiveListOpen}
         groups={archiveGroups}
@@ -467,7 +476,7 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
 }
 
 // ---- Kartu papan (input inline sesuai status) ----
-function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
+function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen, onMove, onSaveDriver, onTag, onDragStart, onDragEnd }) {
   const [driverDraft, setDriverDraft] = useState('');
   const [codeDraft, setCodeDraft] = useState('');
   const ref = useRef(null);
@@ -521,6 +530,18 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
             <View style={kb.refreshBadge}>
               <Text style={kb.refreshBadgeText}>REFRESH</Text>
             </View>
+          )}
+          {(pkg.done_by || isAdmin) && (
+            <TouchableOpacity
+              style={kb.nameTag}
+              onPress={isAdmin ? () => onTag?.(pkg) : undefined}
+              disabled={!isAdmin}
+              activeOpacity={0.7}
+            >
+              <Text style={[kb.nameTagText, !!pkg.done_by && { color: colors.primary }]} numberOfLines={1}>
+                {pkg.done_by || 'NAMA'}
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
         {!!pkg.driver_info && (
@@ -714,6 +735,8 @@ const kb = StyleSheet.create({
   codeChip: { alignSelf: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10.5, fontWeight: '700', color: colors.primary },
   refreshBadge: { alignSelf: 'flex-start', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
   refreshBadgeText: { color: colors.danger, fontSize: 9.5, fontWeight: '800' },
+  nameTag: { alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, maxWidth: 130 },
+  nameTagText: { color: colors.sub, fontSize: 9.5, fontWeight: '800' },
   driverChip: { alignSelf: 'flex-start', marginTop: 4, fontSize: 10.5, fontWeight: '700', color: colors.primary },
 
   actions: { padding: 8, borderTopWidth: 1, borderTopColor: colors.border, gap: 6 },
