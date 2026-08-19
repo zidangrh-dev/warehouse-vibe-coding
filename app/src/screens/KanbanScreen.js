@@ -46,7 +46,14 @@ const TYPE_CHIPS = [
   { label: 'Anteran', icon: 'box', value: 'anteran' },
 ];
 
-const allowedTargets = (status) => (NEXT_ACTIONS[status] || []).map((a) => a.to);
+const allowedTargets = (status) => {
+  const targets = (NEXT_ACTIONS[status] || []).map((a) => a.to);
+  // Kanban: geser bolak-balik mencari_driver <-> driver_sampai_kios.
+  if (status === 'driver_sampai_kios' && !targets.includes('mencari_driver')) {
+    targets.push('mencari_driver');
+  }
+  return targets;
+};
 // Transisi yang butuh input/foto/konfirmasi di modal -> jangan PATCH langsung.
 const modalTargets = new Set(['selesai', 'retur', 'cancel']);
 
@@ -497,6 +504,7 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
 
   const actions = NEXT_ACTIONS[pkg.status] || [];
   const showsDriverInput = pkg.status === 'mencari_driver';
+  const canShiftBack = pkg.status === 'driver_sampai_kios';
 
   return (
     <View ref={setNode} style={kb.card}>
@@ -562,12 +570,25 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
               onPress={() => onSaveDriver(driverDraft, codeDraft)}
               activeOpacity={0.85}
             >
-              <Text style={kb.bigSaveText}>Simpan Data Driver</Text>
+              <Text style={kb.bigSaveText}>Simpan Data</Text>
             </TouchableOpacity>
           </View>
         )}
 
+        {canShiftBack && (
+          <TouchableOpacity
+            style={[kb.miniBtn, { backgroundColor: statusColor('mencari_driver') }]}
+            onPress={() => onMove('mencari_driver')}
+            activeOpacity={0.85}
+          >
+            <Text style={kb.miniBtnText} numberOfLines={1}>Kembali ke Mencari Driver</Text>
+          </TouchableOpacity>
+        )}
+
         {actions.map((a) => {
+          // Di kartu mencari driver, pindah ke driver_sampai_kios cukup lewat
+          // tombol "Simpan Data" (biar data driver & pickup code pasti tersimpan).
+          if (showsDriverInput && a.to === 'driver_sampai_kios') return null;
           const allowed = a.to === 'dikirim_ke_gudang' ? canShip : a.to === 'diterima_gudang' ? canReceive : isAdmin;
           if (!allowed) return null;
           return (
