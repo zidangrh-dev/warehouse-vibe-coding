@@ -555,9 +555,36 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 <Text style={s.value}>{pkg.picker_name}</Text>
               </Field>
             )}
-            {!!pkg.done_by && (
-              <Field label="Diproses oleh">
-                <Text style={s.value}>{pkg.done_by}</Text>
+
+            {canAct && (
+              <Field label="Nama Pemroses (Done Pickup)">
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    marginTop: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6,
+                    borderRadius: radius.pill,
+                    backgroundColor: (pkg.done_by || '').trim() ? '#EFF6FF' : colors.surfaceAlt,
+                    borderWidth: 1.5,
+                    borderColor: (pkg.done_by || '').trim() ? '#93C5FD' : isAdmin ? colors.danger : colors.border,
+                  }}
+                  onPress={() => isAdmin && setDoneByOpen(true)}
+                  disabled={!isAdmin}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: '800', color: (pkg.done_by || '').trim() ? colors.primary : isAdmin ? colors.danger : colors.sub }}>
+                    {(pkg.done_by || '').trim()
+                      ? `✓ Diproses oleh: ${pkg.done_by}`
+                      : isAdmin
+                        ? '+ Pilih Nama Pemroses (wajib sebelum konfirmasi)'
+                        : 'Belum ada nama pemroses'}
+                  </Text>
+                  {isAdmin && <Icon name="edit" size={13} color={colors.primary} strokeWidth={2} />}
+                </TouchableOpacity>
+                <Text style={s.hint}>
+                  {isAdmin
+                    ? 'Klik untuk memilih/ganti nama dari daftar staf kios.'
+                    : 'Hanya admin yang dapat mengatur nama pemroses.'}
+                </Text>
               </Field>
             )}
 

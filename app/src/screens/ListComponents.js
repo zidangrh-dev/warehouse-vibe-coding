@@ -1,8 +1,7 @@
 // Shared component: PaginationBar + List (display logic)
-import { useState } from 'react';
 import { View, Text, ScrollView, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
-import { PackageRow, PackageTable, NamePickerModal } from '../components';
+import { PackageRow, PackageTable } from '../components';
 import { useBreakpoint } from '../responsive';
 import { s } from './styles';
 
@@ -37,9 +36,8 @@ export function PaginationBar({ page, total, pageSize, onPage }) {
   );
 }
 
-export function PackageList({ items, loading, onOpen, rowAction, pagination, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll, userRole, onChanged }) {
+export function PackageList({ items, loading, onOpen, rowAction, pagination, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
   const { isDesktop, isUltraWide } = useBreakpoint();
-  const [tagPkg, setTagPkg] = useState(null);
   if (loading && !items.length) return <ActivityIndicator style={{ marginTop: 30 }} color={colors.primary} />;
 
   const body = isDesktop ? (
@@ -54,8 +52,6 @@ export function PackageList({ items, loading, onOpen, rowAction, pagination, onS
         selectedIds={selectedIds}
         onToggleSelect={onToggleSelect}
         onSelectAll={onSelectAll}
-        userRole={userRole}
-        onTagPress={setTagPkg}
       />
     </ScrollView>
   ) : (
@@ -66,7 +62,7 @@ export function PackageList({ items, loading, onOpen, rowAction, pagination, onS
       contentContainerStyle={{ padding: 14, paddingBottom: 24, flexGrow: 1 }}
       ListEmptyComponent={<Text style={s.empty}>Tidak ada paket.</Text>}
       renderItem={({ item }) => (
-        <PackageRow pkg={item} onPress={onOpen} action={rowAction?.(item)} selected={selectedIds?.has(item.id)} onToggleSelect={onToggleSelect} userRole={userRole} onTagPress={setTagPkg} />
+        <PackageRow pkg={item} onPress={onOpen} action={rowAction?.(item)} selected={selectedIds?.has(item.id)} onToggleSelect={onToggleSelect} />
       )}
     />
   );
@@ -75,13 +71,6 @@ export function PackageList({ items, loading, onOpen, rowAction, pagination, onS
     <View style={{ flex: 1 }}>
       {body}
       {pagination && <PaginationBar {...pagination} pageSize={PAGE_SIZE} />}
-      <NamePickerModal
-        visible={!!tagPkg}
-        pkg={tagPkg}
-        userRole={userRole}
-        onClose={() => setTagPkg(null)}
-        onChanged={onChanged}
-      />
     </View>
   );
 }

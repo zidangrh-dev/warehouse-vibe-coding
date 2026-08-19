@@ -45,28 +45,21 @@ export function tokoLabel(pkg) {
   return p ? `${p} ${t}`.trim() : t;
 }
 
-// Pill tag NAMA — penanda siapa yang memproses done pickup.
-// Klik (admin) membuka dropdown daftar nama staf kios.
-function NameTag({ pkg, userRole, onTagPress }) {
-  const canTag = userRole === 'superadmin' || userRole === 'admin';
-  if (!canTag && !pkg.done_by) return null;
+// Pill tag NAMA — penanda siapa yang memproses done pickup (display-only,
+// persis seperti badge REFRESH; pengaturan nama dilakukan di PackageModal).
+function NameTag({ pkg }) {
+  if (!pkg.done_by) return null;
   return (
-    <TouchableOpacity
-      style={s.nameTag}
-      onPress={canTag ? () => onTagPress?.(pkg) : undefined}
-      disabled={!canTag}
-      activeOpacity={0.7}
-      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-    >
-      <Icon name="user_check" size={9} color={pkg.done_by ? colors.primary : colors.sub} strokeWidth={2.5} />
-      <Text style={[s.nameTagText, !!pkg.done_by && { color: colors.primary }]} numberOfLines={1}>
-        {pkg.done_by || 'NAMA'}
+    <View style={s.nameTag}>
+      <Icon name="user_check" size={9} color={colors.primary} strokeWidth={2.5} />
+      <Text style={[s.nameTagText, { color: colors.primary }]} numberOfLines={1}>
+        {pkg.done_by}
       </Text>
-    </TouchableOpacity>
+    </View>
   );
 }
 
-export function PackageRow({ pkg, onPress, action, selected, onToggleSelect, userRole, onTagPress }) {
+export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
   return (
     <TouchableOpacity style={s.card} onPress={() => onPress(pkg)} activeOpacity={0.7}>
       <View style={s.cardTop}>
@@ -118,7 +111,7 @@ export function PackageRow({ pkg, onPress, action, selected, onToggleSelect, use
             <Text style={s.refreshBadgeText}>REFRESH</Text>
           </View>
         )}
-        {userRole && <NameTag pkg={pkg} userRole={userRole} onTagPress={onTagPress} />}
+        <NameTag pkg={pkg} />
         {!!pkg.driver_info && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
             <Icon name="scooter" size={11} color={colors.primary} strokeWidth={2} />
@@ -168,7 +161,7 @@ function FilterInputCell({ placeholder, widthFlex, value, onChange }) {
   );
 }
 
-export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll, userRole, onTagPress }) {
+export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
   const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' });
   const debounceRef = useRef(null);
   const filtersRef = useRef(filters);
@@ -424,7 +417,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                   <Text style={s.refreshBadgeText}>REFRESH</Text>
                 </View>
               )}
-              {userRole && <NameTag pkg={pkg} userRole={userRole} onTagPress={onTagPress} />}
+              <NameTag pkg={pkg} />
             </View>
             {!!pkg.driver_info && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 }}>

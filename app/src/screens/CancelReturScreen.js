@@ -192,8 +192,6 @@ export default function CancelReturScreen({ user }) {
         onSearchQuery={setQ}
         onColumnFilterChange={setColFilters}
         tab="cancelretur"
-        userRole={user.role}
-        onChanged={refetch}
       />
       <ScannerModal
         visible={!!scanMode}

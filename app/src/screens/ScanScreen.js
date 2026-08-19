@@ -245,8 +245,6 @@ export default function ScanScreen({ user }) {
         selectedIds={selectedIds}
         onToggleSelect={toggleSelect}
         onSelectAll={selectAll}
-        userRole={user.role}
-        onChanged={refetch}
       />
       <ScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
       <ManualInputModal
