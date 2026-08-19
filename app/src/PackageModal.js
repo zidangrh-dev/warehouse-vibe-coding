@@ -53,6 +53,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [driverRefreshed, setDriverRefreshed] = useState(false);
   const [confirmAnteranOpen, setConfirmAnteranOpen] = useState(false);
   const [doneByOpen, setDoneByOpen] = useState(false);
+  const [confirmAfterName, setConfirmAfterName] = useState(false);
 
   const load = async () => {
     if (!pkgId) return;
@@ -567,7 +568,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                     borderWidth: 1.5,
                     borderColor: (pkg.done_by || '').trim() ? '#93C5FD' : isAdmin ? colors.danger : colors.border,
                   }}
-                  onPress={() => isAdmin && setDoneByOpen(true)}
+                  onPress={() => {
+                    setConfirmAfterName(false);
+                    setDoneByOpen(true);
+                  }}
                   disabled={!isAdmin}
                   activeOpacity={0.85}
                 >
@@ -737,6 +741,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                           setPendingStatus(a.to);
                         } else if (a.to === "selesai") {
                           if (!(pkg.done_by || '').trim() && isAdmin) {
+                            setConfirmAfterName(true);
                             setDoneByOpen(true);
                           } else if (!(pkg.done_by || '').trim()) {
                             notice("Nama staf pemroses (done pickup) wajib diisi — hubungi admin.");
@@ -794,9 +799,17 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         visible={doneByOpen}
         pkg={pkg}
         userRole={user.role}
-        onClose={() => setDoneByOpen(false)}
-        onChanged={onChanged}
-        onChangeDone={() => setStatus('selesai')}
+        onClose={() => {
+          setDoneByOpen(false);
+          setConfirmAfterName(false);
+        }}
+        onChanged={() => {
+          onChanged();
+          load();
+        }}
+        onPicked={() => {
+          if (confirmAfterName) setStatus('selesai');
+        }}
       />
 
       {/* Modal Konfirmasi Ubah ke Ambilan Customer */}

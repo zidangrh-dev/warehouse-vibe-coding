@@ -902,7 +902,7 @@ export function PickerNameModal({ visible, onSubmit, onClose }) {
 
 // Dropdown nama staf kios: menandai siapa yang memproses done pickup.
 // Pengelolaan daftar (tambah/edit/hapus) hanya utk Super Admin & Admin.
-export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, onChangeDone }) {
+export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, onPicked }) {
   const canManage = userRole === 'superadmin' || userRole === 'admin';
   const [names, setNames] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -938,7 +938,7 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
     try {
       await api.updatePackage(pkg.id, { done_by: name });
       notice(name ? `Diproses oleh: ${name}` : 'Tanda nama dihapus');
-      onChangeDone?.(name);
+      onPicked?.(name);
       onChanged?.();
       onClose();
     } catch (e) {
@@ -1058,20 +1058,25 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
 
           {canManage &&
             (adding ? (
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+              <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text style={s.nameFormLabel}>Nama staf baru</Text>
                 <TextInput
-                  style={[s.input, { flex: 1, height: 36, paddingVertical: 4, marginVertical: 0 }]}
-                  placeholder="Nama staf baru..."
+                  style={[s.input, { marginVertical: 8 }]}
+                  placeholder="Tulis nama staf di sini..."
                   placeholderTextColor={colors.faint}
                   value={newName}
                   onChangeText={setNewName}
                   autoFocus
                   onSubmitEditing={submitAdd}
                 />
-                <TouchableOpacity style={[s.btn, { backgroundColor: colors.ok, alignSelf: 'stretch', paddingVertical: 8, marginTop: 0 }]} onPress={submitAdd} disabled={busy}>
-                  <Text style={s.btnText}>Simpan</Text>
+                <TouchableOpacity style={[s.btn, { backgroundColor: colors.ok }]} onPress={submitAdd} disabled={busy}>
+                  <Text style={s.btnText}>Simpan Nama</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[s.btn, s.btnGhost, { alignSelf: 'stretch', paddingVertical: 8, marginTop: 0 }]} onPress={() => { setAdding(false); setNewName(''); }}>
+                <TouchableOpacity
+                  style={[s.btn, s.btnGhost, { marginTop: 8 }]}
+                  onPress={() => { setAdding(false); setNewName(''); }}
+                  disabled={busy}
+                >
                   <Text style={[s.btnText, { color: colors.ink }]}>Batal</Text>
                 </TouchableOpacity>
               </View>
@@ -1142,6 +1147,7 @@ export const s = StyleSheet.create({
   nameTagText: { color: colors.sub, fontSize: 9, fontWeight: '800', maxWidth: 108 },
   driverChip: { color: colors.primary, fontSize: 11.5, fontWeight: '700' },
   nameEmpty: { color: colors.faint, fontSize: 12.5, textAlign: 'center', paddingVertical: 18 },
+  nameFormLabel: { fontSize: 12.5, fontWeight: '800', color: colors.sub, marginBottom: -4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   nameItem: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
