@@ -690,6 +690,7 @@ app.delete('/api/photos/:id', requireAuth, requireRole('superadmin', 'admin'), w
 app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'warehouse'), wrap(async (req, res) => {
   const { invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, pickup_code } = req.body;
   if (!invoice_no?.trim()) return res.status(400).json({ error: 'No invoice wajib diisi' });
+  const cleanInv = invoice_no.trim().toUpperCase();
   const st = STATUSES.includes(status) ? status
     : pickup_type === 'gojek' ? 'absen_gojek' : 'absen_ambil_customer';
   const cleanCode = pickup_code?.trim() || null;
@@ -698,7 +699,7 @@ app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'wareh
     `INSERT INTO packages (invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, pickup_code, source, received_at, gojek_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',now(), CASE WHEN $6='absen_gojek' THEN now() ELSE NULL END)
      ON CONFLICT (invoice_no) DO NOTHING RETURNING *`,
-    [invoice_no.trim(), customer_name || '', customer_phone || '', item_desc || '',
+    [cleanInv, customer_name || '', customer_phone || '', item_desc || '',
      pickup_type === 'gojek' ? 'gojek' : 'customer', st, cleanCode]
   );
   if (!r.rows[0]) return res.status(409).json({ error: 'No invoice sudah terdaftar' });
@@ -964,7 +965,7 @@ app.post('/api/archives/restore-by-date', requireAuth, requireRole('superadmin')
 
 // Scan paket sampai kios: cocokkan invoice hasil scan dengan data import.
 app.post('/api/packages/arrive', requireAuth, requireRole('admin', 'superadmin'), wrap(async (req, res) => {
-  const code = String(req.body.invoice_no || '').trim();
+  const code = String(req.body.invoice_no || '').trim().toUpperCase();
   if (!code) return res.status(400).json({ error: 'Invoice kosong' });
   // Label fisik paket biasanya memuat AWB/resi, kadang no order — cocokkan keduanya.
   const found = await pool.query(
@@ -1018,7 +1019,7 @@ app.delete('/api/packages/bulk', requireAuth, requireRole('superadmin'), wrap(as
 // Admin Kios menyerahkan fisik barang cancel ke Kurir untuk dikirim ke Gudang Utama.
 // Hak akses: Admin Kios & Super Admin saja (role warehouse & sales ditolak).
 app.post('/api/packages/ship-to-warehouse', requireAuth, requireRole('admin', 'superadmin'), wrap(async (req, res) => {
-  const code = String(req.body.invoice_no || req.body.code || '').trim();
+  const code = String(req.body.invoice_no || req.body.code || '').trim().toUpperCase();
   if (!code) return res.status(400).json({ error: 'Nomor invoice / AWB kosong' });
 
   const found = await pool.query('SELECT * FROM packages WHERE invoice_no=$1 OR awb_no=$1', [code]);
@@ -1040,7 +1041,7 @@ app.post('/api/packages/ship-to-warehouse', requireAuth, requireRole('admin', 's
 // Tim Warehouse menerima fisik barang cancel di Gudang Utama.
 // Hak akses: Tim Warehouse & Super Admin saja (role admin kios & sales ditolak).
 app.post('/api/packages/receive-at-warehouse', requireAuth, requireRole('warehouse', 'superadmin'), wrap(async (req, res) => {
-  const code = String(req.body.invoice_no || req.body.code || '').trim();
+  const code = String(req.body.invoice_no || req.body.code || '').trim().toUpperCase();
   if (!code) return res.status(400).json({ error: 'Nomor invoice / AWB kosong' });
 
   const found = await pool.query('SELECT * FROM packages WHERE invoice_no=$1 OR awb_no=$1', [code]);
@@ -1122,8 +1123,8 @@ function mapRow(row) {
   };
     const val = pick('pickup_code');
     return {
-      invoice_no: fixSciNotation(pick('invoice_no')),
-      awb_no: fixSciNotation(pick('awb_no')),
+      invoice_no: fixSciNotation(pick('invoice_no')).toUpperCase(),
+      awb_no: fixSciNotation(pick('awb_no')).toUpperCase(),
       customer_name: pick('customer_name'),
       customer_phone: pick('customer_phone'),
       item_desc: pick('item_desc'),
@@ -1200,7 +1201,7 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
       const m = mapRow(rawRow);
       if (!m.invoice_no) { skipped++; continue; }
 
-      const cleanInvoice = norm(m.invoice_no);
+      const cleanInvoice = norm(m.invoice_no).toUpperCase();
       if (invoiceSeen.has(cleanInvoice)) {
         skipped++;
         continue;
@@ -1210,7 +1211,7 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
       const ptype = classifyPickup(m.courier);
       if (!ptype) { skippedCourier++; continue; }
 
-      const cleanAwb = norm(m.awb_no);
+      const cleanAwb = norm(m.awb_no).toUpperCase();
       let cleanCode = norm(m.pickup_code);
       if (cleanCode === '0') cleanCode = '';
 
