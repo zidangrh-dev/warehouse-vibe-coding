@@ -95,13 +95,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       const dirty =
         note.trim() !== (pkg.admin_note || "").trim() ||
         codeVal !== (pkg.pickup_code || "") ||
-        driverInfo.trim() !== (pkg.driver_info || "").trim();
+        driverInfo.trim() !== (pkg.driver_info || "").trim() ||
+        isHold !== !!pkg.is_hold ||
+        driverRefreshed !== !!pkg.driver_refreshed ||
+        isCariDriver !== !!pkg.is_cari_driver;
       if (dirty) return; // jangan ganggu yang sedang mengetik; dilindungi 409.
       load();
     };
     socket.on("packages:changed", handler);
     return () => socket.off("packages:changed", handler);
-  }, [pkgId, pkg, note, codeVal, driverInfo, load]);
+  }, [pkgId, pkg, note, codeVal, driverInfo, isHold, driverRefreshed, isCariDriver, load]);
 
   // Auto-save admin note: debounce 700ms, lalu flush saat Tutup/close.
   // WAJIB di atas early-return — hook tidak boleh conditional.
@@ -136,32 +139,29 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
       const isGojek = pkg.pickup_type === 'gojek';
       const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
+      // Gabungkan SEMUA perubahan ke SATU payload (satu PATCH, satu baseUpdatedAt)
+      // supaya tidak terkena 409 "data diubah pengguna lain" antar-PATCH berurutan.
+      const payload = {};
       if (canAct && !lockDriver && isGojek) {
-                const driverChanged = driverInfo.trim() !== (pkg.driver_info || '').trim();
+        const driverChanged = driverInfo.trim() !== (pkg.driver_info || '').trim();
         const refreshChanged = driverRefreshed !== !!pkg.driver_refreshed;
         const cariChanged = isCariDriver !== !!pkg.is_cari_driver;
-        if (driverChanged || refreshChanged || cariChanged) {
-          await api.updatePackage(pkg.id, {
-            driver_info: driverInfo.trim(),
-            driver_refreshed: driverRefreshed,
-            is_cari_driver: isCariDriver,
-            baseUpdatedAt: pkg.updated_at,
-          });
-          onChanged();
-        }
+        if (driverChanged) payload.driver_info = driverInfo.trim();
+        if (refreshChanged) payload.driver_refreshed = driverRefreshed;
+        if (cariChanged) payload.is_cari_driver = isCariDriver;
       }
-const holdChanged = isHold !== !!pkg.is_hold;
-      if (holdChanged) {
-        await api.updatePackage(pkg.id, { is_hold: isHold, baseUpdatedAt: pkg.updated_at });
-        onChanged();
+      if (canAct && !lockDriver && isHold !== !!pkg.is_hold) {
+        payload.is_hold = isHold;
       }
       const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
       if (canEditCode) {
         const codeChanged = !!codeVal.trim() && codeVal.trim() !== (pkg.pickup_code || '').trim();
-        if (codeChanged) {
-          await api.updatePackage(pkg.id, { pickup_code: codeVal.trim(), baseUpdatedAt: pkg.updated_at });
-          onChanged();
-        }
+        if (codeChanged) payload.pickup_code = codeVal.trim();
+      }
+      if (Object.keys(payload).length > 0) {
+        payload.baseUpdatedAt = pkg.updated_at;
+        await api.updatePackage(pkg.id, payload);
+        onChanged();
       }
     } catch (e) {
       if (!(await reloadOnConflict(e))) notice(e.message);
