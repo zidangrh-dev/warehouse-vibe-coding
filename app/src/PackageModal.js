@@ -53,6 +53,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const [driverInfo, setDriverInfo] = useState("");
   const [driverRefreshed, setDriverRefreshed] = useState(false);
   const [isHold, setIsHold] = useState(false);
+  const [isCariDriver, setIsCariDriver] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const [confirmAnteranOpen, setConfirmAnteranOpen] = useState(false);
   const [doneByOpen, setDoneByOpen] = useState(false);
   const [confirmAfterName, setConfirmAfterName] = useState(false);
@@ -66,6 +68,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setDriverInfo(p.driver_info || "");
     setDriverRefreshed(!!p.driver_refreshed);
     setIsHold(!!p.is_hold);
+    setIsCariDriver(!!p.is_cari_driver);
     setEditingCode(false);
   };
   useEffect(() => {
@@ -134,12 +137,14 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       const isGojek = pkg.pickup_type === 'gojek';
       const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
       if (canAct && !lockDriver && isGojek) {
-        const driverChanged = driverInfo.trim() !== (pkg.driver_info || '').trim();
+                const driverChanged = driverInfo.trim() !== (pkg.driver_info || '').trim();
         const refreshChanged = driverRefreshed !== !!pkg.driver_refreshed;
-        if (driverChanged || refreshChanged) {
+        const cariChanged = isCariDriver !== !!pkg.is_cari_driver;
+        if (driverChanged || refreshChanged || cariChanged) {
           await api.updatePackage(pkg.id, {
             driver_info: driverInfo.trim(),
             driver_refreshed: driverRefreshed,
+            is_cari_driver: isCariDriver,
             baseUpdatedAt: pkg.updated_at,
           });
           onChanged();
@@ -206,6 +211,32 @@ const holdChanged = isHold !== !!pkg.is_hold;
   const canCancelFromStatus = ["absen_gojek", "mencari_driver", "driver_sampai_kios"].includes(pkg.status) && !isArchived;
   // Geser balik driver_sampai_kios -> mencari_driver (sama seperti di Kanban).
   const canShiftBackStatus = pkg.status === "driver_sampai_kios" && !isArchived;
+
+  // Definisi tag untuk picker (ala label Trello).
+  const tags = [];
+  if (canAct && !lockDriver) {
+    tags.push({
+      key: 'hold', label: 'HOLD (Paket Ditahan)', active: isHold,
+      color: '#B45309', bg: '#FFFBEB', border: '#FDE68A',
+    });
+  }
+  if (isGojek && canAct && !lockDriver) {
+    tags.push(
+      {
+        key: 'refresh', label: 'REFRESH (Driver Berganti)', active: driverRefreshed,
+        color: '#DC2626', bg: '#FEF2F2', border: '#FCA5A5',
+      },
+      {
+        key: 'caridriver', label: 'Cari Driver (sudah di MP)', active: isCariDriver,
+        color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD',
+      },
+    );
+  }
+  const toggleTag = (key) => {
+    if (key === 'hold') setIsHold(!isHold);
+    else if (key === 'refresh') setDriverRefreshed(!driverRefreshed);
+    else if (key === 'caridriver') setIsCariDriver(!isCariDriver);
+  };
 
   // Fallback upload: file asli tanpa resize (dipakai kalau resize gagal/gantung di web).
   const fallbackPhotoBody = (rawAsset) => ({
@@ -424,6 +455,9 @@ const holdChanged = isHold !== !!pkg.is_hold;
         if (driverRefreshed !== !!pkg.driver_refreshed) {
           payload.driver_refreshed = driverRefreshed;
         }
+        if (isCariDriver !== !!pkg.is_cari_driver) {
+          payload.is_cari_driver = isCariDriver;
+        }
       }
       if (!lockDriver && isHold !== !!pkg.is_hold) {
         payload.is_hold = isHold;
@@ -475,6 +509,7 @@ const holdChanged = isHold !== !!pkg.is_hold;
         driver_info: driverInfo.trim(),
         driver_refreshed: driverRefreshed,
         is_hold: isHold,
+        is_cari_driver: isCariDriver,
         baseUpdatedAt: pkg.updated_at,
       });
       notice("Data driver tersimpan");
@@ -730,29 +765,12 @@ const holdChanged = isHold !== !!pkg.is_hold;
                   multiline
                 />
                 {canAct && !lockDriver && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <TouchableOpacity
-                      style={{
-                        alignSelf: 'flex-start',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 6,
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: radius.pill,
-                        backgroundColor: driverRefreshed ? '#FEF2F2' : colors.surfaceAlt,
-                        borderWidth: 1.5,
-                        borderColor: driverRefreshed ? colors.danger : colors.border,
-                      }}
-                      onPress={() => setDriverRefreshed(!driverRefreshed)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: '800', color: driverRefreshed ? colors.danger : colors.sub }}>
-                        {driverRefreshed ? '✓ REFRESH (Driver Berganti)' : '+ Tag REFRESH (Driver Berganti)'}
-                      </Text>
-                    </TouchableOpacity>
-                    <HoldChip active={isHold} onPress={() => setIsHold(!isHold)} />
-                  </View>
+                  <TagPicker
+                    tags={tags}
+                    open={tagsOpen}
+                    onToggleOpen={() => setTagsOpen(!tagsOpen)}
+                    onToggle={toggleTag}
+                  />
                 )}
                 {canAct && !lockDriver && (
                   <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
@@ -767,7 +785,12 @@ const holdChanged = isHold !== !!pkg.is_hold;
 
             {!isGojek && canAct && !lockDriver && (
               <Field label="Penanda Paket">
-                <HoldChip active={isHold} onPress={() => setIsHold(!isHold)} />
+                <TagPicker
+                  tags={tags}
+                  open={tagsOpen}
+                  onToggleOpen={() => setTagsOpen(!tagsOpen)}
+                  onToggle={toggleTag}
+                />
               </Field>
             )}
 
@@ -1056,29 +1079,51 @@ const holdChanged = isHold !== !!pkg.is_hold;
   );
 }
 
-// Chip toggle "HOLD" — bentuk persis seperti chip REFRESH, warna amber.
-function HoldChip({ active, onPress }) {
+// Picker tag tunggal (ala label Trello): satu chip "+ Tag", klik buka panel
+// berisi toggle REFRESH / HOLD / Cari Driver.
+function TagPicker({ tags, open, onToggleOpen, onToggle }) {
+  const activeCount = tags.filter((t) => t.active).length;
   return (
-    <TouchableOpacity
-      style={{
-        alignSelf: 'flex-start',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: radius.pill,
-        backgroundColor: active ? '#FFFBEB' : colors.surfaceAlt,
-        borderWidth: 1.5,
-        borderColor: active ? '#F59E0B' : colors.border,
-      }}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      <Text style={{ fontSize: 12, fontWeight: '800', color: active ? '#B45309' : colors.sub }}>
-        {active ? '✓ HOLD (Paket Ditahan)' : '+ Tag HOLD (Paket Ditahan)'}
-      </Text>
-    </TouchableOpacity>
+    <View style={{ marginTop: 8, marginBottom: 4, alignSelf: 'flex-start' }}>
+      <TouchableOpacity
+        style={{
+          alignSelf: 'flex-start',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          borderRadius: radius.pill,
+          backgroundColor: activeCount > 0 ? colors.primarySoft : colors.surfaceAlt,
+          borderWidth: 1.5,
+          borderColor: activeCount > 0 ? colors.primary : colors.border,
+        }}
+        onPress={onToggleOpen}
+        activeOpacity={0.85}
+      >
+        <Text style={{ fontSize: 12, fontWeight: '800', color: activeCount > 0 ? colors.primary : colors.sub }}>
+          {activeCount > 0 ? `Tag (${activeCount})` : '+ Tag'}
+        </Text>
+      </TouchableOpacity>
+      {open && (
+        <View style={{ marginTop: 8, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', minWidth: 250 }}>
+          {tags.map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}
+              onPress={() => onToggle(t.key)}
+              activeOpacity={0.8}
+            >
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: t.active ? t.color : colors.surfaceAlt, borderWidth: 1.5, borderColor: t.active ? t.color : t.border }} />
+              <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '700', color: colors.ink }}>{t.label}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: t.active ? colors.ok : colors.faint }}>
+                {t.active ? '✓ Aktif' : '—'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
   );
 }
 

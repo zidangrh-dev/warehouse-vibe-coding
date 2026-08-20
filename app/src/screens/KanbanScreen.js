@@ -567,6 +567,11 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
               <Text style={kb.holdBadgeText}>HOLD</Text>
             </View>
           )}
+          {!!pkg.is_cari_driver && (
+            <View style={kb.cariBadge}>
+              <Text style={kb.cariBadgeText}>CARI DRIVER</Text>
+            </View>
+          )}
           {!!pkg.done_by && (
             <View style={kb.nameTag}>
               <Text style={kb.nameTagText} numberOfLines={1}>{pkg.done_by}</Text>
@@ -779,6 +784,8 @@ const kb = StyleSheet.create({
   refreshBadgeText: { color: colors.danger, fontSize: 9.5, fontWeight: '800' },
   holdBadge: { alignSelf: 'flex-start', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
   holdBadgeText: { color: '#B45309', fontSize: 9.5, fontWeight: '800' },
+  cariBadge: { alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  cariBadgeText: { color: '#1D4ED8', fontSize: 9.5, fontWeight: '800' },
   nameTag: { alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, maxWidth: 130 },
   nameTagText: { color: colors.primary, fontSize: 9.5, fontWeight: '800' },
   driverChip: { alignSelf: 'flex-start', marginTop: 4, fontSize: 10.5, fontWeight: '700', color: colors.primary },

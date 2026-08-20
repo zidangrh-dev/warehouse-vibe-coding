@@ -116,6 +116,11 @@ export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
             <Text style={s.holdBadgeText}>HOLD</Text>
           </View>
         )}
+        {!!pkg.is_cari_driver && (
+          <View style={s.cariBadge}>
+            <Text style={s.cariBadgeText}>CARI DRIVER</Text>
+          </View>
+        )}
         <NameTag pkg={pkg} />
         {!!pkg.driver_info && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -425,6 +430,11 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
               {!!pkg.is_hold && (
                 <View style={s.holdBadge}>
                   <Text style={s.holdBadgeText}>HOLD</Text>
+                </View>
+              )}
+              {!!pkg.is_cari_driver && (
+                <View style={s.cariBadge}>
+                  <Text style={s.cariBadgeText}>CARI DRIVER</Text>
                 </View>
               )}
               <NameTag pkg={pkg} />
@@ -1147,6 +1157,8 @@ export const s = StyleSheet.create({
   refreshBadgeText: { color: colors.danger, fontSize: 9, fontWeight: '800' },
   holdBadge: { backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
   holdBadgeText: { color: '#B45309', fontSize: 9, fontWeight: '800' },
+  cariBadge: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  cariBadgeText: { color: '#1D4ED8', fontSize: 9, fontWeight: '800' },
   nameTag: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD',

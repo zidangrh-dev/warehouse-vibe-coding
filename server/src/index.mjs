@@ -375,7 +375,7 @@ const TAB_FILTERS = {
 const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
   platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
   received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at,
-  driver_info, driver_locked, driver_refreshed, done_by, is_hold, status_changed_at`;
+  driver_info, driver_locked, driver_refreshed, done_by, is_hold, status_changed_at, is_cari_driver`;
 
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
@@ -731,7 +731,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const id = Number(req.params.id);
   const fail = (code, msg) => { const e = new Error(msg); e.httpCode = code; return e; };
 
-  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info', 'driver_refreshed', 'is_hold', 'pickup_type', 'done_by'];
+  const allowed = ['customer_name', 'customer_phone', 'item_desc', 'status', 'admin_note', 'picker_name', 'pickup_code', 'driver_info', 'driver_refreshed', 'is_hold', 'is_cari_driver', 'pickup_type', 'done_by'];
 
   // Role operasional (admin/warehouse) boleh field utama; pickup code boleh
   // sales ATAU admin (admin juga membutuhkannya saat mengisi data driver dari
@@ -875,6 +875,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     if ('driver_info' in req.body) detailParts.push(`driver: ${req.body.driver_info.trim() || '—'}`);
     if ('driver_refreshed' in req.body) detailParts.push(`tag REFRESH: ${req.body.driver_refreshed ? 'AKTIF' : 'NON-AKTIF'}`);
     if ('is_hold' in req.body) detailParts.push(`tag HOLD: ${req.body.is_hold ? 'AKTIF' : 'NON-AKTIF'}`);
+    if ('is_cari_driver' in req.body) detailParts.push(`tag Cari Driver: ${req.body.is_cari_driver ? 'AKTIF' : 'NON-AKTIF'}`);
     if ('done_by' in req.body) detailParts.push(`diproses oleh: ${req.body.done_by.trim() || '—'}`);
     if ('pickup_type' in req.body) detailParts.push(`jenis ambilan -> ${req.body.pickup_type}`);
     if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);

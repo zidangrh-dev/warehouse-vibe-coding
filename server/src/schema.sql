@@ -117,6 +117,9 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_refreshed BOOLEAN NOT NULL 
 -- Flag manual "HOLD": menandai paket yang ditahan/di-pause sementara.
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_hold BOOLEAN NOT NULL DEFAULT false;
 
+-- Flag manual "Cari Driver": menandai bahwa admin sudah mengklik Cari Driver di marketplace untuk paket ini.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_cari_driver BOOLEAN NOT NULL DEFAULT false;
+
 -- Migrasi constraint pickup_type: dukung 'anteran' (kurir internal).
 -- Idempoten — selalu aman dijalankan saat restart server.
 ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_pickup_type_check;
