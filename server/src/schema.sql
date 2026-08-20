@@ -120,10 +120,11 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_hold BOOLEAN NOT NULL DEFAULT f
 -- Flag manual "Cari Driver": menandai bahwa admin sudah mengklik Cari Driver di marketplace untuk paket ini.
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_cari_driver BOOLEAN NOT NULL DEFAULT false;
 
--- Migrasi constraint pickup_type: dukung 'anteran' (kurir internal).
+-- Migrasi constraint pickup_type: dukung 'anteran' (kurir internal) & 'buyback'.
 -- Idempoten — selalu aman dijalankan saat restart server.
 ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_pickup_type_check;
-ALTER TABLE packages ADD CONSTRAINT packages_pickup_type_check CHECK (pickup_type IN ('customer', 'gojek', 'anteran'));
+ALTER TABLE packages ADD CONSTRAINT packages_pickup_type_check CHECK (pickup_type IN ('customer', 'gojek', 'anteran', 'buyback'));
+CREATE INDEX IF NOT EXISTS idx_packages_buyback ON packages (pickup_type, status) WHERE pickup_type = 'buyback';
 
 -- Kunci PERMANEN data driver: diset true saat status bergerak ke selesai.
 -- Setelah paket sekali selesai diangkut, data driver TIDAK boleh diubah lagi

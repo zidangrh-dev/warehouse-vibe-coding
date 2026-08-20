@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
 import { colors, shadow, spacing, radius, confirmAsync } from './theme';
 import { useBreakpoint } from './responsive';
-import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, KanbanScreen } from './screens/index';
+import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, KanbanScreen, BuybackScreen } from './screens/index';
 import DashboardScreen from './DashboardScreen';
 import { ChangePasswordModal } from './ChangePasswordModal';
 
@@ -13,6 +13,7 @@ const ALL_TABS = [
   { key: 'scan', icon: 'box', label: 'Scan', roles: ['superadmin', 'admin', 'warehouse'], Screen: ScanPaketScreen },
   { key: 'selfpickup', icon: 'user', label: 'Self Pick Up', roles: ['superadmin', 'admin', 'sales'], Screen: SelfPickupScreen },
   { key: 'gojek', icon: 'scooter', label: 'Gojek', roles: ['superadmin', 'admin', 'sales'], Screen: GojekScreen },
+  { key: 'buyback', icon: 'package', label: 'Buyback', roles: ['superadmin', 'admin'], Screen: BuybackScreen },
   { key: 'cancelretur', icon: 'rotate', label: 'Cancel/Retur', roles: ['superadmin', 'admin', 'sales', 'warehouse'], Screen: CancelReturScreen },
   { key: 'semua', icon: 'list', label: 'Semua', roles: ['superadmin', 'admin', 'sales', 'warehouse'], Screen: SemuaScreen },
   { key: 'kanban', icon: 'columns', label: 'Kanban', roles: ['superadmin', 'admin'], Screen: KanbanScreen },

@@ -42,6 +42,7 @@ export const STATUS_META = {
   data_masuk: { label: 'Data Masuk', color: '#64748B', tint: '#64748B1F' },
   absen_ambil_customer: { label: 'Absen Ambil Customer', color: '#4F46E5', tint: '#4F46E51A' },
   absen_gojek: { label: 'Absen Gojek', color: '#059669', tint: '#0596691A' },
+  absen_buyback: { label: 'Absen Buyback', color: '#6D28D9', tint: '#6D28D91F' },
   mencari_driver: { label: 'Mencari Driver', color: '#D97706', tint: '#D977061F' },
   driver_sampai_kios: { label: 'Driver Sampai Kios', color: '#7C3AED', tint: '#7C3AED1A' },
   retur: { label: 'Retur', color: '#E5484D', tint: '#E5484D1A' },
@@ -56,6 +57,7 @@ export const STATUS_META = {
 export const NEXT_ACTIONS = {
   absen_ambil_customer: [{ to: 'selesai', label: 'Konfirmasi Pengambilan' }],
   absen_gojek: [{ to: 'mencari_driver', label: 'Cari Driver' }],
+  absen_buyback: [{ to: 'selesai', label: 'Selesai' }],
   mencari_driver: [{ to: 'driver_sampai_kios', label: 'Driver Sampai Kios' }],
   driver_sampai_kios: [{ to: 'selesai', label: 'Done Pickup' }],
   selesai: [{ to: 'retur', label: 'Retur' }],
@@ -71,6 +73,7 @@ export const NEXT_ACTIONS = {
 export const NEXT_ACTION_ICONS = {
   absen_ambil_customer: { selesai: 'check' },
   absen_gojek: { mencari_driver: 'search' },
+  absen_buyback: { selesai: 'check' },
   mencari_driver: { driver_sampai_kios: 'scooter' },
   driver_sampai_kios: { selesai: 'check' },
   selesai: { retur: 'rotate' },
@@ -100,8 +103,9 @@ export function confirmAsync(title, message) {
 // Toast notification via react-native-toast-message.
 // type: 'success' | 'error' | 'info' | 'warning'
 export function notice(message, type = 'info') {
+  const safeType = type === 'warning' ? 'info' : (['success', 'error', 'info'].includes(type) ? type : 'info');
   Toast.show({
-    type,
+    type: safeType,
     text1: message,
     visibilityTime: 3500,
     position: 'top',

@@ -106,6 +106,12 @@ export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
             <Text style={{ color: '#92400E', fontSize: 9.5, fontWeight: '800' }}>ANTERAN</Text>
           </View>
         )}
+        {pkg.pickup_type === 'buyback' && (
+          <View style={{ backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#C4B5FD', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Icon name="box" size={9} color="#6D28D9" strokeWidth={2.5} />
+            <Text style={{ color: '#6D28D9', fontSize: 9.5, fontWeight: '800' }}>BUYBACK</Text>
+          </View>
+        )}
         {!!pkg.driver_refreshed && (
           <View style={s.refreshBadge}>
             <Text style={s.refreshBadgeText}>REFRESH</Text>
@@ -420,6 +426,12 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                 <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                   <Icon name="box" size={8} color="#92400E" strokeWidth={2.5} />
                   <Text style={{ color: '#92400E', fontSize: 9, fontWeight: '800' }}>ANTERAN</Text>
+                </View>
+              )}
+              {pkg.pickup_type === 'buyback' && (
+                <View style={{ backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#C4B5FD', borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Icon name="box" size={8} color="#6D28D9" strokeWidth={2.5} />
+                  <Text style={{ color: '#6D28D9', fontSize: 9, fontWeight: '800' }}>BUYBACK</Text>
                 </View>
               )}
               {!!pkg.driver_refreshed && (

@@ -356,7 +356,7 @@ async function logEvent(pkgId, user, action, detail = '') {
 }
 
 const STATUSES = [
-  'data_masuk', 'absen_ambil_customer', 'absen_gojek', 'mencari_driver',
+  'data_masuk', 'absen_ambil_customer', 'absen_gojek', 'absen_buyback', 'mencari_driver',
   'driver_sampai_kios', 'retur', 'selesai', 'cancel', 'dikirim_ke_gudang', 'diterima_gudang',
 ];
 
@@ -367,6 +367,7 @@ const TAB_FILTERS = {
   scan: { statuses: ['data_masuk'] },
   selfpickup: { statuses: ['absen_ambil_customer'], pickup_type: 'customer' },
   gojek: { statuses: ['absen_gojek', 'mencari_driver', 'driver_sampai_kios', 'selesai'], pickup_type: 'gojek' },
+  buyback: { statuses: ['absen_buyback', 'selesai'], pickup_type: 'buyback' },
   cancelretur: { statuses: ['cancel', 'retur', 'dikirim_ke_gudang', 'diterima_gudang'] },
   selesai: { statuses: ['selesai'] },
 };
@@ -715,9 +716,10 @@ app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'wareh
 // driver_sampai_kios <-> mencari_driver). Satu-satunya pintu PATCH /packages/:id.
 // Endpoint khusus (arrive/ship/receive/bulk) tetap divalidasi mandiri.
 const TRANSITIONS = {
-  data_masuk: ['absen_ambil_customer', 'absen_gojek'],
+  data_masuk: ['absen_ambil_customer', 'absen_gojek', 'absen_buyback'],
   absen_ambil_customer: ['selesai'],
   absen_gojek: ['mencari_driver', 'cancel'],
+  absen_buyback: ['selesai'],
   mencari_driver: ['driver_sampai_kios', 'cancel'],
   driver_sampai_kios: ['selesai', 'mencari_driver', 'cancel'],
   selesai: ['retur'],
@@ -819,7 +821,8 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 
     // Konfirmasi pengambilan (transisi ke selesai) wajib bukti foto
     // 1 wajah + 1 KTP + 1 barang — berlaku untuk gojek maupun self pick up.
-    if (req.body.status === 'selesai') {
+    // KECUALI paket BUYBACK (driver ambil langsung, tanpa foto).
+    if (req.body.status === 'selesai' && pkg.pickup_type !== 'buyback') {
       const chk = await photoStatus(id);
       if (!chk.ok) {
         const need = chk.missing.map((k) => `foto ${PHOTO_LABEL[k]}`).join(', ');
@@ -1005,6 +1008,64 @@ app.post('/api/packages/bulk-arrive', requireAuth, requireRole('admin', 'superad
   }
   notify();
   res.json({ updated: r.rowCount });
+}));
+
+// Buyback: admin paste daftar "AWB/Invoice - PickupCode" (dari MP). Setiap baris
+// dicocokkan ke paket (by invoice ATAU awb, uppercase), lalu dipindah ke jalur
+// buyback: pickup_type='buyback', pickup_code diisi, status='absen_buyback'.
+// Format tiap baris fleksibel: "AWB - KODE", "AWB,KODE", "AWB KODE", dst.
+app.post('/api/packages/buyback-arrive', requireAuth, requireRole('admin', 'superadmin'), wrap(async (req, res) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'Teks daftar buyback kosong' });
+
+  const parseLine = (line) => {
+    const s = String(line).trim();
+    if (!s) return null;
+    // prefer " - " (spasi-tanda-spasi) supaya tidak memotong AWB yang berisi '-'
+    let awb = '', code = '';
+    if (s.includes(' - ')) {
+      [awb, code] = s.split(' - ');
+    } else {
+      const m = s.split(/[\s,;|\t]+/);
+      if (m.length >= 2) { awb = m[0]; code = m.slice(1).join(''); }
+    }
+    awb = awb.trim().toUpperCase();
+    code = code.trim().toUpperCase();
+    if (!awb || !code) return null;
+    return { awb, code };
+  };
+
+  let processed = 0, skipped = 0;
+  const errors = [];
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const parsed = parseLine(line);
+    if (!parsed) { skipped++; errors.push({ line: line.trim(), reason: 'format salah' }); continue; }
+    try {
+      const found = await pool.query(
+        'SELECT id, invoice_no, status, pickup_code FROM packages WHERE invoice_no=$1 OR awb_no=$1',
+        [parsed.awb]);
+      const pkg = found.rows[0];
+      if (!pkg) { skipped++; errors.push({ line: line.trim(), reason: 'paket tidak ditemukan' }); continue; }
+      if (pkg.status !== 'data_masuk') {
+        skipped++; errors.push({ line: line.trim(), reason: `status ${pkg.status} (bukan data_masuk)` }); continue;
+      }
+      const r = await pool.query(
+        `UPDATE packages
+         SET pickup_type='buyback', pickup_code=$2, status='absen_buyback',
+             status_changed_at=now(), updated_at=now()
+         WHERE id=$1 RETURNING id, invoice_no`,
+        [pkg.id, parsed.code]);
+      if (!r.rowCount) { skipped++; errors.push({ line: line.trim(), reason: 'gagal update' }); continue; }
+      await logEvent(pkg.id, req.user, 'buyback_arrive', `AWB/IP ${parsed.awb} -> pickup code ${parsed.code}, status -> absen_buyback`);
+      processed++;
+    } catch (e) {
+      skipped++;
+      errors.push({ line: line.trim(), reason: e.code === '23505' ? 'pickup code sudah dipakai paket lain' : e.message });
+    }
+  }
+  notify();
+  res.json({ processed, skipped, errors: errors.slice(0, 50) });
 }));
 
 // Bulk delete: hapus paket sekaligus (hanya status data_masuk).

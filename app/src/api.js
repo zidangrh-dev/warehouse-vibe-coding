@@ -94,6 +94,7 @@ export const api = {
   kanbanBoard: (q, filters) => api.listPackages('semua', q, { ...(filters || {}), kanban: '1' }),
   arrive: (invoice_no) => req('POST', '/api/packages/arrive', { invoice_no }),
   bulkArrive: (ids) => req('POST', '/api/packages/bulk-arrive', { ids }),
+  buybackArrive: (text) => req('POST', '/api/packages/buyback-arrive', { text }),
   bulkDelete: (ids) => req('DELETE', '/api/packages/bulk', { ids }),
   shipToWarehouse: (code) => req('POST', '/api/packages/ship-to-warehouse', { code }),
   receiveAtWarehouse: (code) => req('POST', '/api/packages/receive-at-warehouse', { code }),

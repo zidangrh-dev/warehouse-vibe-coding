@@ -189,15 +189,18 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   const photos = pkg.photos || [];
   const isGojek = pkg.pickup_type === "gojek";
+  const isBuyback = pkg.pickup_type === "buyback";
   const wajahPhotos = photos.filter((p) => p.kind === "wajah");
   const ktpPhotos = photos.filter((p) => p.kind === "ktp");
   const barangPhotos = photos.filter((p) => p.kind === "barang");
   // Konfirmasi butuh bukti foto:
   //   Gojek        : 1 foto wajah driver + 1 foto KTP driver + 1 foto barang (3 foto)
   //   Self Pick Up : 1 foto pengambil + barang + 1 foto barang (2 foto)
+  //   Buyback      : TANPA foto
   const needsPhotos =
-    (isGojek && pkg.status === "driver_sampai_kios") ||
-    (!isGojek && pkg.status === "absen_ambil_customer");
+    !isBuyback &&
+    ((isGojek && pkg.status === "driver_sampai_kios") ||
+    (!isGojek && pkg.status === "absen_ambil_customer"));
   const photosOk = isGojek
     ? wajahPhotos.length >= 1 &&
       ktpPhotos.length >= 1 &&
@@ -794,7 +797,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               </Field>
             )}
 
-            {(needsPhotos || photos.length > 0) && (
+            {(needsPhotos || (!isBuyback && photos.length > 0)) && (
               <Field label="Bukti foto konfirmasi">
                 {isGojek ? (
                   <>
