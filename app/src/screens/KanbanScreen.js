@@ -23,6 +23,7 @@ import PackageModal from '../PackageModal';
 import { ArchiveModal } from '../ArchiveModal';
 import { CalendarInput } from '../CalendarInput';
 import { useBreakpoint } from '../responsive';
+import { useDebouncedValue } from '../hooks/usePackages';
 import { s } from './styles';
 
 // Urutan kolom = urutan pipeline, kolom terminal (selesai/cancel) di ujung.
@@ -69,6 +70,10 @@ function fmtDate(d) {
   return y && m && dd ? `${dd}/${m}/${y}` : s;
 }
 
+// Cache antar-sesi modul (stale-while-revalidate): kembali ke tab Kanban langsung
+// tampil data lama dulu, lalu di-refresh di belakang — tab terasa instan.
+const kanbanCache = { key: '', items: null };
+
 export default function KanbanScreen({ user }) {
   const { isWeb } = useBreakpoint();
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
@@ -78,6 +83,7 @@ export default function KanbanScreen({ user }) {
   const canShip = isAdmin || isSuperadmin;       // Admin Kios & Super Admin
   const canReceive = isWarehouse || isSuperadmin; // Warehouse & Super Admin
   const [q, setQ] = useState('');
+  const debouncedQ = useDebouncedValue(q, 400);
   const [typeFilter, setTypeFilter] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -117,26 +123,41 @@ export default function KanbanScreen({ user }) {
   };
 
   const load = useCallback(async () => {
+    const cacheKey = `${debouncedQ}|${typeFilter}|${selectedDate || ''}`;
+    // Stale-while-revalidate: tampilkan data cache yang masih sesuai dulu.
+    if (kanbanCache.key === cacheKey && kanbanCache.items?.length) {
+      setItems(kanbanCache.items);
+    }
     try {
-      const res = await api.kanbanBoard(q, {
+      const res = await api.kanbanBoard(debouncedQ, {
         pickup_type: typeFilter,
         ...(selectedDate ? { date: selectedDate } : {}),
       });
-      setItems(res.items || []);
+      kanbanCache.key = cacheKey;
+      kanbanCache.items = res.items || [];
+      setItems(kanbanCache.items);
     } catch (e) {
       notice(`Gagal memuat papan: ${e.message}`);
     } finally {
       setLoading(false);
     }
-  }, [q, typeFilter, selectedDate]);
+  }, [debouncedQ, typeFilter, selectedDate]);
 
   useEffect(() => {
     load();
     loadSummary();
     const socket = getSocket();
-    const onChanged = () => load();
+    // Koalesce burst event socket: banyak perubahan cepat -> cukup satu refetch.
+    const reloadTimerRef = { current: null };
+    const onChanged = () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+      reloadTimerRef.current = setTimeout(() => load(), 400);
+    };
     socket.on('packages:changed', onChanged);
-    return () => socket.off('packages:changed', onChanged);
+    return () => {
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+      socket.off('packages:changed', onChanged);
+    };
   }, [load, loadSummary]);
 
   const byStatus = useMemo(() => {
@@ -166,10 +187,15 @@ export default function KanbanScreen({ user }) {
       return;
     }
     try {
-      await api.updatePackage(pkg.id, { status: target, ...(extraData || {}) });
+      await api.updatePackage(pkg.id, { status: target, ...(extraData || {}), baseUpdatedAt: pkg.updated_at });
       load();
     } catch (e) {
-      notice(e.message);
+      if (e && e.status === 409) {
+        notice("Data diubah pengguna lain — memuat ulang...");
+        load();
+      } else {
+        notice(e.message);
+      }
     }
   };
 
@@ -179,10 +205,16 @@ export default function KanbanScreen({ user }) {
         status: 'driver_sampai_kios',
         driver_info: info.trim(),
         ...(String(code || '').trim() ? { pickup_code: String(code).trim() } : {}),
+        baseUpdatedAt: pkg.updated_at,
       });
       load();
     } catch (e) {
-      notice(e.message);
+      if (e && e.status === 409) {
+        notice("Data diubah pengguna lain — memuat ulang...");
+        load();
+      } else {
+        notice(e.message);
+      }
     }
   };
 
@@ -530,6 +562,11 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
               <Text style={kb.refreshBadgeText}>REFRESH</Text>
             </View>
           )}
+          {!!pkg.is_hold && (
+            <View style={kb.holdBadge}>
+              <Text style={kb.holdBadgeText}>HOLD</Text>
+            </View>
+          )}
           {!!pkg.done_by && (
             <View style={kb.nameTag}>
               <Text style={kb.nameTagText} numberOfLines={1}>{pkg.done_by}</Text>
@@ -740,6 +777,8 @@ const kb = StyleSheet.create({
   codeChip: { alignSelf: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10.5, fontWeight: '700', color: colors.primary },
   refreshBadge: { alignSelf: 'flex-start', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
   refreshBadgeText: { color: colors.danger, fontSize: 9.5, fontWeight: '800' },
+  holdBadge: { alignSelf: 'flex-start', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  holdBadgeText: { color: '#B45309', fontSize: 9.5, fontWeight: '800' },
   nameTag: { alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, maxWidth: 130 },
   nameTagText: { color: colors.primary, fontSize: 9.5, fontWeight: '800' },
   driverChip: { alignSelf: 'flex-start', marginTop: 4, fontSize: 10.5, fontWeight: '700', color: colors.primary },

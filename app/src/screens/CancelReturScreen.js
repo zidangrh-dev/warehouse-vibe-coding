@@ -108,10 +108,11 @@ export default function CancelReturScreen({ user }) {
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
         onPress={async () => {
           try {
-            await api.updatePackage(pkg.id, { status: next.to });
+            await api.updatePackage(pkg.id, { status: next.to, baseUpdatedAt: pkg.updated_at });
             refetch();
           } catch (e) {
-            notice(e.message);
+            if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); refetch(); }
+            else notice(e.message);
           }
         }}
       >

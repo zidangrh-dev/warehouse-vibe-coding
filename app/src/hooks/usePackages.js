@@ -9,7 +9,7 @@ const SEARCH_DEBOUNCE_MS = 350;
 // Menunda nilai sampai user berhenti mengetik, agar tidak request server per
 // ketukan. Khusus untuk pencarian atas (`q`); filter kolom sudah di-debounce
 // di PackageTable (500ms).
-function useDebouncedValue(value, delay) {
+export function useDebouncedValue(value, delay) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
     const t = setTimeout(() => setDebounced(value), delay);

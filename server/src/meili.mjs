@@ -101,7 +101,7 @@ export async function searchPackages(q, filters = {}) {
         'platform', 'courier', 'pickup_type', 'status', 'pickup_code', 'admin_note',
         'picker_name', 'source', 'received_at', 'done_at', 'created_at', 'updated_at',
         'gojek_at', 'archived', 'archived_at', 'driver_info', 'driver_locked', 'driver_refreshed',
-        'done_by',
+        'done_by', 'is_hold',
       ],
     };
     if (filterStr) opts.filter = filterStr;

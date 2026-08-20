@@ -32,21 +32,25 @@ export default function GojekScreen({ user }) {
       <TouchableOpacity
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
         onPress={async () => {
+          const fail = (e) => {
+            if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); refetch(); }
+            else notice(e.message);
+          };
           if (next.to === 'selesai' || next.to === 'retur' || next.to === 'cancel') return setOpenId(pkg.id);
           if (next.to === 'driver_sampai_kios') {
             try {
-              await api.updatePackage(pkg.id, { status: next.to });
+              await api.updatePackage(pkg.id, { status: next.to, baseUpdatedAt: pkg.updated_at });
               refetch();
             } catch (e) {
-              notice(e.message);
+              fail(e);
             }
             return;
           }
           try {
-            await api.updatePackage(pkg.id, { status: next.to });
+            await api.updatePackage(pkg.id, { status: next.to, baseUpdatedAt: pkg.updated_at });
             refetch();
           } catch (e) {
-            notice(e.message);
+            fail(e);
           }
         }}
       >

@@ -111,6 +111,11 @@ export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
             <Text style={s.refreshBadgeText}>REFRESH</Text>
           </View>
         )}
+        {!!pkg.is_hold && (
+          <View style={s.holdBadge}>
+            <Text style={s.holdBadgeText}>HOLD</Text>
+          </View>
+        )}
         <NameTag pkg={pkg} />
         {!!pkg.driver_info && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -415,6 +420,11 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
               {!!pkg.driver_refreshed && (
                 <View style={s.refreshBadge}>
                   <Text style={s.refreshBadgeText}>REFRESH</Text>
+                </View>
+              )}
+              {!!pkg.is_hold && (
+                <View style={s.holdBadge}>
+                  <Text style={s.holdBadgeText}>HOLD</Text>
                 </View>
               )}
               <NameTag pkg={pkg} />
@@ -932,13 +942,14 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
     if (busy) return;
     setBusy(true);
     try {
-      await api.updatePackage(pkg.id, { done_by: name });
+      await api.updatePackage(pkg.id, { done_by: name, baseUpdatedAt: pkg.updated_at });
       notice(name ? `Diproses oleh: ${name}` : 'Tanda nama dihapus');
       onPicked?.(name);
       onChanged?.();
       onClose();
     } catch (e) {
-      notice(e.message);
+      if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); onChanged?.(); }
+      else notice(e.message);
     } finally {
       setBusy(false);
     }
@@ -1134,6 +1145,8 @@ export const s = StyleSheet.create({
   codeChip: { color: colors.sub, fontSize: 11.5, fontWeight: '700', fontFamily: font.mono },
   refreshBadge: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
   refreshBadgeText: { color: colors.danger, fontSize: 9, fontWeight: '800' },
+  holdBadge: { backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  holdBadgeText: { color: '#B45309', fontSize: 9, fontWeight: '800' },
   nameTag: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD',

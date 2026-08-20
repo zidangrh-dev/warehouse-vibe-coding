@@ -114,6 +114,9 @@ UPDATE packages SET status='selesai' WHERE status='done_pickup';
 -- Flag manual "REFRESH": menandai bahwa driver pernah diganti/cancel di tengah alur.
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_refreshed BOOLEAN NOT NULL DEFAULT false;
 
+-- Flag manual "HOLD": menandai paket yang ditahan/di-pause sementara.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS is_hold BOOLEAN NOT NULL DEFAULT false;
+
 -- Migrasi constraint pickup_type: dukung 'anteran' (kurir internal).
 -- Idempoten — selalu aman dijalankan saat restart server.
 ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_pickup_type_check;
@@ -136,6 +139,9 @@ UPDATE packages SET status='driver_sampai_kios' WHERE status='data_driver_ready'
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
 CREATE INDEX IF NOT EXISTS idx_packages_pickup_code ON packages(pickup_code);
+-- Kanban & daftar mengurutkan paket terbaru; tanpa index ini Postgres full-scan
+-- + sort seluruh tabel setiap papan dibuka.
+CREATE INDEX IF NOT EXISTS idx_packages_kanban_updated ON packages (id DESC) WHERE archived = false;
 CREATE INDEX IF NOT EXISTS idx_events_package ON package_events(package_id);
 
 -- Daftar nama staf kios (dikelola admin) sebagai pilihan penanda siapa yang

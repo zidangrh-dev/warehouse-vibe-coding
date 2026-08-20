@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import { api, uploadPhoto, photoUrl } from "./api";
+import { api, uploadPhoto, photoUrl, getSocket } from "./api";
 import {
   colors,
   radius,
@@ -52,6 +52,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
   const [driverInfo, setDriverInfo] = useState("");
   const [driverRefreshed, setDriverRefreshed] = useState(false);
+  const [isHold, setIsHold] = useState(false);
   const [confirmAnteranOpen, setConfirmAnteranOpen] = useState(false);
   const [doneByOpen, setDoneByOpen] = useState(false);
   const [confirmAfterName, setConfirmAfterName] = useState(false);
@@ -64,11 +65,40 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setCodeVal(p.pickup_code || "");
     setDriverInfo(p.driver_info || "");
     setDriverRefreshed(!!p.driver_refreshed);
+    setIsHold(!!p.is_hold);
     setEditingCode(false);
   };
   useEffect(() => {
     load();
   }, [pkgId]);
+
+  // Konflik versi (HTTP 409 dari guard updated_at): data diubah pengguna lain
+  // yang serentak — muat ulang diam-diam supaya tidak menimpa data basi.
+  const reloadOnConflict = async (e) => {
+    if (e && e.status === 409) {
+      notice("Data diubah pengguna lain — memuat ulang...");
+      try { await load(); } catch {}
+      return true;
+    }
+    return false;
+  };
+
+  // Realtime: kalau paket berubah di tab/device lain saat modal terbuka dan
+  // tidak ada draf yang belum tersimpan -> muat ulang otomatis.
+  useEffect(() => {
+    if (!pkgId || !pkg) return;
+    const socket = getSocket();
+    const handler = () => {
+      const dirty =
+        note.trim() !== (pkg.admin_note || "").trim() ||
+        codeVal !== (pkg.pickup_code || "") ||
+        driverInfo.trim() !== (pkg.driver_info || "").trim();
+      if (dirty) return; // jangan ganggu yang sedang mengetik; dilindungi 409.
+      load();
+    };
+    socket.on("packages:changed", handler);
+    return () => socket.off("packages:changed", handler);
+  }, [pkgId, pkg, note, codeVal, driverInfo, load]);
 
   // Auto-save admin note: debounce 700ms, lalu flush saat Tutup/close.
   // WAJIB di atas early-return — hook tidak boleh conditional.
@@ -83,10 +113,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     if (cur === noteLastSavedRef.current) return;
     noteLastSavedRef.current = cur;
     api
-      .updatePackage(pkg.id, { admin_note: cur })
+      .updatePackage(pkg.id, { admin_note: cur, baseUpdatedAt: pkg.updated_at })
       .then(onChanged)
-      .catch((e) => notice(e.message));
-  }, [pkg, note, onChanged]);
+      .catch(async (e) => { if (!(await reloadOnConflict(e))) notice(e.message); });
+  }, [pkg, note, onChanged, reloadOnConflict]);
 
   const onChangeNote = (v) => {
     setNote(v);
@@ -110,20 +140,26 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           await api.updatePackage(pkg.id, {
             driver_info: driverInfo.trim(),
             driver_refreshed: driverRefreshed,
+            baseUpdatedAt: pkg.updated_at,
           });
           onChanged();
         }
+      }
+const holdChanged = isHold !== !!pkg.is_hold;
+      if (holdChanged) {
+        await api.updatePackage(pkg.id, { is_hold: isHold, baseUpdatedAt: pkg.updated_at });
+        onChanged();
       }
       const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
       if (canEditCode) {
         const codeChanged = !!codeVal.trim() && codeVal.trim() !== (pkg.pickup_code || '').trim();
         if (codeChanged) {
-          await api.updatePackage(pkg.id, { pickup_code: codeVal.trim() });
+          await api.updatePackage(pkg.id, { pickup_code: codeVal.trim(), baseUpdatedAt: pkg.updated_at });
           onChanged();
         }
       }
     } catch (e) {
-      notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message);
     }
   };
 
@@ -385,11 +421,14 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           payload.driver_refreshed = driverRefreshed;
         }
       }
-      await api.updatePackage(pkg.id, payload);
+      if (!lockDriver && isHold !== !!pkg.is_hold) {
+        payload.is_hold = isHold;
+      }
+      await api.updatePackage(pkg.id, { ...payload, baseUpdatedAt: pkg.updated_at });
       onChanged();
       await load();
     } catch (e) {
-      notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message);
     } finally {
       setBusy(false);
     }
@@ -398,12 +437,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const saveCode = async () => {
     setBusy(true);
     try {
-      await api.updatePackage(pkg.id, { pickup_code: codeVal.trim() });
+      await api.updatePackage(pkg.id, { pickup_code: codeVal.trim(), baseUpdatedAt: pkg.updated_at });
       onChanged();
       await load();
       notice("Pickup code berhasil disimpan!");
     } catch (e) {
-      notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message);
     } finally {
       setBusy(false);
     }
@@ -413,13 +452,13 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     if (busy) return;
     setBusy(true);
     try {
-      await api.updatePackage(pkg.id, { pickup_type: 'customer', status: 'absen_ambil_customer' });
+      await api.updatePackage(pkg.id, { pickup_type: 'customer', status: 'absen_ambil_customer', baseUpdatedAt: pkg.updated_at });
       notice('Jenis ambilan berhasil diubah menjadi Ambil Customer!');
       setConfirmAnteranOpen(false);
       onChanged();
       await load();
     } catch (e) {
-      notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message);
     } finally {
       setBusy(false);
     }
@@ -431,12 +470,14 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       await api.updatePackage(pkg.id, {
         driver_info: driverInfo.trim(),
         driver_refreshed: driverRefreshed,
+        is_hold: isHold,
+        baseUpdatedAt: pkg.updated_at,
       });
       notice("Data driver tersimpan");
       onChanged();
       await load();
     } catch (e) {
-      notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message);
     } finally {
       setBusy(false);
     }
@@ -685,28 +726,29 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   multiline
                 />
                 {canAct && !lockDriver && (
-                  <TouchableOpacity
-                    style={{
-                      alignSelf: 'flex-start',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 6,
-                      marginTop: 8,
-                      marginBottom: 4,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: radius.pill,
-                      backgroundColor: driverRefreshed ? '#FEF2F2' : colors.surfaceAlt,
-                      borderWidth: 1.5,
-                      borderColor: driverRefreshed ? colors.danger : colors.border,
-                    }}
-                    onPress={() => setDriverRefreshed(!driverRefreshed)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: driverRefreshed ? colors.danger : colors.sub }}>
-                      {driverRefreshed ? '✓ REFRESH (Driver Berganti)' : '+ Tag REFRESH (Driver Berganti)'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <TouchableOpacity
+                      style={{
+                        alignSelf: 'flex-start',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: radius.pill,
+                        backgroundColor: driverRefreshed ? '#FEF2F2' : colors.surfaceAlt,
+                        borderWidth: 1.5,
+                        borderColor: driverRefreshed ? colors.danger : colors.border,
+                      }}
+                      onPress={() => setDriverRefreshed(!driverRefreshed)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: driverRefreshed ? colors.danger : colors.sub }}>
+                        {driverRefreshed ? '✓ REFRESH (Driver Berganti)' : '+ Tag REFRESH (Driver Berganti)'}
+                      </Text>
+                    </TouchableOpacity>
+                    <HoldChip active={isHold} onPress={() => setIsHold(!isHold)} />
+                  </View>
                 )}
                 {canAct && !lockDriver && (
                   <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
@@ -716,6 +758,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 {lockDriver && (
                   <Text style={s.hint}>Data driver terkunci setelah transaksi tuntas.</Text>
                 )}
+              </Field>
+            )}
+
+            {!isGojek && canAct && !lockDriver && (
+              <Field label="Penanda Paket">
+                <HoldChip active={isHold} onPress={() => setIsHold(!isHold)} />
               </Field>
             )}
 
@@ -983,6 +1031,32 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         </Modal>
       )}
     </Modal>
+  );
+}
+
+// Chip toggle "HOLD" — bentuk persis seperti chip REFRESH, warna amber.
+function HoldChip({ active, onPress }) {
+  return (
+    <TouchableOpacity
+      style={{
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: radius.pill,
+        backgroundColor: active ? '#FFFBEB' : colors.surfaceAlt,
+        borderWidth: 1.5,
+        borderColor: active ? '#F59E0B' : colors.border,
+      }}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <Text style={{ fontSize: 12, fontWeight: '800', color: active ? '#B45309' : colors.sub }}>
+        {active ? '✓ HOLD (Paket Ditahan)' : '+ Tag HOLD (Paket Ditahan)'}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
