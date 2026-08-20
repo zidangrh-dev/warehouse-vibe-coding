@@ -202,6 +202,8 @@ const holdChanged = isHold !== !!pkg.is_hold;
   // Data driver WAJIB terisi sebelum konfirmasi (paket gojek).
   const driverReady = !!String(pkg.driver_info || "").trim();
   const driverLocked = isGojek && pkg.status === "driver_sampai_kios" && !driverReady;
+  // Tombol "Batalkan Paket" — khusus status gojek aktif yang bisa dicancel marketplace.
+  const canCancelFromStatus = ["absen_gojek", "mencari_driver", "driver_sampai_kios"].includes(pkg.status) && !isArchived;
 
   // Fallback upload: file asli tanpa resize (dipakai kalau resize gagal/gantung di web).
   const fallbackPhotoBody = (rawAsset) => ({
@@ -826,7 +828,7 @@ const holdChanged = isHold !== !!pkg.is_hold;
 
             {busy && <ActivityIndicator style={{ marginTop: 8 }} />}
 
-            {canAct && actions.length > 0 && (
+            {canAct && (actions.length > 0 || canCancelFromStatus) && (
               <Field label="Aksi">
                 {actions.map((a) => {
                   const locked =
@@ -879,6 +881,15 @@ const holdChanged = isHold !== !!pkg.is_hold;
                     </TouchableOpacity>
                   );
                 })}
+                {canCancelFromStatus && actions.some((a) => a.to !== "cancel") && (
+                  <TouchableOpacity
+                    style={[s.actionBtn, { backgroundColor: statusColor("cancel") }]}
+                    onPress={() => setPendingStatus("cancel")}
+                    disabled={busy}
+                  >
+                    <Text style={s.btnText}>Batalkan Paket</Text>
+                  </TouchableOpacity>
+                )}
               </Field>
             )}
 

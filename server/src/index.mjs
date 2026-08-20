@@ -717,9 +717,9 @@ app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'wareh
 const TRANSITIONS = {
   data_masuk: ['absen_ambil_customer', 'absen_gojek'],
   absen_ambil_customer: ['selesai'],
-  absen_gojek: ['mencari_driver'],
-  mencari_driver: ['driver_sampai_kios'],
-  driver_sampai_kios: ['selesai', 'mencari_driver'],
+  absen_gojek: ['mencari_driver', 'cancel'],
+  mencari_driver: ['driver_sampai_kios', 'cancel'],
+  driver_sampai_kios: ['selesai', 'mencari_driver', 'cancel'],
   selesai: ['retur'],
   retur: ['mencari_driver', 'cancel'],
   cancel: ['dikirim_ke_gudang'],
