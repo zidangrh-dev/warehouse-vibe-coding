@@ -47,9 +47,6 @@ const TYPE_CHIPS = [
   { label: 'Anteran', icon: 'box', value: 'anteran' },
 ];
 
-// Status gojek aktif yang boleh dibatalkan langsung (case marketplace cancel).
-const CAN_CANCEL_STATUSES = ['absen_gojek', 'mencari_driver', 'driver_sampai_kios'];
-
 const allowedTargets = (status) => {
   const targets = (NEXT_ACTIONS[status] || []).map((a) => a.to);
   // Kanban: geser bolak-balik mencari_driver <-> driver_sampai_kios.
@@ -622,16 +619,6 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
             activeOpacity={0.85}
           >
             <Text style={kb.miniBtnText} numberOfLines={1}>Kembali ke Mencari Driver</Text>
-          </TouchableOpacity>
-        )}
-
-        {CAN_CANCEL_STATUSES.includes(pkg.status) && (
-          <TouchableOpacity
-            style={[kb.miniBtn, { backgroundColor: statusColor('cancel') }]}
-            onPress={onOpen}
-            activeOpacity={0.85}
-          >
-            <Text style={kb.miniBtnText} numberOfLines={1}>Batalkan Paket</Text>
           </TouchableOpacity>
         )}
 

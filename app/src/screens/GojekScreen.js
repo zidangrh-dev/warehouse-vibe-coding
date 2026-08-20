@@ -32,6 +32,23 @@ export default function GojekScreen({ user }) {
     const next = (NEXT_ACTIONS[pkg.status] || [])[0];
     if (!next || !isAdmin) return null;
     const canCancel = CAN_CANCEL_STATUSES.includes(pkg.status);
+    const canShiftBack = pkg.status === 'driver_sampai_kios';
+    const reverse = canShiftBack && (
+      <TouchableOpacity
+        style={[s.rowBtn, { backgroundColor: statusColor('mencari_driver') }]}
+        onPress={async () => {
+          try {
+            await api.updatePackage(pkg.id, { status: 'mencari_driver', baseUpdatedAt: pkg.updated_at });
+            refetch();
+          } catch (e) {
+            if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); refetch(); }
+            else notice(e.message);
+          }
+        }}
+      >
+        <Text style={s.rowBtnText}>Kembali</Text>
+      </TouchableOpacity>
+    );
     const primary = (
       <TouchableOpacity
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
@@ -61,16 +78,19 @@ export default function GojekScreen({ user }) {
         <Text style={s.rowBtnText}>{next.label}</Text>
       </TouchableOpacity>
     );
-    if (!canCancel) return primary;
+    if (!canCancel && !reverse) return primary;
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         {primary}
-        <TouchableOpacity
-          style={[s.rowBtn, { backgroundColor: statusColor('cancel') }]}
-          onPress={() => setOpenId(pkg.id)}
-        >
-          <Text style={s.rowBtnText}>Cancel</Text>
-        </TouchableOpacity>
+        {reverse}
+        {canCancel && (
+          <TouchableOpacity
+            style={[s.rowBtn, { backgroundColor: statusColor('cancel') }]}
+            onPress={() => setOpenId(pkg.id)}
+          >
+            <Text style={s.rowBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };

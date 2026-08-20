@@ -204,6 +204,8 @@ const holdChanged = isHold !== !!pkg.is_hold;
   const driverLocked = isGojek && pkg.status === "driver_sampai_kios" && !driverReady;
   // Tombol "Batalkan Paket" — khusus status gojek aktif yang bisa dicancel marketplace.
   const canCancelFromStatus = ["absen_gojek", "mencari_driver", "driver_sampai_kios"].includes(pkg.status) && !isArchived;
+  // Geser balik driver_sampai_kios -> mencari_driver (sama seperti di Kanban).
+  const canShiftBackStatus = pkg.status === "driver_sampai_kios" && !isArchived;
 
   // Fallback upload: file asli tanpa resize (dipakai kalau resize gagal/gantung di web).
   const fallbackPhotoBody = (rawAsset) => ({
@@ -828,7 +830,7 @@ const holdChanged = isHold !== !!pkg.is_hold;
 
             {busy && <ActivityIndicator style={{ marginTop: 8 }} />}
 
-            {canAct && (actions.length > 0 || canCancelFromStatus) && (
+            {canAct && (actions.length > 0 || canCancelFromStatus || canShiftBackStatus) && (
               <Field label="Aksi">
                 {actions.map((a) => {
                   const locked =
@@ -881,6 +883,15 @@ const holdChanged = isHold !== !!pkg.is_hold;
                     </TouchableOpacity>
                   );
                 })}
+                {canShiftBackStatus && !actions.some((a) => a.to === "mencari_driver") && (
+                  <TouchableOpacity
+                    style={[s.actionBtn, { backgroundColor: statusColor("mencari_driver") }]}
+                    onPress={() => setStatus("mencari_driver")}
+                    disabled={busy}
+                  >
+                    <Text style={s.btnText}>Kembali ke Mencari Driver</Text>
+                  </TouchableOpacity>
+                )}
                 {canCancelFromStatus && actions.some((a) => a.to !== "cancel") && (
                   <TouchableOpacity
                     style={[s.actionBtn, { backgroundColor: statusColor("cancel") }]}
