@@ -136,12 +136,16 @@ UPDATE packages SET driver_locked=true
 -- Idempoten: tidak mengubah apa pun pada run berikutnya.
 UPDATE packages SET status='driver_sampai_kios' WHERE status='data_driver_ready';
 
+-- Jam terakhir kali status/kolom berubah (dipakai untuk urutan Kanban: paket baru digeser -> paling atas)
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMPTZ DEFAULT now();
+UPDATE packages SET status_changed_at = updated_at WHERE status_changed_at IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_packages_awb ON packages(awb_no);
 CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
 CREATE INDEX IF NOT EXISTS idx_packages_pickup_code ON packages(pickup_code);
--- Kanban & daftar mengurutkan paket terbaru; tanpa index ini Postgres full-scan
--- + sort seluruh tabel setiap papan dibuka.
-CREATE INDEX IF NOT EXISTS idx_packages_kanban_updated ON packages (id DESC) WHERE archived = false;
+-- Kanban & daftar mengurutkan paket berdasarkan jam pergeseran status & id terbaru;
+-- tanpa index ini Postgres full-scan + sort seluruh tabel setiap papan dibuka.
+CREATE INDEX IF NOT EXISTS idx_packages_kanban_updated ON packages (status_changed_at DESC, id DESC) WHERE archived = false;
 CREATE INDEX IF NOT EXISTS idx_events_package ON package_events(package_id);
 
 -- Daftar nama staf kios (dikelola admin) sebagai pilihan penanda siapa yang

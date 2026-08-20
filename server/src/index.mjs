@@ -375,7 +375,7 @@ const TAB_FILTERS = {
 const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
   platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
   received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at,
-  driver_info, driver_locked, driver_refreshed, done_by, is_hold`;
+  driver_info, driver_locked, driver_refreshed, done_by, is_hold, status_changed_at`;
 
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
@@ -575,10 +575,12 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   // Mode Kanban: kembalikan seluruh baris aktif tanpa paginasi (cap aman 2000)
   // supaya papan bisa menampilkan semua kolom status sekaligus. Total = jumlah
   // baris (tidak perlu query count terpisah yang full-scan di sini).
-  // Diurutkan berdasarkan `id DESC` agar posisi kartu stabil & tidak melompat saat diubah.
+  // Diurutkan berdasarkan `status_changed_at DESC, id DESC` agar paket yang baru
+  // digeser/pindah status langsung berada di PALING ATAS di kolom barunya,
+  // sementara edit data di tempat (driver/catatan/kode/tag) tidak mengubah posisi kartu.
   if (req.query.kanban === '1') {
     const r = await pool.query(
-      `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages ${where} ORDER BY id DESC LIMIT 2000`, values);
+      `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages ${where} ORDER BY COALESCE(status_changed_at, created_at) DESC, id DESC LIMIT 2000`, values);
     return res.json({ items: r.rows, total: r.rows.length, page: 1, pageSize: 2000, searching });
   }
 
@@ -838,6 +840,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     }
     // Status 'driver_sampai_kios' tidak lagi membutuhkan validasi data driver.
     // Catat jam masuk antrian ambilan gojek.
+    if ('status' in req.body && req.body.status !== pkg.status) sets.push('status_changed_at=now()');
     if (req.body.status === 'absen_gojek') sets.push('gojek_at=now()');
     if (req.body.status === 'selesai') sets.push('done_at=now()');
     // Konfirmasi (selesai) = data driver terkunci PERMANEN (walau retur & diantrikan lagi).
@@ -979,7 +982,7 @@ app.post('/api/packages/arrive', requireAuth, requireRole('admin', 'superadmin')
   // Anteran otomatis jadi customer (self pickup) setelah discan.
   const newPickupType = pkg.pickup_type === 'anteran' ? 'customer' : pkg.pickup_type;
   const r = await pool.query(
-    `UPDATE packages SET status=$2, pickup_type=$3, received_at=now(),
+    `UPDATE packages SET status=$2, pickup_type=$3, received_at=now(), status_changed_at=now(),
        gojek_at = CASE WHEN $2='absen_gojek' THEN now() ELSE gojek_at END,
        updated_at=now() WHERE id=$1 RETURNING *`,
     [pkg.id, st, newPickupType]);
@@ -993,7 +996,7 @@ app.post('/api/packages/bulk-arrive', requireAuth, requireRole('admin', 'superad
   const { ids } = req.body;
   if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids wajib array' });
   const r = await pool.query(
-    `UPDATE packages SET status='absen_ambil_customer', pickup_type='customer', updated_at=now()
+    `UPDATE packages SET status='absen_ambil_customer', pickup_type='customer', status_changed_at=now(), updated_at=now()
      WHERE id = ANY($1::int[]) AND pickup_type='anteran' AND status='data_masuk'
      RETURNING id`, [ids]);
   if (r.rowCount > 0) {
@@ -1030,7 +1033,7 @@ app.post('/api/packages/ship-to-warehouse', requireAuth, requireRole('admin', 's
   }
 
   const r = await pool.query(
-    `UPDATE packages SET status='dikirim_ke_gudang', updated_at=now() WHERE id=$1 RETURNING *`,
+    `UPDATE packages SET status='dikirim_ke_gudang', status_changed_at=now(), updated_at=now() WHERE id=$1 RETURNING *`,
     [pkg.id]
   );
   await logEvent(pkg.id, req.user, 'dikirim_ke_gudang', 'Admin Kios menyerahkan fisik barang cancel ke Kurir untuk dikirim ke Gudang Utama');
@@ -1052,7 +1055,7 @@ app.post('/api/packages/receive-at-warehouse', requireAuth, requireRole('warehou
   }
 
   const r = await pool.query(
-    `UPDATE packages SET status='diterima_gudang', updated_at=now() WHERE id=$1 RETURNING *`,
+    `UPDATE packages SET status='diterima_gudang', status_changed_at=now(), updated_at=now() WHERE id=$1 RETURNING *`,
     [pkg.id]
   );
   await logEvent(pkg.id, req.user, 'diterima_gudang', 'Tim Warehouse menerima fisik barang cancel di Gudang Utama');
