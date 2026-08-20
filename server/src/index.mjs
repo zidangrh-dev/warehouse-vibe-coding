@@ -1140,6 +1140,7 @@ function mapRow(row) {
 
 // Jenis ambilan ditentukan dari nama kurir (kolom "Courier Name" VEF):
 //   - "Ambil Customer Langsung" (mengandung "ambil")            -> 'customer'
+//   - "Shipped by Seller" (dikirim langsung penjual)            -> 'customer'
 //   - Gojek / Grab / GoSend serta SPX Instant & SPX Same Day    -> 'gojek'
 //   - Ambil di Kios / Self Pickup                                -> 'customer'
 //   - Kurir Internal                                            -> 'anteran'
@@ -1147,7 +1148,7 @@ function mapRow(row) {
 function classifyPickup(courierName) {
   const c = (courierName || '').toLowerCase();
   if (!c) return null;
-  if (c.includes('ambil')) return 'customer';
+  if (c.includes('ambil') || c.includes('shipped by seller') || c.includes('ship by seller') || c.includes('shippedbyseller')) return 'customer';
   if (c.includes('kurir internal') || c.includes('internal')) return 'anteran';
   if (c.includes('spx')) {
     return /instant|same[\s-]*day/.test(c) ? 'gojek' : null;
