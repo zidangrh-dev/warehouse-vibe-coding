@@ -276,74 +276,19 @@ export async function importCsvProgress(fileAsset, onProgress) {
     return finalRes;
   }
 
-  let allRows = parseCsvRows(text);
-
-  // Deduplikasi baris berdasarkan kolom invoice — hanya simpan kemunculan PERTAMA
-  // agar tidak ada ping-pong update antar batch yang punya invoice sama tapi data beda
-  const INVOICE_KEYS = ['no online order', 'no_online_order', 'id', 'invoice', 'no_invoice', 'no invoice', 'invoice_no', 'no. invoice', 'booking id'];
-  const fixSci = (v) => {
-    const s = String(v || '').trim();
-    if (/^[\d.]+[eE][+-]?\d+$/.test(s)) { try { const n = Number(s); if (Number.isFinite(n)) return n.toLocaleString('fullwide', { useGrouping: false }); } catch {} }
-    return s;
-  };
-  const findInvoiceVal = (row) => {
-    for (const key of Object.keys(row)) {
-      if (INVOICE_KEYS.includes(key.toLowerCase().trim())) return fixSci(row[key]);
-    }
-    return '';
-  };
-  const seenInvoices = new Set();
-  allRows = allRows.filter(row => {
-    const inv = findInvoiceVal(row);
-    if (!inv) return true; // baris tanpa invoice tetap dikirim, server yang handle
-    if (seenInvoices.has(inv)) return false;
-    seenInvoices.add(inv);
-    return true;
-  });
-
-  const total = allRows.length;
-  if (!total) {
-    const res = await importCsv(fileAsset);
-    const finalRes = { ...res, done: true, processed: res.total || 0, percent: 100 };
-    onProgress?.(finalRes);
-    return finalRes;
-  }
-
-  const BATCH_SIZE = 25;
-  let inserted = 0, updated = 0, skipped = 0, skippedCourier = 0;
-
-  for (let i = 0; i < total; i += BATCH_SIZE) {
-    const batch = allRows.slice(i, i + BATCH_SIZE);
-    const currentProcessed = Math.min(i + batch.length, total);
-
-    onProgress?.({
-      processed: currentProcessed,
-      total,
-      percent: Math.round((currentProcessed / total) * 100),
-      inserted,
-      updated,
-      skipped: skipped + skippedCourier,
-      done: false,
-    });
-
-    const res = await req('POST', '/api/packages/import', { rows: batch });
-    inserted += res.inserted || 0;
-    updated += res.updated || 0;
-    skipped += res.skipped || 0;
-    skippedCourier += res.skippedCourier || 0;
-  }
-
+  // Kirim langsung teks CSV mentah ke server (server memparse dengan csv-parse resmi yang mendukung multiline & quote)
+  onProgress?.({ processed: 0, total: 100, percent: 50, inserted: 0, updated: 0, skipped: 0, done: false });
+  const res = await req('POST', '/api/packages/import', { csvText: text });
   const finalResult = {
-    inserted,
-    updated,
-    skipped: skipped + skippedCourier,
-    skippedCourier,
-    total,
+    inserted: res.inserted || 0,
+    updated: res.updated || 0,
+    skipped: res.skipped || 0,
+    skippedCourier: res.skippedCourier || 0,
+    total: res.total || 0,
     percent: 100,
-    processed: total,
+    processed: res.total || 0,
     done: true,
   };
-
   onProgress?.(finalResult);
   return finalResult;
 }
