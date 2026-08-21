@@ -17,9 +17,6 @@ const CHIP_STATUSES = [
   { label: 'Selesai', status: 'selesai' },
 ];
 
-// Status gojek aktif yang boleh dibatalkan langsung (case marketplace cancel).
-const CAN_CANCEL_STATUSES = ['absen_gojek', 'mencari_driver', 'driver_sampai_kios'];
-
 export default function GojekScreen({ user }) {
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
@@ -31,25 +28,7 @@ export default function GojekScreen({ user }) {
   const rowAction = (pkg) => {
     const next = (NEXT_ACTIONS[pkg.status] || [])[0];
     if (!next || !isAdmin) return null;
-    const canCancel = CAN_CANCEL_STATUSES.includes(pkg.status);
-    const canShiftBack = pkg.status === 'driver_sampai_kios';
-    const reverse = canShiftBack && (
-      <TouchableOpacity
-        style={[s.rowBtn, { backgroundColor: statusColor('mencari_driver') }]}
-        onPress={async () => {
-          try {
-            await api.updatePackage(pkg.id, { status: 'mencari_driver', baseUpdatedAt: pkg.updated_at });
-            refetch();
-          } catch (e) {
-            if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); refetch(); }
-            else notice(e.message);
-          }
-        }}
-      >
-        <Text style={s.rowBtnText}>Kembali</Text>
-      </TouchableOpacity>
-    );
-    const primary = (
+    return (
       <TouchableOpacity
         style={[s.rowBtn, { backgroundColor: statusColor(next.to) }]}
         onPress={async () => {
@@ -58,15 +37,6 @@ export default function GojekScreen({ user }) {
             else notice(e.message);
           };
           if (next.to === 'selesai' || next.to === 'retur' || next.to === 'cancel') return setOpenId(pkg.id);
-          if (next.to === 'driver_sampai_kios') {
-            try {
-              await api.updatePackage(pkg.id, { status: next.to, baseUpdatedAt: pkg.updated_at });
-              refetch();
-            } catch (e) {
-              fail(e);
-            }
-            return;
-          }
           try {
             await api.updatePackage(pkg.id, { status: next.to, baseUpdatedAt: pkg.updated_at });
             refetch();
@@ -77,21 +47,6 @@ export default function GojekScreen({ user }) {
       >
         <Text style={s.rowBtnText}>{next.label}</Text>
       </TouchableOpacity>
-    );
-    if (!canCancel && !reverse) return primary;
-    return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        {primary}
-        {reverse}
-        {canCancel && (
-          <TouchableOpacity
-            style={[s.rowBtn, { backgroundColor: statusColor('cancel') }]}
-            onPress={() => setOpenId(pkg.id)}
-          >
-            <Text style={s.rowBtnText}>Cancel</Text>
-          </TouchableOpacity>
-        )}
-      </View>
     );
   };
 
