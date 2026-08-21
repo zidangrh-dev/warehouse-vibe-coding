@@ -256,6 +256,7 @@ export default function KanbanScreen({ user }) {
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
           placeholder="Cari invoice / nama / driver..."
+          placeholderTextColor={colors.faint}
           value={q}
           onChangeText={setQ}
         />
@@ -503,7 +504,7 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
           </TouchableOpacity>
         )}
       </View>
-      <ScrollView contentContainerStyle={{ padding: 8, gap: 8 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ padding: 8, gap: 8 }} showsVerticalScrollIndicator={true}>
         {visible.length > 0 ? (
           visible.map((pkg, i) => (
             <View key={pkg.id}>

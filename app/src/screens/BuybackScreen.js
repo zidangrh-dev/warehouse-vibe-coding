@@ -46,6 +46,7 @@ export default function BuybackScreen({ user }) {
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
           placeholder="Cari invoice / AWB / kode..."
+          placeholderTextColor={colors.faint}
           value={q}
           onChangeText={setQ}
         />

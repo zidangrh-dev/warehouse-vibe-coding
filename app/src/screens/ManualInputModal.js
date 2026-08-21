@@ -44,6 +44,7 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
           <TextInput
             style={s.input}
             placeholder="No Invoice *"
+            placeholderTextColor={colors.faint}
             value={f.invoice_no}
             onChangeText={set('invoice_no')}
             autoCapitalize="characters"
@@ -51,12 +52,14 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
           <TextInput
             style={s.input}
             placeholder="Nama customer"
+            placeholderTextColor={colors.faint}
             value={f.customer_name}
             onChangeText={set('customer_name')}
           />
           <TextInput
             style={s.input}
             placeholder="No HP"
+            placeholderTextColor={colors.faint}
             value={f.customer_phone}
             onChangeText={set('customer_phone')}
             keyboardType="phone-pad"
@@ -64,12 +67,14 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
           <TextInput
             style={s.input}
             placeholder="Barang / Deskripsi"
+            placeholderTextColor={colors.faint}
             value={f.item_desc}
             onChangeText={set('item_desc')}
           />
           <TextInput
             style={s.input}
             placeholder="Kode Pickup / PIN (opsional)"
+            placeholderTextColor={colors.faint}
             value={f.pickup_code}
             onChangeText={set('pickup_code')}
             autoCapitalize="characters"

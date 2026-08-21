@@ -47,6 +47,7 @@ export default function ScannerModal({ visible, onClose, onScanned }) {
         <TextInput
           style={s.input}
           placeholder="Atau ketik barcode manual..."
+          placeholderTextColor={colors.faint}
           value={manual}
           onChangeText={setManual}
           onSubmitEditing={() => {

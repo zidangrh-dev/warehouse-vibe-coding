@@ -149,6 +149,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
                   <TextInput
                     style={s.input}
                     placeholder="mis. admin_kios1"
+                    placeholderTextColor={colors.faint}
                     value={form.username}
                     onChangeText={(v) => setForm((old) => ({ ...old, username: v }))}
                     autoCapitalize="none"
@@ -160,6 +161,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
               <TextInput
                 style={s.input}
                 placeholder="mis. Budi Santoso"
+                placeholderTextColor={colors.faint}
                 value={form.display_name}
                 onChangeText={(v) => setForm((old) => ({ ...old, display_name: v }))}
               />
@@ -168,6 +170,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
               <TextInput
                 style={s.input}
                 placeholder={editUser ? 'Kosongkan jika tidak diganti' : '••••••••'}
+                placeholderTextColor={colors.faint}
                 secureTextEntry
                 value={form.password}
                 onChangeText={(v) => setForm((old) => ({ ...old, password: v }))}

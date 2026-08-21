@@ -383,6 +383,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
             <TextInput
               style={[s.colInput, filters.status ? { backgroundColor: '#FFFFFF', borderColor: '#3B82F6', color: currentStatusColor, fontWeight: '700' } : null]}
               placeholder="Filter Status..."
+              placeholderTextColor={colors.faint}
               value={filters.status}
               onChangeText={setF('status')}
             />

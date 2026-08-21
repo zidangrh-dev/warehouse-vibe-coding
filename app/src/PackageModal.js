@@ -669,6 +669,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                       value={codeVal}
                       onChangeText={setCodeVal}
                       placeholder="Isi / Ubah Pickup Code..."
+                      placeholderTextColor={colors.faint}
                       autoCapitalize="characters"
                     />
                     <TouchableOpacity

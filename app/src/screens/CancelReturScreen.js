@@ -127,6 +127,7 @@ export default function CancelReturScreen({ user }) {
         <TextInput
           style={[s.input, { flex: 1, marginBottom: 0 }]}
           placeholder="Cari invoice / nama / kode..."
+          placeholderTextColor={colors.faint}
           value={q}
           onChangeText={setQ}
         />
@@ -158,8 +159,9 @@ export default function CancelReturScreen({ user }) {
               placeholder={
                 isWarehouse
                   ? "Scan barcode / AWB untuk Diterima Gudang lalu Enter..."
-                  : "Scan barcode / AWB untuk Dikirim ke Gudang lalu Enter..."
+                  : "Scan barcode / AWB me Dikirim ke Gudang lalu Enter..."
               }
+              placeholderTextColor={colors.faint}
               value={scanInput}
               onChangeText={setScanInput}
               onSubmitEditing={submitHardwareScan}
