@@ -439,6 +439,15 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
   const displayed = term ? visible : visible.slice(0, limit);
   const remaining = visible.length - displayed.length;
 
+  const handleScroll = (e) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (layoutMeasurement && contentOffset && contentSize) {
+      if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 120 && remaining > 0) {
+        setLimit((prev) => prev + 30);
+      }
+    }
+  };
+
   useEffect(() => {
     if (Platform.OS !== 'web' || !colRef.current) return;
     const node = colRef.current;
@@ -514,7 +523,12 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
           </TouchableOpacity>
         )}
       </View>
-      <ScrollView contentContainerStyle={{ padding: 8, gap: 8 }} showsVerticalScrollIndicator={true}>
+      <ScrollView
+        contentContainerStyle={{ padding: 8, gap: 8 }}
+        showsVerticalScrollIndicator={true}
+        onScroll={handleScroll}
+        scrollEventThrottle={32}
+      >
         {displayed.length > 0 ? (
           displayed.map((pkg, i) => (
             <View key={pkg.id}>
@@ -528,24 +542,9 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
           <Text style={kb.emptyCol}>{term ? 'Tidak ada hasil' : '—'}</Text>
         )}
         {remaining > 0 && (
-          <TouchableOpacity
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              borderRadius: radius.pill,
-              backgroundColor: colors.surface,
-              borderWidth: 1,
-              borderColor: colors.border,
-              alignItems: 'center',
-              marginVertical: 4,
-            }}
-            onPress={() => setLimit((prev) => prev + 30)}
-            activeOpacity={0.8}
-          >
-            <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.primary }}>
-              + Muat {Math.min(30, remaining)} lagi ({remaining} tersisa)
-            </Text>
-          </TouchableOpacity>
+          <View style={{ paddingVertical: 6, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
         )}
         {visible.length > 0 && isOver && (
           <View style={[kb.slot, { borderColor: slotColor, backgroundColor: slotColor + '1A' }, insert?.index === visible.length && kb.slotActive]} />
