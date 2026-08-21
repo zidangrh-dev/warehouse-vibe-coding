@@ -9,6 +9,28 @@ import LoginScreen from './src/LoginScreen';
 import MainTabs from './src/MainTabs';
 import { colors } from './src/theme';
 
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const styleEl = document.createElement('style');
+  styleEl.textContent = `
+    /* Scrollbar modern ramping & auto-hide ala macOS */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.35);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(71, 85, 105, 0.75);
+    }
+  `;
+  document.head.appendChild(styleEl);
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
