@@ -29,7 +29,7 @@ import {
 } from "./theme";
 import { useBreakpoint } from "./responsive";
 import { ConfirmActionModal } from "./ConfirmActionModal";
-import { NamePickerModal } from "./components";
+import { NamePickerModal, tokoLabel } from "./components";
 import Icon from "./Icon";
 
 const Field = ({ label, children }) => (
@@ -587,7 +587,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             )}
             <Field label="Barang / Toko">
               <Text style={s.value}>
-                {pkg.item_desc || "-"}
+                {tokoLabel(pkg)}
                 {pkg.courier ? ` · ${pkg.courier}` : ""}
               </Text>
             </Field>
