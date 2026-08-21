@@ -703,15 +703,17 @@ app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'wareh
   if (!invoice_no?.trim()) return res.status(400).json({ error: 'No invoice wajib diisi' });
   const cleanInv = invoice_no.trim().toUpperCase();
   const st = STATUSES.includes(status) ? status
+    : pickup_type === 'buyback' ? 'absen_buyback'
     : pickup_type === 'gojek' ? 'absen_gojek' : 'absen_ambil_customer';
   const cleanCode = pickup_code?.trim() || null;
+  const ptype = ['gojek', 'buyback', 'customer', 'anteran'].includes(pickup_type) ? pickup_type : 'customer';
 
   const r = await pool.query(
     `INSERT INTO packages (invoice_no, customer_name, customer_phone, item_desc, pickup_type, status, pickup_code, source, received_at, gojek_at)
      VALUES ($1,$2,$3,$4,$5,$6,$7,'manual',now(), CASE WHEN $6='absen_gojek' THEN now() ELSE NULL END)
      ON CONFLICT (invoice_no) DO NOTHING RETURNING *`,
     [cleanInv, customer_name || '', customer_phone || '', item_desc || '',
-     pickup_type === 'gojek' ? 'gojek' : 'customer', st, cleanCode]
+     ptype, st, cleanCode]
   );
   if (!r.rows[0]) return res.status(409).json({ error: 'No invoice sudah terdaftar' });
   await logEvent(r.rows[0].id, req.user, 'input_manual', `status awal ${st}${cleanCode ? ` (pickup code: ${cleanCode})` : ''}`);

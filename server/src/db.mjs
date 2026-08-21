@@ -21,7 +21,7 @@ export async function migrate() {
     ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE packages ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
     ALTER TABLE packages DROP CONSTRAINT IF EXISTS packages_pickup_type_check;
-    ALTER TABLE packages ADD CONSTRAINT packages_pickup_type_check CHECK (pickup_type IN ('customer', 'gojek', 'anteran'));
+    ALTER TABLE packages ADD CONSTRAINT packages_pickup_type_check CHECK (pickup_type IN ('customer', 'gojek', 'anteran', 'buyback'));
     ALTER TABLE package_events ALTER COLUMN package_id DROP NOT NULL;
   `).catch(() => {});
 }
