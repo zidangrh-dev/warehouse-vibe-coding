@@ -93,7 +93,14 @@ app.use('/uploads', (req, res, next) => {
 let notifyTimer = null;
 const notify = () => {
   clearTimeout(notifyTimer);
-  notifyTimer = setTimeout(() => io.emit('packages:changed'), 500);
+  notifyTimer = setTimeout(() => io.emit('packages:changed'), 100);
+};
+
+const notifyPackageUpdated = (pkg) => {
+  if (pkg) {
+    io.emit('package:updated', pkg);
+  }
+  notify();
 };
 
 const wrap = (fn) => (req, res) =>
@@ -658,7 +665,8 @@ app.post('/api/packages/:id/photos', requireAuth, requireRole('superadmin', 'adm
       'INSERT INTO package_photos (package_id, kind, filename) VALUES ($1,$2,$3) RETURNING *',
       [id, kind, filename]);
     await logEvent(id, req.user, 'foto', kind);
-    notify();
+    const fullPkg = await pool.query(`SELECT ${PACKAGE_LIST_COLUMNS} FROM packages WHERE id=$1`, [id]);
+    notifyPackageUpdated(fullPkg.rows[0]);
     res.status(201).json(r.rows[0]);
   }));
 
@@ -990,9 +998,9 @@ app.post('/api/packages/arrive', requireAuth, requireRole('admin', 'superadmin')
        gojek_at = CASE WHEN $2='absen_gojek' THEN now() ELSE gojek_at END,
        updated_at=now() WHERE id=$1 RETURNING *`,
     [pkg.id, st, newPickupType]);
-  await logEvent(pkg.id, req.user, 'scan_sampai', `status -> ${st}`);
-  notify();
-  res.json(r.rows[0]);
+    await logEvent(pkg.id, req.user, 'scan_sampai', `status -> ${st}`);
+    notifyPackageUpdated(r.rows[0]);
+    res.json(r.rows[0]);
 }));
 
 // Bulk arrive: convert anteran → customer sekaligus (beberapa paket).
@@ -1099,7 +1107,7 @@ app.post('/api/packages/ship-to-warehouse', requireAuth, requireRole('admin', 's
     [pkg.id]
   );
   await logEvent(pkg.id, req.user, 'dikirim_ke_gudang', 'Admin Kios menyerahkan fisik barang cancel ke Kurir untuk dikirim ke Gudang Utama');
-  notify();
+  notifyPackageUpdated(r.rows[0]);
   res.json(r.rows[0]);
 }));
 
@@ -1121,7 +1129,7 @@ app.post('/api/packages/receive-at-warehouse', requireAuth, requireRole('warehou
     [pkg.id]
   );
   await logEvent(pkg.id, req.user, 'diterima_gudang', 'Tim Warehouse menerima fisik barang cancel di Gudang Utama');
-  notify();
+  notifyPackageUpdated(r.rows[0]);
   res.json(r.rows[0]);
 }));
 
@@ -1144,7 +1152,7 @@ app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales', 'sup
         `UPDATE packages SET pickup_code=$2, updated_at=now() WHERE id=$1 RETURNING *`, [id, code]);
       if (!r.rows[0]) return res.status(404).json({ error: 'Paket tidak ditemukan' });
       await logEvent(id, req.user, 'generate_code', code);
-      notify();
+      notifyPackageUpdated(r.rows[0]);
       return res.json(r.rows[0]);
     } catch (e) {
       if (!String(e.message).includes('duplicate')) throw e; // tabrakan kode: coba lagi

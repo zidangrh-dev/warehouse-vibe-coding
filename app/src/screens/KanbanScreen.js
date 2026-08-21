@@ -6,7 +6,7 @@
 //   • drag & drop (web) -> pindah antar kolom; hanya transisi valid yang
 //                          diizinkan (server tetap memvalidasi foto/driver)
 // Data diambil sekali dari endpoint list dengan kanban=1 (semua paket aktif).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import {
   View, Text, TextInput, ScrollView, TouchableOpacity, Modal,
   Platform, StyleSheet, ActivityIndicator,
@@ -147,15 +147,34 @@ export default function KanbanScreen({ user }) {
     load();
     loadSummary();
     const socket = getSocket();
-    // Koalesce burst event socket: banyak perubahan cepat -> cukup satu refetch.
+    // 1. Instant Single Package Update (10ms): Perbarui item di memori tanpa panggil API HTTP
+    const onSingleUpdated = (updatedPkg) => {
+      if (!updatedPkg || !updatedPkg.id) return;
+      setItems((prev) => {
+        const idx = prev.findIndex((p) => p.id === updatedPkg.id);
+        if (idx < 0) return [updatedPkg, ...prev];
+        const next = [...prev];
+        next[idx] = { ...next[idx], ...updatedPkg };
+        next.sort((a, b) => {
+          const tA = new Date(a.status_changed_at || a.created_at || 0).getTime();
+          const tB = new Date(b.status_changed_at || b.created_at || 0).getTime();
+          if (tB !== tA) return tB - tA;
+          return b.id - a.id;
+        });
+        return next;
+      });
+    };
+    // 2. Koalesce burst event socket: banyak perubahan cepat -> cukup satu refetch fallback.
     const reloadTimerRef = { current: null };
     const onChanged = () => {
       if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
-      reloadTimerRef.current = setTimeout(() => load(), 400);
+      reloadTimerRef.current = setTimeout(() => load(), 200);
     };
+    socket.on('package:updated', onSingleUpdated);
     socket.on('packages:changed', onChanged);
     return () => {
       if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+      socket.off('package:updated', onSingleUpdated);
       socket.off('packages:changed', onChanged);
     };
   }, [load, loadSummary]);
@@ -506,7 +525,7 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
 }
 
 // ---- Kartu papan (input inline sesuai status) ----
-function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
+const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
   const [driverDraft, setDriverDraft] = useState('');
   const [codeDraft, setCodeDraft] = useState('');
   const ref = useRef(null);
@@ -654,7 +673,7 @@ function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen,
       </View>
     </View>
   );
-}
+});
 
 function ActionBtn({ label, color, onPress }) {
   return (

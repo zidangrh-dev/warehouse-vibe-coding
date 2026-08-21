@@ -235,10 +235,31 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       },
     );
   }
-  const toggleTag = (key) => {
-    if (key === 'hold') setIsHold(!isHold);
-    else if (key === 'refresh') setDriverRefreshed(!driverRefreshed);
-    else if (key === 'caridriver') setIsCariDriver(!isCariDriver);
+  const toggleTag = async (key) => {
+    let field = '';
+    let nextVal = false;
+    if (key === 'hold') {
+      field = 'is_hold';
+      nextVal = !isHold;
+      setIsHold(nextVal);
+    } else if (key === 'refresh') {
+      field = 'driver_refreshed';
+      nextVal = !driverRefreshed;
+      setDriverRefreshed(nextVal);
+    } else if (key === 'caridriver') {
+      field = 'is_cari_driver';
+      nextVal = !isCariDriver;
+      setIsCariDriver(nextVal);
+    }
+    if (field && pkg) {
+      try {
+        const res = await api.updatePackage(pkg.id, { [field]: nextVal, baseUpdatedAt: pkg.updated_at });
+        setPkg(res);
+        onChanged?.();
+      } catch (e) {
+        if (!(await reloadOnConflict(e))) notice(e.message);
+      }
+    }
   };
 
   // Fallback upload: file asli tanpa resize (dipakai kalau resize gagal/gantung di web).
