@@ -75,7 +75,8 @@ const photoUpload = multer({
 });
 
 app.use(cors(corsOptions));
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Foto bukti (terutama KTP/wajah) TIDAK boleh diakses publik. Memverifikasi
 // JWT lewat query `?token=` (dipakai <Image>/<img> yang tidak bisa kirim
@@ -1259,13 +1260,21 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
       if (tabCount > semiCount && tabCount > commaCount) delimiter = '\t';
       else if (semiCount > commaCount) delimiter = ';';
       try {
-        rows = parseCsv(text, { columns: true, bom: true, trim: true, skip_empty_lines: true, delimiter });
+        rows = parseCsv(text, {
+          columns: true,
+          bom: true,
+          trim: true,
+          skip_empty_lines: true,
+          relax_quotes: true,
+          relax_column_count: true,
+          delimiter,
+        });
       } catch (e) {
         return res.status(400).json({ error: `CSV tidak bisa dibaca: ${e.message}` });
       }
     }
 
-    const norm = (str) => String(str || '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+    const norm = (str) => String(str || '').replace(/\r?\n|\r/g, ' ').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
     let inserted = 0, updated = 0, skipped = 0, skippedCourier = 0;
     const invoiceSeen = new Set();
 
