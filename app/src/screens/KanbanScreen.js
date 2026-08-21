@@ -85,6 +85,7 @@ export default function KanbanScreen({ user }) {
   const [q, setQ] = useState('');
   const debouncedQ = useDebouncedValue(q, 400);
   const [typeFilter, setTypeFilter] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = Terbaru, 'asc' = Terlama
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
@@ -158,8 +159,8 @@ export default function KanbanScreen({ user }) {
         next.sort((a, b) => {
           const tA = new Date(a.status_changed_at || a.created_at || 0).getTime();
           const tB = new Date(b.status_changed_at || b.created_at || 0).getTime();
-          if (tB !== tA) return tB - tA;
-          return b.id - a.id;
+          if (tB !== tA) return sortOrder === 'asc' ? tA - tB : tB - tA;
+          return sortOrder === 'asc' ? a.id - b.id : b.id - a.id;
         });
         return next;
       });
@@ -180,10 +181,16 @@ export default function KanbanScreen({ user }) {
   }, [load, loadSummary]);
 
   const byStatus = useMemo(() => {
+    const sorted = [...items].sort((a, b) => {
+      const tA = new Date(a.status_changed_at || a.created_at || 0).getTime();
+      const tB = new Date(b.status_changed_at || b.created_at || 0).getTime();
+      if (tB !== tA) return sortOrder === 'asc' ? tA - tB : tB - tA;
+      return sortOrder === 'asc' ? a.id - b.id : b.id - a.id;
+    });
     const m = {};
-    for (const p of items) (m[p.status] ||= []).push(p);
+    for (const p of sorted) (m[p.status] ||= []).push(p);
     return m;
-  }, [items]);
+  }, [items, sortOrder]);
   const total = items.length;
   const searching = !!(q.trim() || typeFilter);
 
@@ -287,6 +294,19 @@ export default function KanbanScreen({ user }) {
       )}
 
       <View style={kb.chipRow}>
+        <TouchableOpacity
+          style={[kb.chip, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+          onPress={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+          activeOpacity={0.8}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Icon name={sortOrder === 'desc' ? 'trending_down' : 'trending_up'} size={13} color={colors.primary} strokeWidth={2.5} />
+            <Text style={[kb.chipText, { color: colors.primary, fontWeight: '800' }]}>
+              {sortOrder === 'desc' ? 'Terbaru' : 'Terlama'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
         {TYPE_CHIPS.map((c) => {
           const active = typeFilter === c.value;
           return (
