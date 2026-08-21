@@ -376,7 +376,7 @@ const TAB_FILTERS = {
 const PACKAGE_LIST_COLUMNS = `id, invoice_no, awb_no, customer_name, customer_phone, item_desc,
   platform, courier, pickup_type, status, pickup_code, admin_note, picker_name, source,
   received_at, done_at, created_at, updated_at, gojek_at, archived, archived_at,
-  driver_info, driver_locked, driver_refreshed, done_by, is_hold, status_changed_at, is_cari_driver`;
+  driver_info, driver_locked, driver_refreshed, done_by, is_hold, status_changed_at, is_cari_driver, seller_name`;
 
 // Syarat foto konfirmasi pengambilan:
 //   Gojek        : 1 wajah driver + 1 KTP driver + 1 barang (3 foto)
@@ -1160,8 +1160,9 @@ const COLUMN_ALIASES = {
   awb_no: ['awb no', 'awb_no', 'awb', 'resi', 'no resi', 'no_resi', 'tracking'],
   customer_name: ['recipient', 'nama', 'nama_customer', 'nama customer', 'name', 'penerima', 'customer_name', 'customer', 'customer name'],
   customer_phone: ['recipient number', 'recipient_number', 'hp', 'no_hp', 'no hp', 'phone', 'telp', 'telepon', 'no_telp', 'whatsapp', 'wa'],
-  item_desc: ['item', 'barang', 'produk', 'product', 'deskripsi', 'description', 'nama_barang', 'nama barang', 'title'],
+  item_desc: ['item', 'barang', 'produk', 'product', 'deskripsi', 'description', 'nama_barang', 'nama barang'],
   platform: ['commerce platform', 'marketplace', 'platform'],
+  seller_name: ['customer', 'customer name', 'title'],
   courier: ['courier name', 'kurir', 'courier'],
   pickup_code: ['pickup code', 'pickup_code', 'kode pickup', 'kode_pickup', 'pickup pin', 'pickup_pin', 'pin', 'code', 'kode', 'passcode', 'otp'],
 };
@@ -1196,6 +1197,7 @@ function mapRow(row) {
       platform: pick('platform'),
       courier: pick('courier'),
       pickup_code: val === '0' ? '' : val,
+      seller_name: pick('seller_name'),
       raw: row,
     };
 }
@@ -1348,10 +1350,10 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
         if (!ex) {
           // Paket BARU! Insert ke DB
           await pool.query(
-            `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_type, pickup_code, status, raw, source)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,'import')`,
+            `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_type, pickup_code, seller_name, status, raw, source)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,$12,'import')`,
             [cleanInvoice, cleanAwb, norm(m.customer_name), norm(m.customer_phone), norm(m.item_desc),
-             norm(m.platform), norm(m.courier), ptype, codeToSet, initialStatus, JSON.stringify(m.raw)]
+             norm(m.platform), norm(m.courier), ptype, codeToSet, norm(m.seller_name), initialStatus, JSON.stringify(m.raw)]
           );
           inserted++;
         } else {

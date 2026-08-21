@@ -33,6 +33,7 @@ export function StatusPill({ status }) {
 // diparsing dari kolom Title/item. Title berformat "MARKETPLACE - NAMA TOKO"
 // (mis. "Tiktok - Digitech Mall" => toko "Digitech Mall").
 export function tokoLabel(pkg) {
+  if (pkg.seller_name) return pkg.seller_name;
   const p = (pkg.platform || '').trim();
   const t = (pkg.item_desc || '').trim();
   if (!t) return p || '—';

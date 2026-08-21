@@ -163,3 +163,6 @@ CREATE TABLE IF NOT EXISTS staff_names (
 
 -- Penanda staf yang memproses konfirmasi done pickup ('selesai').
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS done_by TEXT NOT NULL DEFAULT '';
+
+-- Nama toko/seller dari kolom Customer CSV VEF.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS seller_name TEXT NOT NULL DEFAULT '';
