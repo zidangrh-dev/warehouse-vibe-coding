@@ -766,18 +766,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               </Field>
             )}
 
-            <Field label="Admin note">
-              <TextInput
-                style={s.input}
-                value={note}
-                onChangeText={onChangeNote}
-                multiline
-                placeholder="Catatan opsional untuk paket ini..."
-                editable={canAct}
-              />
-              {canAct && <Text style={s.hint}>Auto-simpan saat buka Tab lain.</Text>}
-            </Field>
-
             {isGojek && (
               <Field label="Data driver (Gojek)">
                 <TextInput
@@ -807,6 +795,18 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 )}
               </Field>
             )}
+
+            <Field label="Admin note">
+              <TextInput
+                style={s.input}
+                value={note}
+                onChangeText={onChangeNote}
+                multiline
+                placeholder="Catatan opsional untuk paket ini..."
+                editable={canAct}
+              />
+              {canAct && <Text style={s.hint}>Auto-simpan saat buka Tab lain.</Text>}
+            </Field>
 
             {!isGojek && canAct && !lockDriver && (
               <Field label="Penanda Paket">
