@@ -239,12 +239,18 @@ export default function KanbanScreen({ user }) {
 
   // Drop pada kolom (status) — validasi transisi primary tetap di moveTo().
   // `insert` hanya penanda visual; urutan akhir tetap hasil query updated_at.
-  const handleDrop = (status) => {
+  const handleDrop = useCallback((status) => {
     const pkg = dragging.current;
     dragging.current = null;
     setInsert(null);
     if (pkg && status) moveTo(pkg, status);
-  };
+  }, [moveTo]);
+
+  const handleOpenCard = useCallback((id) => setOpenId(id), []);
+  const handleMoveCard = useCallback((pkg, target, extra) => moveTo(pkg, target, extra), [moveTo]);
+  const handleSaveDriverCard = useCallback((pkg, info, code) => saveDriver(pkg, info, code), [saveDriver]);
+  const handleDragStartCard = useCallback((pkg) => { dragging.current = pkg; }, []);
+  const handleDragEndCard = useCallback(() => { dragging.current = null; }, []);
 
   if (loading && !items.length) {
     return <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />;
@@ -326,11 +332,11 @@ export default function KanbanScreen({ user }) {
                 canReceive={canReceive}
                 isWeb={isWeb}
                 regNode={regNode}
-                onOpen={() => setOpenId(pkg.id)}
-                onMove={(t) => moveTo(pkg, t)}
-                onSaveDriver={(info, code) => saveDriver(pkg, info, code)}
-                onDragStart={() => (dragging.current = pkg)}
-                onDragEnd={() => (dragging.current = null)}
+                onOpen={handleOpenCard}
+                onMove={handleMoveCard}
+                onSaveDriver={handleSaveDriverCard}
+                onDragStart={handleDragStartCard}
+                onDragEnd={handleDragEndCard}
               />
             )}
             cards={byStatus[st] || []}
@@ -423,11 +429,15 @@ function ArchiveListModal({ visible, groups, customDate, onCustomDate, onPick, o
 function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, search, onSearch }) {
   const colRef = useRef(null);
   const cardNodes = useRef([]);
+  const [limit, setLimit] = useState(30);
 
   const isOver = insert?.status === status;
   const term = (search || '').trim().toLowerCase();
   // Filter kartu per kolom — search local (invoice/awb, driver, toko, pickup code, customer).
   const visible = term ? cards.filter((p) => searchable(p).includes(term)) : cards;
+  // Windowing render: tampilkan 30 kartu pertama agar papan se-mulus DataTable.
+  const displayed = term ? visible : visible.slice(0, limit);
+  const remaining = visible.length - displayed.length;
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !colRef.current) return;
@@ -505,8 +515,8 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
         )}
       </View>
       <ScrollView contentContainerStyle={{ padding: 8, gap: 8 }} showsVerticalScrollIndicator={true}>
-        {visible.length > 0 ? (
-          visible.map((pkg, i) => (
+        {displayed.length > 0 ? (
+          displayed.map((pkg, i) => (
             <View key={pkg.id}>
               {isOver && (
                 <View style={[kb.slot, { borderColor: slotColor, backgroundColor: slotColor + '1A' }, insert?.index === i && kb.slotActive]} />
@@ -516,6 +526,26 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
           ))
         ) : (
           <Text style={kb.emptyCol}>{term ? 'Tidak ada hasil' : '—'}</Text>
+        )}
+        {remaining > 0 && (
+          <TouchableOpacity
+            style={{
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: 'center',
+              marginVertical: 4,
+            }}
+            onPress={() => setLimit((prev) => prev + 30)}
+            activeOpacity={0.8}
+          >
+            <Text style={{ fontSize: 11.5, fontWeight: '700', color: colors.primary }}>
+              + Muat {Math.min(30, remaining)} lagi ({remaining} tersisa)
+            </Text>
+          </TouchableOpacity>
         )}
         {visible.length > 0 && isOver && (
           <View style={[kb.slot, { borderColor: slotColor, backgroundColor: slotColor + '1A' }, insert?.index === visible.length && kb.slotActive]} />
@@ -539,11 +569,11 @@ const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive,
     if (!draggable || !ref.current) return;
     const node = ref.current;
     node.setAttribute('draggable', 'true');
-    const start = (e) => {
-      e.dataTransfer.setData('text/plain', String(pkg.id));
-      e.dataTransfer.effectAllowed = 'move';
-      onDragStart();
-    };
+      const start = (e) => {
+        e.dataTransfer.setData('text/plain', String(pkg.id));
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart(pkg);
+      };
     const end = () => onDragEnd();
     node.addEventListener('dragstart', start);
     node.addEventListener('dragend', end);
@@ -560,7 +590,7 @@ const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive,
 
   return (
     <View ref={setNode} style={kb.card}>
-      <TouchableOpacity onPress={onOpen} style={kb.cardBody} activeOpacity={0.7}>
+      <TouchableOpacity onPress={() => onOpen(pkg.id)} style={kb.cardBody} activeOpacity={0.7}>
         <View style={kb.cardTop}>
           <View style={[kb.boxIcon, { backgroundColor: statusTint(pkg.status) }]}>
             <Icon name={pkg.pickup_type === 'gojek' ? 'scooter' : 'box'} size={12} color={statusColor(pkg.status)} strokeWidth={2} />
@@ -629,7 +659,7 @@ const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive,
             />
             <TouchableOpacity
               style={[kb.bigSave, { backgroundColor: statusColor('driver_sampai_kios') }]}
-              onPress={() => onSaveDriver(driverDraft, codeDraft)}
+              onPress={() => onSaveDriver(pkg, driverDraft, codeDraft)}
               activeOpacity={0.85}
             >
               <Text style={kb.bigSaveText}>Simpan Data</Text>
@@ -640,7 +670,7 @@ const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive,
         {canShiftBack && (
           <TouchableOpacity
             style={[kb.miniBtn, { backgroundColor: statusColor('mencari_driver') }]}
-            onPress={() => onMove('mencari_driver')}
+            onPress={() => onMove(pkg, 'mencari_driver')}
             activeOpacity={0.85}
           >
             <Text style={kb.miniBtnText} numberOfLines={1}>Kembali ke Mencari Driver</Text>
@@ -666,7 +696,7 @@ const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive,
                 if (showsDriverInput && codeDraft.trim()) {
                   extra.pickup_code = codeDraft.trim();
                 }
-                onMove(a.to, Object.keys(extra).length > 0 ? extra : undefined);
+                onMove(pkg, a.to, Object.keys(extra).length > 0 ? extra : undefined);
               }}
             />
           );
