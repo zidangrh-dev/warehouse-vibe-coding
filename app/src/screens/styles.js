@@ -56,7 +56,7 @@ export const s = StyleSheet.create({
     borderRadius: radius.pill,
     paddingVertical: 6,
     paddingHorizontal: 8,
-    width: 152,
+    minWidth: 80,
     minHeight: 30,
     alignItems: 'center',
     justifyContent: 'center',
