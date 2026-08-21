@@ -85,7 +85,8 @@ export default function KanbanScreen({ user }) {
   const [q, setQ] = useState('');
   const debouncedQ = useDebouncedValue(q, 400);
   const [typeFilter, setTypeFilter] = useState('');
-  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = Terbaru, 'asc' = Terlama
+  // Pengurutan per kolom: { [status]: 'desc' | 'asc' }, default 'desc' (Terbaru di atas)
+  const [colSort, setColSort] = useState({});
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState(null);
@@ -156,12 +157,6 @@ export default function KanbanScreen({ user }) {
         if (idx < 0) return [updatedPkg, ...prev];
         const next = [...prev];
         next[idx] = { ...next[idx], ...updatedPkg };
-        next.sort((a, b) => {
-          const tA = new Date(a.status_changed_at || a.created_at || 0).getTime();
-          const tB = new Date(b.status_changed_at || b.created_at || 0).getTime();
-          if (tB !== tA) return sortOrder === 'asc' ? tA - tB : tB - tA;
-          return sortOrder === 'asc' ? a.id - b.id : b.id - a.id;
-        });
         return next;
       });
     };
@@ -181,16 +176,19 @@ export default function KanbanScreen({ user }) {
   }, [load, loadSummary]);
 
   const byStatus = useMemo(() => {
-    const sorted = [...items].sort((a, b) => {
-      const tA = new Date(a.status_changed_at || a.created_at || 0).getTime();
-      const tB = new Date(b.status_changed_at || b.created_at || 0).getTime();
-      if (tB !== tA) return sortOrder === 'asc' ? tA - tB : tB - tA;
-      return sortOrder === 'asc' ? a.id - b.id : b.id - a.id;
-    });
     const m = {};
-    for (const p of sorted) (m[p.status] ||= []).push(p);
+    for (const p of items) (m[p.status] ||= []).push(p);
+    for (const st of Object.keys(m)) {
+      const order = colSort[st] || 'desc';
+      m[st].sort((a, b) => {
+        const tA = new Date(a.status_changed_at || a.created_at || 0).getTime();
+        const tB = new Date(b.status_changed_at || b.created_at || 0).getTime();
+        if (tB !== tA) return order === 'asc' ? tA - tB : tB - tA;
+        return order === 'asc' ? a.id - b.id : b.id - a.id;
+      });
+    }
     return m;
-  }, [items, sortOrder]);
+  }, [items, colSort]);
   const total = items.length;
   const searching = !!(q.trim() || typeFilter);
 
@@ -294,19 +292,6 @@ export default function KanbanScreen({ user }) {
       )}
 
       <View style={kb.chipRow}>
-        <TouchableOpacity
-          style={[kb.chip, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
-          onPress={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
-          activeOpacity={0.8}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Icon name={sortOrder === 'desc' ? 'trending_down' : 'trending_up'} size={13} color={colors.primary} strokeWidth={2.5} />
-            <Text style={[kb.chipText, { color: colors.primary, fontWeight: '800' }]}>
-              {sortOrder === 'desc' ? 'Terbaru' : 'Terlama'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
         {TYPE_CHIPS.map((c) => {
           const active = typeFilter === c.value;
           return (
@@ -338,6 +323,13 @@ export default function KanbanScreen({ user }) {
             key={st}
             status={st}
             count={byStatus[st]?.length || 0}
+            sortOrder={colSort[st] || 'desc'}
+            onToggleSort={() =>
+              setColSort((prev) => ({
+                ...prev,
+                [st]: (prev[st] || 'desc') === 'desc' ? 'asc' : 'desc',
+              }))
+            }
             insert={insert}
             onInsert={setInsert}
             onDrop={() => handleDrop(st)}
@@ -446,7 +438,7 @@ function ArchiveListModal({ visible, groups, customDate, onCustomDate, onPick, o
 }
 
 // ---- Kolom papan ----
-function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, search, onSearch }) {
+function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, search, onSearch, sortOrder = 'desc', onToggleSort }) {
   const colRef = useRef(null);
   const cardNodes = useRef([]);
   const [limit, setLimit] = useState(30);
@@ -523,6 +515,19 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
         <Text style={[kb.colTitle, { color: slotColor }]} numberOfLines={1}>
           {statusLabel(status)}
         </Text>
+        <TouchableOpacity
+          style={{ padding: 2, marginRight: 2 }}
+          onPress={onToggleSort}
+          activeOpacity={0.7}
+          accessibilityLabel={`Urutan ${sortOrder === 'desc' ? 'Terbaru' : 'Terlama'}`}
+        >
+          <Icon
+            name={sortOrder === 'desc' ? 'trending_down' : 'trending_up'}
+            size={13}
+            color={slotColor}
+            strokeWidth={2.5}
+          />
+        </TouchableOpacity>
         <View style={[kb.colBadge, { backgroundColor: slotColor + '18' }]}>
           <Text style={[kb.colBadgeText, { color: slotColor }]}>{visible.length}</Text>
         </View>
