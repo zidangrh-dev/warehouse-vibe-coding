@@ -705,6 +705,8 @@ const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive,
           // Di kartu mencari driver, pindah ke driver_sampai_kios cukup lewat
           // tombol "Simpan Data" (biar data driver & pickup code pasti tersimpan).
           if (showsDriverInput && a.to === 'driver_sampai_kios') return null;
+          // Paket Ambilan (non-gojek) yang diretur hanya bisa dibatalkan (Cancel).
+          if (pkg.status === 'retur' && a.to === 'mencari_driver' && pkg.pickup_type !== 'gojek') return null;
           const allowed = a.to === 'dikirim_ke_gudang' ? canShip : a.to === 'diterima_gudang' ? canReceive : isAdmin;
           if (!allowed) return null;
           return (

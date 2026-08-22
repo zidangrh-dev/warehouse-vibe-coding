@@ -822,6 +822,9 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
 
     // Validasi legalitas transisi status (anti status liar / double-transisi).
     if ('status' in req.body && req.body.status !== pkg.status) {
+      if (pkg.status === 'retur' && req.body.status === 'mencari_driver' && pkg.pickup_type !== 'gojek') {
+        throw fail(400, 'Paket Ambilan yang diretur hanya dapat dibatalkan (Cancel).');
+      }
       const flipAnteran = 'pickup_type' in req.body && pkg.pickup_type === 'anteran' && req.body.pickup_type === 'customer';
       const allowedTo = TRANSITIONS[pkg.status] || [];
       const ok = allowedTo.includes(req.body.status) || (flipAnteran && req.body.status === 'absen_ambil_customer');

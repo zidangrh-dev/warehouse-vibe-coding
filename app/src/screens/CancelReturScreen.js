@@ -99,6 +99,7 @@ export default function CancelReturScreen({ user }) {
     if (!next) return null;
 
     // Pengecekan hak akses per status transisi:
+    if (pkg.status === 'retur' && next.to === 'mencari_driver' && pkg.pickup_type !== 'gojek') return null;
     if (next.to === 'dikirim_ke_gudang' && !canShip) return null;
     if (next.to === 'diterima_gudang' && !canReceive) return null;
     if ((next.to === 'mencari_driver' || next.to === 'absen_ambil_customer') && !canShip) return null;

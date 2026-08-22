@@ -881,6 +881,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             {canAct && (actions.length > 0 || canCancelFromStatus || canShiftBackStatus) && (
               <Field label="Aksi">
                 {actions.map((a) => {
+                  if (pkg.status === 'retur' && a.to === 'mencari_driver' && !isGojek) return null;
                   const locked =
                     (a.to === gatedStatus && needsPhotos && !photosOk) ||
                     (a.to === gatedStatus && driverLocked);
