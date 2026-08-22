@@ -175,6 +175,102 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     onClose();
   };
 
+  // Handle Paste Image (Ctrl+V) di Web: auto-assign ke slot (wajah -> ktp -> barang)
+  const uploadRawFilePhoto = useCallback(async (kind, file, targetPkgId, isLocked) => {
+    if (!file || !/^image\//.test(file.type || '')) {
+      return notice('File yang ditempel bukan gambar!');
+    }
+    if (isLocked) {
+      return notice('Transaksi sudah dikonfirmasi / diarsip. Foto telah dikunci.');
+    }
+    setBusy(true);
+    try {
+      const isWeb = Platform.OS === 'web';
+      let body;
+      if (isWeb) {
+        const blobUrl = URL.createObjectURL(file);
+        const rawAsset = {
+          uri: blobUrl,
+          file,
+          fileName: file.name || `foto-${Date.now()}.jpg`,
+          mimeType: file.type || 'image/jpeg',
+        };
+        const manipulations = { resize: { width: 1000 } };
+        const manipulateBody = ImageManipulator.manipulateAsync(
+          blobUrl,
+          [manipulations],
+          {
+            compress: 0.65,
+            format: ImageManipulator.SaveFormat.JPEG,
+            base64: true,
+          }
+        ).catch(() => fallbackPhotoBody(rawAsset));
+        const timeoutBody = new Promise((resolve) =>
+          setTimeout(() => resolve(fallbackPhotoBody(rawAsset)), 8000)
+        );
+        body = await Promise.race([manipulateBody, timeoutBody]);
+      } else {
+        body = { file, fileName: file.name || 'foto.jpg' };
+      }
+      await uploadPhoto(targetPkgId, kind, body);
+      onChanged?.();
+      await load();
+      notice('Foto berhasil ditempel!', 'success');
+    } catch (e) {
+      notice(e.message || 'Upload foto gagal');
+    } finally {
+      setBusy(false);
+    }
+  }, [onChanged, load]);
+
+  // Handle Paste Image (Ctrl+V) di Web
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !pkgId || !pkg) return;
+    const isArchived = !!pkg.archived;
+    const isPhotoLocked = isArchived || ['selesai', 'retur', 'cancel'].includes(pkg.status);
+    const isBuyback = pkg.pickup_type === 'buyback';
+    const isGojek = pkg.pickup_type === 'gojek';
+
+    if (isPhotoLocked || isBuyback) return;
+
+    const handlePaste = (e) => {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      const clipboardItems = e.clipboardData?.items;
+      if (!clipboardItems || !clipboardItems.length) return;
+
+      let imageFile = null;
+      for (const item of clipboardItems) {
+        if (item.type && item.type.startsWith('image/')) {
+          imageFile = item.getAsFile();
+          break;
+        }
+      }
+      if (!imageFile) return;
+      e.preventDefault();
+
+      const photos = pkg.photos || [];
+      const wajahPhotos = photos.filter((p) => p.kind === 'wajah');
+      const ktpPhotos = photos.filter((p) => p.kind === 'ktp');
+      const barangPhotos = photos.filter((p) => p.kind === 'barang');
+
+      let targetKind = 'barang';
+      if (wajahPhotos.length < 1) {
+        targetKind = 'wajah';
+      } else if (isGojek && ktpPhotos.length < 1) {
+        targetKind = 'ktp';
+      } else if (barangPhotos.length < 1) {
+        targetKind = 'barang';
+      }
+
+      uploadRawFilePhoto(targetKind, imageFile, pkg.id, isPhotoLocked);
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [pkgId, pkg, uploadRawFilePhoto]);
+
   if (!pkgId || !pkg) return null;
 
   const isArchived = !!pkg.archived;
@@ -434,6 +530,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             style={{ color: list.length >= need ? colors.ok : colors.danger }}
           >
             ({list.length}/{need})
+          </Text>
+        )}{' '}
+        {Platform.OS === 'web' && canEditPhotos && (
+          <Text style={{ fontSize: 10.5, color: colors.faint, fontWeight: '600' }}>
+            · Ctrl+V tempel
           </Text>
         )}
       </Text>
