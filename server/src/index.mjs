@@ -728,7 +728,7 @@ app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'wareh
 // Endpoint khusus (arrive/ship/receive/bulk) tetap divalidasi mandiri.
 const TRANSITIONS = {
   data_masuk: ['absen_ambil_customer', 'absen_gojek', 'absen_buyback'],
-  absen_ambil_customer: ['selesai'],
+  absen_ambil_customer: ['selesai', 'retur'],
   absen_gojek: ['mencari_driver', 'cancel'],
   absen_buyback: ['selesai'],
   mencari_driver: ['driver_sampai_kios', 'cancel'],

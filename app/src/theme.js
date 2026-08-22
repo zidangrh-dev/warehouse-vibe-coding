@@ -55,7 +55,10 @@ export const STATUS_META = {
 // NEXT_ACTIONS: label sekarang tanpa emoji prefix — icon ditampilkan
 // terpisah lewat komponen Icon di UI.
 export const NEXT_ACTIONS = {
-  absen_ambil_customer: [{ to: 'selesai', label: 'Konfirmasi Pengambilan' }],
+  absen_ambil_customer: [
+    { to: 'selesai', label: 'Konfirmasi Pengambilan' },
+    { to: 'retur', label: 'Retur' },
+  ],
   absen_gojek: [{ to: 'mencari_driver', label: 'Cari Driver' }],
   absen_buyback: [{ to: 'selesai', label: 'Selesai' }],
   mencari_driver: [{ to: 'driver_sampai_kios', label: 'Driver Sampai Kios' }],
@@ -71,7 +74,7 @@ export const NEXT_ACTIONS = {
 
 // Icon names untuk NEXT_ACTIONS (parallel mapping).
 export const NEXT_ACTION_ICONS = {
-  absen_ambil_customer: { selesai: 'check' },
+  absen_ambil_customer: { selesai: 'check', retur: 'rotate' },
   absen_gojek: { mencari_driver: 'search' },
   absen_buyback: { selesai: 'check' },
   mencari_driver: { driver_sampai_kios: 'scooter' },
