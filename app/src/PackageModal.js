@@ -146,49 +146,69 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     noteTimerRef.current = setTimeout(flushNote, 700);
   };
 
-  // Auto-simpan draf lain (driver info, tag REFRESH, pickup code) saat modal
-  // ditutup — pola sama seperti admin_note, supaya input tidak hilang.
-  const flushDraft = async () => {
+  // Flush SEMUA draf (admin_note, driver info, tag, pickup code) saat modal
+  // ditutup dalam SATU payload tunggal. Mencegah race condition & HTTP 409
+  // "data diubah pengguna lain" antar-PATCH berurutan.
+  const handleClose = async () => {
+    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
+    onClose(); // Tutup UI duluan secara instan (optimistic close)
+
     if (!pkg) return;
     try {
+      const payload = {};
+
+      // 1. Admin note
+      const curNote = note.trim();
+      const baseNote = (pkg.admin_note || "").trim();
+      if (curNote !== baseNote && curNote !== noteLastSavedRef.current) {
+        payload.admin_note = curNote;
+        noteLastSavedRef.current = curNote;
+      }
+
+      // 2. Driver info & Tags
       const isArchived = !!pkg.archived;
       const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
       const isGojek = pkg.pickup_type === 'gojek';
       const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
-      // Gabungkan SEMUA perubahan ke SATU payload (satu PATCH, satu baseUpdatedAt)
-      // supaya tidak terkena 409 "data diubah pengguna lain" antar-PATCH berurutan.
-      const payload = {};
+
       if (canAct && !lockDriver && isGojek) {
-        const driverChanged = driverInfo.trim() !== (pkg.driver_info || '').trim();
-        const refreshChanged = driverRefreshed !== !!pkg.driver_refreshed;
-        const cariChanged = isCariDriver !== !!pkg.is_cari_driver;
-        if (driverChanged) payload.driver_info = driverInfo.trim();
-        if (refreshChanged) payload.driver_refreshed = driverRefreshed;
-        if (cariChanged) payload.is_cari_driver = isCariDriver;
+        if (driverInfo.trim() !== (pkg.driver_info || '').trim()) payload.driver_info = driverInfo.trim();
+        if (driverRefreshed !== !!pkg.driver_refreshed) payload.driver_refreshed = driverRefreshed;
+        if (isCariDriver !== !!pkg.is_cari_driver) payload.is_cari_driver = isCariDriver;
       }
       if (canAct && !lockDriver && isHold !== !!pkg.is_hold) {
         payload.is_hold = isHold;
       }
+
+      // 3. Pickup Code
       const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
       if (canEditCode) {
-        const codeChanged = !!codeVal.trim() && codeVal.trim() !== (pkg.pickup_code || '').trim();
-        if (codeChanged) payload.pickup_code = codeVal.trim();
+        if (!!codeVal.trim() && codeVal.trim() !== (pkg.pickup_code || '').trim()) {
+          payload.pickup_code = codeVal.trim();
+        }
       }
+
+      // Jika ada perubahan, kirim dalam SATU request PATCH saja
       if (Object.keys(payload).length > 0) {
         payload.baseUpdatedAt = pkg.updated_at;
-        await api.updatePackage(pkg.id, payload);
-        onChanged();
+        try {
+          await api.updatePackage(pkg.id, payload);
+          onChanged?.();
+        } catch (e) {
+          if (e && e.status === 409) {
+            // Retry senyap jika terjadi bentrok versi saat close
+            const fresh = await api.getPackage(pkg.id);
+            if (fresh) {
+              payload.baseUpdatedAt = fresh.updated_at;
+              await api.updatePackage(pkg.id, payload);
+              onChanged?.();
+            }
+          }
+        }
       }
     } catch (e) {
-      if (!(await reloadOnConflict(e))) notice(e.message);
+      // Abaikan error di background saat close agar tidak mengganggu pengguna
     }
-  };
-
-  // Flush catatan saat modal ditutup (termasuk lewat tombol Tutup tak langsung).
-  const handleClose = () => {
-    flushNote();
-    flushDraft();
-    onClose();
   };
 
   // Handle Paste Image (Ctrl+V) di Web: auto-assign ke slot (wajah -> ktp -> barang)
