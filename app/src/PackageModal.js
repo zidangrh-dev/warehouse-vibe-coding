@@ -118,10 +118,26 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     if (cur === base) return;
     if (cur === noteLastSavedRef.current) return;
     noteLastSavedRef.current = cur;
-    api
-      .updatePackage(pkg.id, { admin_note: cur, baseUpdatedAt: pkg.updated_at })
-      .then(onChanged)
-      .catch(async (e) => { if (!(await reloadOnConflict(e))) notice(e.message); });
+
+    // Retry sekali otomatis saat kena 409 supaya tidak muncul notice mengganggu
+    const doSave = async (retryCount = 0) => {
+      try {
+        await api.updatePackage(pkg.id, { admin_note: cur, baseUpdatedAt: pkg.updated_at });
+        onChanged?.();
+      } catch (e) {
+        if (e && e.status === 409 && retryCount < 1) {
+          try {
+            const fresh = await api.getPackage(pkg.id);
+            if (fresh) {
+              setPkg(fresh);
+              return doSave(retryCount + 1);
+            }
+          } catch {}
+        }
+        if (!(await reloadOnConflict(e))) notice(e.message);
+      }
+    };
+    doSave();
   }, [pkg, note, onChanged, reloadOnConflict]);
 
   const onChangeNote = (v) => {
