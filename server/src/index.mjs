@@ -926,7 +926,7 @@ app.post('/api/packages/archive', requireAuth, requireRole('superadmin', 'admin'
 
   let statusCondition = '';
   if (onlyCompleted) {
-    statusCondition = `AND status IN ('selesai', 'retur', 'cancel')`;
+    statusCondition = `AND status IN ('selesai', 'retur', 'cancel', 'diterima_gudang')`;
   }
 
   const r = await pool.query(
