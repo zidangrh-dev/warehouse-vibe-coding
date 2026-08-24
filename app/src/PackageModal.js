@@ -70,6 +70,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     setIsHold(!!p.is_hold);
     setIsCariDriver(!!p.is_cari_driver);
     setEditingCode(false);
+    noteLastSavedRef.current = p.admin_note || "";
   };
   useEffect(() => {
     load();
@@ -113,8 +114,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const flushNote = useCallback(() => {
     if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
     if (!pkg) return;
-    const cur = note.trim();
-    const base = (pkg.admin_note || "").trim();
+    const cur = note;
+    const base = pkg.admin_note || "";
     if (cur === base) return;
     if (cur === noteLastSavedRef.current) return;
     noteLastSavedRef.current = cur;
