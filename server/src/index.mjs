@@ -750,11 +750,14 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   // sales ATAU admin (admin juga membutuhkannya saat mengisi data driver dari
   // marketplace). Field lain oleh sales wajib ditolak server.
   const isOperational = ['superadmin', 'admin', 'warehouse'].includes(req.user.role);
+  const isSales = req.user.role === 'sales';
   const forbidden = Object.keys(req.body).filter((k) => {
     if (k === 'baseUpdatedAt') return false;                    // penanda versi — bukan field
     if (!allowed.includes(k)) return false;
     if (k === 'pickup_code') return !['sales', 'admin', 'superadmin', 'warehouse'].includes(req.user.role);
     if (k === 'done_by') return !['superadmin', 'admin'].includes(req.user.role);
+    // Sales boleh edit driver_info, driver_refreshed, is_cari_driver (fitur driver gojek)
+    if (isSales && ['driver_info', 'driver_refreshed', 'is_cari_driver'].includes(k)) return false;
     if (isOperational) return false;                            // operasional boleh
     return true;                                                // sales: field lain dilarang
   });
@@ -1201,11 +1204,15 @@ function mapRow(row) {
     for (const alias of COLUMN_ALIASES[field]) if (lower[alias]) return lower[alias];
     return '';
   };
+    // Khusus customer_name: utamakan 'recipient', jika kosong/tidak ada gunakan 'customer'
+    let custName = '';
+    if (lower['recipient']) custName = lower['recipient'];
+    else if (lower['customer']) custName = lower['customer'];
     const val = pick('pickup_code');
     return {
       invoice_no: fixSciNotation(pick('invoice_no')).toUpperCase(),
       awb_no: fixSciNotation(pick('awb_no')).toUpperCase(),
-      customer_name: pick('customer_name'),
+      customer_name: custName,
       customer_phone: pick('customer_phone'),
       item_desc: pick('item_desc'),
       platform: pick('platform'),

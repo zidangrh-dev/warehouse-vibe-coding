@@ -313,6 +313,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const isArchived = !!pkg.archived;
   const isPhotoLocked = isArchived || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
+  const canEditDriver = canAct || (user.role === 'sales' && !isArchived);
   const isAdmin = user.role === 'superadmin' || user.role === 'admin';
   const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
   const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
