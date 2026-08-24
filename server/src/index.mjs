@@ -1172,7 +1172,7 @@ app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales', 'sup
 const COLUMN_ALIASES = {
   invoice_no: ['no online order', 'no_online_order', 'id', 'invoice', 'no_invoice', 'no invoice', 'invoice_no', 'no. invoice', 'booking id'],
   awb_no: ['awb no', 'awb_no', 'awb', 'resi', 'no resi', 'no_resi', 'tracking'],
-  customer_name: ['recipient'],
+  customer_name: ['recipient', 'customer'],
   customer_phone: ['recipient number', 'recipient_number', 'hp', 'no_hp', 'no hp', 'phone', 'telp', 'telepon', 'no_telp', 'whatsapp', 'wa'],
   item_desc: ['item', 'barang', 'produk', 'product', 'deskripsi', 'description', 'nama_barang', 'nama barang'],
   platform: ['commerce platform', 'marketplace', 'platform'],
