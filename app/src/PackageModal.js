@@ -913,10 +913,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                   placeholderTextColor={colors.faint}
                   value={driverInfo}
                   onChangeText={setDriverInfo}
-                  editable={canAct && !lockDriver}
+                  editable={canEditDriver}
                   multiline
                 />
-                {canAct && !lockDriver && (
+                {canEditDriver && !lockDriver && (
                   <TagPicker
                     tags={tags}
                     open={tagsOpen}
@@ -924,7 +924,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                     onToggle={toggleTag}
                   />
                 )}
-                {canAct && !lockDriver && (
+                {canEditDriver && !lockDriver && (
                   <TouchableOpacity style={s.saveNote} onPress={saveDriver} disabled={busy}>
                     <Text style={s.btnText}>Simpan Data Driver</Text>
                   </TouchableOpacity>
