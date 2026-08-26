@@ -29,6 +29,7 @@ import { s } from './styles';
 // Urutan kolom = urutan pipeline, kolom terminal (selesai/cancel) di ujung.
 // data_masuk TIDAK ditampilkan di kanban (paket diurus lewat tab Scan).
 const COLUMNS = [
+  'absen_buyback',
   'absen_gojek',
   'mencari_driver',
   'driver_sampai_kios',

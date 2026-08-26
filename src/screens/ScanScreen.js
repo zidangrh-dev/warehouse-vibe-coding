@@ -23,7 +23,8 @@ export default function ScanScreen({ user }) {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualInvoice, setManualInvoice] = useState('');
   const [openId, setOpenId] = useState(null);
-  const canScan = user.role === 'admin' || user.role === 'superadmin';
+  const canScan = user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse';
+  const isWarehouse = user.role === 'warehouse';
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -103,6 +104,17 @@ export default function ScanScreen({ user }) {
 
   const processScan = useCallback(async (code) => {
     try {
+      // Warehouse: scan hanya untuk CARI data paket (tanpa ubah status).
+      if (isWarehouse) {
+        const p = await api.findByCode(code);
+        if (!p) {
+          setScanResult({ ok: false, text: `${code} tidak ditemukan` });
+          return;
+        }
+        setScanResult({ ok: true, text: `${p.invoice_no} — ${p.customer_name || p.recipient_name || ''}` });
+        setQ(p.invoice_no || code);
+        return;
+      }
       const p = await api.arrive(code);
       setScanResult({
         ok: true,
@@ -117,7 +129,7 @@ export default function ScanScreen({ user }) {
         setScanResult({ ok: false, text: e.message });
       }
     }
-  }, []);
+  }, [isWarehouse]);
 
   const submitScan = async () => {
     const code = scanInput.trim();
@@ -137,6 +149,17 @@ export default function ScanScreen({ user }) {
 
   const onScanned = async (code) => {
     try {
+      // Warehouse: scan hanya untuk CARI data.
+      if (isWarehouse) {
+        const p = await api.findByCode(code);
+        if (!p) {
+          notice('Data paket tidak ditemukan.');
+          return;
+        }
+        notice(`${p.invoice_no} — ${p.customer_name || p.recipient_name || ''}`);
+        setQ(p.invoice_no || code);
+        return;
+      }
       const p = await api.arrive(code);
       notice(`${p.invoice_no} sampai kios → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Absen Ambil Customer'}`);
     } catch (e) {
@@ -166,7 +189,7 @@ export default function ScanScreen({ user }) {
               style={[s.bigBtn, { backgroundColor: colors.primary }]}
               onPress={() => setScanOpen(true)}
             >
-              <Text style={s.btnText}>Scan Paket Sampai</Text>
+              <Text style={s.btnText}>{isWarehouse ? 'Scan Cari Paket' : 'Scan Paket Sampai'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.bigBtn, { backgroundColor: colors.sub }]}
@@ -185,7 +208,7 @@ export default function ScanScreen({ user }) {
             <TextInput
               ref={scanInputRef}
               style={[s.input, scanBarStyle.input]}
-              placeholder="Scan barcode / AWB paket sampai lalu Enter..."
+              placeholder={isWarehouse ? "Scan barcode untuk cari data paket..." : "Scan barcode / AWB paket sampai lalu Enter..."}
               placeholderTextColor={colors.faint}
               value={scanInput}
               onChangeText={setScanInput}
@@ -204,7 +227,9 @@ export default function ScanScreen({ user }) {
             )}
           </View>
           <Text style={scanBarStyle.hint}>
-            Scanner hardware: cukup arahkan & tekan trigger berulang — kode otomatis diproses. Tidak ditemukan → form manual terbuka.
+            {isWarehouse
+              ? 'Cari data paket: arahkan scanner ke barcode resi/invoice lalu Enter. Hasil ditampilkan di tabel.'
+              : 'Scanner hardware: cukup arahkan & tekan trigger berulang — kode otomatis diproses. Tidak ditemukan → form manual terbuka.'}
           </Text>
         </View>
       )}

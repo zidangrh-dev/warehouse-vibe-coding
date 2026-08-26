@@ -16,7 +16,8 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import { api, uploadPhoto, photoUrl, getSocket } from "./api";
+import { api, uploadPhoto, photoUrl, getSocket, authImageHeaders } from "./api";
+import AuthImage from "./AuthImage";
 import {
   colors,
   radius,
@@ -492,7 +493,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
     try {
       if (Platform.OS === 'web') {
-        const res = await fetch(url);
+        const res = await fetch(url, { headers: authImageHeaders() });
         const blob = await res.blob();
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -583,7 +584,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
               onPress={() => setViewingPhoto(p)}
               onLongPress={() => canEditPhotos && removePhoto(p)}
             >
-              <Image source={{ uri: photoUrl(p) }} style={s.photo} />
+              <AuthImage photo={p} style={s.photo} />
             </TouchableOpacity>
             <TouchableOpacity
               style={s.photoDlBadge}
@@ -1224,8 +1225,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                 </TouchableOpacity>
               </View>
 
-              <Image
-                source={{ uri: photoUrl(viewingPhoto) }}
+              <AuthImage
+                photo={viewingPhoto}
                 style={s.pvImage}
                 resizeMode="contain"
               />
