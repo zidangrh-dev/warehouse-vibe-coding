@@ -13,7 +13,7 @@ import PackageModal from '../PackageModal';
 export default function SelfPickupScreen({ user }) {
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
-  const { items, total, page, setPage, loading, searching, refetch } = usePackages('selfpickup', q, colFilters);
+  const { items, total, page, setPage, loading, searching, refetch, updateItem } = usePackages('selfpickup', q, colFilters);
   const [scanOpen, setScanOpen] = useState(false);
   const [codePkg, setCodePkg] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -22,7 +22,13 @@ export default function SelfPickupScreen({ user }) {
 
   const generate = async (pkg) => {
     try {
-      const p = pkg.pickup_code ? pkg : await api.generateCode(pkg.id);
+      let p = pkg;
+      if (!pkg.pickup_code) {
+        p = await api.generateCode(pkg.id);
+        // Optimistic update: langsung tampilkan kode baru di list tanpa nunggu
+        // refetch (mencegah klik berulang yang bikin kode berubah-ubah).
+        updateItem(p);
+      }
       setCodePkg(p);
     } catch (e) {
       notice(e.message);
