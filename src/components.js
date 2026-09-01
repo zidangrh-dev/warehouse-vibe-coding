@@ -179,7 +179,7 @@ function FilterInputCell({ placeholder, widthFlex, value, onChange }) {
 }
 
 export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
-  const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' });
+  const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '', pickup_code: '' });
   const debounceRef = useRef(null);
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
@@ -201,7 +201,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
   };
 
   const resetFilters = () => {
-    const next = { invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' };
+    const next = { invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '', pickup_code: '' };
     setFilters(next);
     onColumnFilterChange?.(next);
     onSearchQuery?.('');
@@ -235,36 +235,47 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       const statF = (filters.status || '').trim().toLowerCase();
       if (statF && !`${pkg.status || ''} ${statusLabel(pkg.status) || ''}`.toLowerCase().includes(statF)) return false;
 
+      // Filter status generate pickup code (untuk tab selfpickup)
+      //  'empty'  -> belum digenerate (pickup_code kosong)
+      //  'filled' -> sudah digenerate (pickup_code terisi)
+      const genF = (filters.pickup_code || '').trim();
+      if (genF === 'empty' && !!pkg.pickup_code) return false;
+      if (genF === 'filled' && !pkg.pickup_code) return false;
+
       return true;
     });
   }, [items, filters]);
 
   const currentStatusColor = statusColor(filters.status) || colors.ink;
 
-  const applyQuickFilter = (typeVal, statusVal) => {
+  const applyQuickFilter = (chip) => {
     const next = {
       ...filters,
-      pickup_type: typeVal,
-      status: statusVal,
+      pickup_type: chip.type || '',
+      status: chip.status || '',
+      pickup_code: chip.pickup_code || '',
     };
     setFilters(next);
     onColumnFilterChange?.(next);
   };
 
   const allPresetChips = [
-    { label: 'Semua', type: '', status: '' },
-    { label: 'Ambil Customer', icon: 'user', type: 'customer', status: '', allowedTabs: ['semua', 'arsip', 'selfpickup', 'scan'] },
-    { label: 'Gojek / Instant', icon: 'scooter', type: 'gojek', status: '', allowedTabs: ['semua', 'arsip', 'gojek', 'scan'] },
-    { label: 'Anteran Internal', icon: 'box', type: 'anteran', status: '', allowedTabs: ['semua', 'arsip', 'scan'] },
-    { label: 'Selesai', icon: 'check', type: '', status: 'selesai', allowedTabs: ['semua', 'arsip', 'selesai'] },
-    { label: 'Retur', icon: 'rotate', type: '', status: 'retur', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    { label: 'Cancel', icon: 'x_circle', type: '', status: 'cancel', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    { label: 'Dikirim ke Gudang', icon: 'truck', type: '', status: 'dikirim_ke_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    { label: 'Diterima Gudang', icon: 'arrow_down', type: '', status: 'diterima_gudang', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
-    { label: 'Absen Gojek', type: '', status: 'absen_gojek', allowedTabs: ['gojek'] },
-    { label: 'Mencari Driver', type: '', status: 'mencari_driver', allowedTabs: ['gojek'] },
-    { label: 'Driver Sampai Kios', type: '', status: 'driver_sampai_kios', allowedTabs: ['gojek'] },
-    { label: 'Selesai', type: '', status: 'selesai', allowedTabs: ['gojek'] },
+    { label: 'Semua', type: '', status: '', pickup_code: '' },
+    { label: 'Ambil Customer', icon: 'user', type: 'customer', status: '', pickup_code: '', allowedTabs: ['semua', 'arsip', 'scan'] },
+    { label: 'Gojek / Instant', icon: 'scooter', type: 'gojek', status: '', pickup_code: '', allowedTabs: ['semua', 'arsip', 'gojek', 'scan'] },
+    { label: 'Anteran Internal', icon: 'box', type: 'anteran', status: '', pickup_code: '', allowedTabs: ['semua', 'arsip', 'scan'] },
+    { label: 'Selesai', icon: 'check', type: '', status: 'selesai', pickup_code: '', allowedTabs: ['semua', 'arsip', 'selesai'] },
+    { label: 'Retur', icon: 'rotate', type: '', status: 'retur', pickup_code: '', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: 'Cancel', icon: 'x_circle', type: '', status: 'cancel', pickup_code: '', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: 'Dikirim ke Gudang', icon: 'truck', type: '', status: 'dikirim_ke_gudang', pickup_code: '', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: 'Diterima Gudang', icon: 'arrow_down', type: '', status: 'diterima_gudang', pickup_code: '', allowedTabs: ['semua', 'arsip', 'cancelretur'] },
+    { label: 'Absen Gojek', type: '', status: 'absen_gojek', pickup_code: '', allowedTabs: ['gojek'] },
+    { label: 'Mencari Driver', type: '', status: 'mencari_driver', pickup_code: '', allowedTabs: ['gojek'] },
+    { label: 'Driver Sampai Kios', type: '', status: 'driver_sampai_kios', pickup_code: '', allowedTabs: ['gojek'] },
+    { label: 'Selesai', type: '', status: 'selesai', pickup_code: '', allowedTabs: ['gojek'] },
+    // Chips khusus selfpickup
+    { label: 'Belum Digenerate', icon: 'alert', type: '', status: '', pickup_code: 'empty', allowedTabs: ['selfpickup'] },
+    { label: 'Sudah Digenerate', icon: 'check', type: '', status: '', pickup_code: 'filled', allowedTabs: ['selfpickup'] },
   ];
 
   const presetChips = allPresetChips.filter((chip) => {
@@ -285,7 +296,9 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
               ? filters.pickup_type === chip.type
               : chip.status
               ? filters.status === chip.status
-              : !filters.pickup_type && !filters.status;
+              : chip.pickup_code
+              ? filters.pickup_code === chip.pickup_code
+              : !filters.pickup_type && !filters.status && !filters.pickup_code;
             return (
               <TouchableOpacity
                 key={chip.label}
@@ -295,7 +308,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                   borderRadius: radius.pill,
                   backgroundColor: isSelected ? colors.primary : '#E2E8F0',
                 }}
-                onPress={() => applyQuickFilter(chip.type, chip.status)}
+                onPress={() => applyQuickFilter(chip)}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   {chip.icon && <Icon name={chip.icon} size={10} color={isSelected ? '#FFFFFF' : colors.sub} strokeWidth={2.5} />}
