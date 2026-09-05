@@ -25,6 +25,8 @@ let token = null;
 let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
+export function getToken() { return token; }
+
 export async function loadSession() {
   try {
     token = await AsyncStorage.getItem('gudang_token');
@@ -180,9 +182,16 @@ export async function uploadPhoto(packageId, kind, asset) {
 
 export function photoUrl(photo) {
   const base = `${apiBase()}/uploads/${photo.filename}`;
-  // Server mewajibkan autentikasi untuk foto (<Image>/<img> tidak bisa kirim
-  // header Authorization → token dilewatkan via query). Token aman di memory.
+  // Web: TIDAK menyertakan token di URL (fix Strix vuln-0004) —
+  // gunakan authImageHeaders() + fetch + blob URL untuk render.
+  // Native: query token aman (tidak ada referrer leak di app).
+  if (Platform.OS === 'web') return base;
   return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+}
+
+// Header autentikasi untuk fetch foto (dipakai komponen AuthImage & download).
+export function authImageHeaders() {
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export async function importCsv(fileAsset) {
@@ -295,6 +304,19 @@ export async function importCsvProgress(fileAsset, onProgress) {
 
 let socket;
 export function getSocket() {
-  if (!socket) socket = io(apiBase(), { transports: ['websocket', 'polling'] });
+  const token = getToken();
+  if (!socket) {
+    socket = io(apiBase(), {
+      transports: ['websocket', 'polling'],
+      auth: { token },
+    });
+    // Jika token berubah (login ulang / session baru), reconnect dengan token baru.
+    socket.on('connect_error', (err) => {
+      if (socket.auth?.token !== getToken()) {
+        socket.auth = { token: getToken() };
+        socket.connect();
+      }
+    });
+  }
   return socket;
 }

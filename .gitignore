@@ -1,23 +1,41 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
 node_modules/
-server/pgdata/
-server/uploads/
-.env
-.env.local
+
+# Expo
 .expo/
 dist/
 web-build/
-*.log
-.claude/
-.gemini/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
 .DS_Store
-Thumbs.db
+*.pem
 
-# Dump database (berisi data customer — jangan pernah di-commit)
-gudang_dump.sql
-*_dump.sql
-*.dump
+# local env files
+.env*.local
 
-# Meilisearch
-meilisearch
-meili_data/
-meili.log
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android

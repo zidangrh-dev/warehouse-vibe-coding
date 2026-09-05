@@ -45,6 +45,13 @@ export function usePackages(tab, q, colFilters) {
     }
   }, [tab, debouncedQ, filterString, page]);
 
+  // Optimistis: ganti/update satu paket di list lokal tanpa menunggu refetch.
+  // Dipakai setelah aksi (mis. generate pickup code) supaya UI langsung
+  // mencerminkan data terbaru & mencegah klik berulang yang mengubah kode.
+  const updateItem = useCallback((updated) => {
+    setItems((prev) => prev.map((it) => (it.id === updated.id ? { ...it, ...updated } : it)));
+  }, []);
+
   // reset page saat pindah tab / ganti pencarian / ganti filter kolom
   useEffect(() => {
     setPage(1);
@@ -57,5 +64,5 @@ export function usePackages(tab, q, colFilters) {
     return () => socket.off('packages:changed', refetch);
   }, [refetch]);
 
-  return { items, total, page, setPage, loading, refetch, searching };
+  return { items, total, page, setPage, loading, refetch, searching, updateItem };
 }
