@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { api, getSocket } from '../api';
 import {
-  colors, radius, shadow, font, notice, confirmAsync,
-  statusLabel, statusColor, statusTint, NEXT_ACTIONS,
+  radius, shadow, font, notice, confirmAsync,
+  statusLabel, statusColor, statusTint, NEXT_ACTIONS, useTheme,
 } from '../theme';
 import { tokoLabel } from '../components';
 import { fmtTime } from '../utils/format';
@@ -24,7 +24,7 @@ import { ArchiveModal } from '../ArchiveModal';
 import { CalendarInput } from '../CalendarInput';
 import { useBreakpoint } from '../responsive';
 import { useDebouncedValue } from '../hooks/usePackages';
-import { s } from './styles';
+import { useS } from './styles';
 
 // Urutan kolom = urutan pipeline, kolom terminal (selesai/cancel) di ujung.
 // data_masuk TIDAK ditampilkan di kanban (paket diurus lewat tab Scan).
@@ -74,6 +74,9 @@ function fmtDate(d) {
 const kanbanCache = { key: '', items: null };
 
 export default function KanbanScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useS();
+  const kb = useMemo(() => makeKbStyles(colors), [colors]);
   const { isWeb } = useBreakpoint();
   const isAdmin = user.role === 'admin' || user.role === 'superadmin';
   const isWarehouse = user.role === 'warehouse';
@@ -378,6 +381,8 @@ export default function KanbanScreen({ user }) {
 
 // ---- Popup daftar arsip per tanggal (ala menu Arsip Trello) ----
 function ArchiveListModal({ visible, groups, customDate, onCustomDate, onPick, onArchive, canRestore, onRestore, onClose }) {
+  const { colors } = useTheme();
+  const kb = useMemo(() => makeKbStyles(colors), [colors]);
   if (!visible) return null;
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -438,6 +443,8 @@ function ArchiveListModal({ visible, groups, customDate, onCustomDate, onPick, o
 
 // ---- Kolom papan ----
 function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, search, onSearch, sortOrder = 'desc', onToggleSort }) {
+  const { colors } = useTheme();
+  const kb = useMemo(() => makeKbStyles(colors), [colors]);
   const colRef = useRef(null);
   const cardNodes = useRef([]);
   const [limit, setLimit] = useState(30);
@@ -580,6 +587,8 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
 
 // ---- Kartu papan (input inline sesuai status) ----
 const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
+  const { colors } = useTheme();
+  const kb = useMemo(() => makeKbStyles(colors), [colors]);
   const [driverDraft, setDriverDraft] = useState('');
   const [codeDraft, setCodeDraft] = useState('');
   const ref = useRef(null);
@@ -732,6 +741,8 @@ const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive,
 });
 
 function ActionBtn({ label, color, onPress }) {
+  const { colors } = useTheme();
+  const kb = useMemo(() => makeKbStyles(colors), [colors]);
   return (
     <TouchableOpacity
       style={[kb.miniBtn, { backgroundColor: color }]}
@@ -743,7 +754,7 @@ function ActionBtn({ label, color, onPress }) {
   );
 }
 
-const kb = StyleSheet.create({
+const makeKbStyles = (colors) => StyleSheet.create({
   chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingTop: 12, flexWrap: 'wrap' },
   chip: {
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill,
@@ -788,7 +799,7 @@ const kb = StyleSheet.create({
     backgroundColor: colors.danger, alignItems: 'center', justifyContent: 'center',
   },
   openBtn: {
-    backgroundColor: '#10B981', borderRadius: radius.pill,
+    backgroundColor: colors.okBright, borderRadius: radius.pill,
     paddingVertical: 4, paddingHorizontal: 9,
   },
   openBtnText: { color: '#fff', fontWeight: '800', fontSize: 10.5 },
@@ -796,12 +807,12 @@ const kb = StyleSheet.create({
   banner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     gap: 8, marginHorizontal: 14, marginTop: 10,
-    backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0',
+    backgroundColor: colors.scanOkBg, borderWidth: 1, borderColor: colors.scanOkBorder,
     borderRadius: radius.card, paddingVertical: 8, paddingHorizontal: 12,
   },
-  bannerText: { color: '#065F46', fontWeight: '700', fontSize: 12 },
+  bannerText: { color: colors.scanOkText, fontWeight: '700', fontSize: 12 },
   bannerBtn: {
-    backgroundColor: '#10B981', borderRadius: radius.pill,
+    backgroundColor: colors.okBright, borderRadius: radius.pill,
     paddingVertical: 5, paddingHorizontal: 10,
   },
   bannerBtnText: { color: '#fff', fontWeight: '800', fontSize: 11 },
@@ -855,13 +866,13 @@ const kb = StyleSheet.create({
   customer: { marginTop: 6, fontWeight: '700', fontSize: 12.5, color: colors.ink },
   toko: { color: colors.sub, fontSize: 11, marginTop: 2 },
   codeChip: { alignSelf: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2, fontSize: 10.5, fontWeight: '700', color: colors.primary },
-  refreshBadge: { alignSelf: 'flex-start', backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  refreshBadge: { alignSelf: 'flex-start', backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
   refreshBadgeText: { color: colors.danger, fontSize: 9.5, fontWeight: '800' },
-  holdBadge: { alignSelf: 'flex-start', backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
-  holdBadgeText: { color: '#B45309', fontSize: 9.5, fontWeight: '800' },
-  cariBadge: { alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
-  cariBadgeText: { color: '#1D4ED8', fontSize: 9.5, fontWeight: '800' },
-  nameTag: { alignSelf: 'flex-start', backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, maxWidth: 130 },
+  holdBadge: { alignSelf: 'flex-start', backgroundColor: colors.warnBg, borderWidth: 1, borderColor: colors.warnBorder, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  holdBadgeText: { color: colors.warnText, fontSize: 9.5, fontWeight: '800' },
+  cariBadge: { alignSelf: 'flex-start', backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.blueBorder, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 },
+  cariBadgeText: { color: colors.blueText, fontSize: 9.5, fontWeight: '800' },
+  nameTag: { alignSelf: 'flex-start', backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.blueBorder, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, maxWidth: 130 },
   nameTagText: { color: colors.primary, fontSize: 9.5, fontWeight: '800' },
   driverChip: { alignSelf: 'flex-start', marginTop: 4, fontSize: 10.5, fontWeight: '700', color: colors.primary },
 

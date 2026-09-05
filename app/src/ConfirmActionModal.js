@@ -1,18 +1,20 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Pressable,
 } from 'react-native';
-import { colors, radius, shadow } from './theme';
+import { radius, shadow, useTheme } from './theme';
 import Icon from './Icon';
 
 export function ConfirmActionModal({ visible, targetStatus, pkg, onConfirm, onClose, busy }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   if (!visible || !targetStatus || !pkg) return null;
 
   const isRetur = targetStatus === 'retur';
   const isCancel = targetStatus === 'cancel';
 
-  const badgeBg = isRetur ? '#FEF2F2' : '#F1F5F9';
-  const badgeBorder = isRetur ? '#FCA5A5' : '#CBD5E1';
+  const badgeBg = isRetur ? colors.dangerBg : colors.surfaceAlt;
+  const badgeBorder = isRetur ? colors.dangerBorder : colors.neutralBorder;
   const actionColor = isRetur ? colors.danger : '#475569';
   const iconEmoji = isRetur ? 'rotate' : 'x_circle';
 
@@ -87,7 +89,7 @@ export function ConfirmActionModal({ visible, targetStatus, pkg, onConfirm, onCl
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { api, getSocket } from "./api";
 import {
-  colors,
   spacing,
   radius,
   shadow,
@@ -19,6 +18,7 @@ import {
   statusLabel,
   statusColor,
   notice,
+  useTheme,
 } from "./theme";
 import {
   StatCard,
@@ -123,13 +123,16 @@ function pivotActivity(rows) {
   return [...byUser.values()].sort((a, b) => b.total - a.total);
 }
 
-const ROLE_TINT = {
+const makeRoleTint = (colors) => ({
   admin: colors.primary,
   sales: "#7C3AED",
   warehouse: "#0891B2",
-};
+});
 
 export default function DashboardScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+  const ROLE_TINT = makeRoleTint(colors);
   const { columns } = useBreakpoint();
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -437,7 +440,7 @@ export default function DashboardScreen({ user }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   headRow: {
     flexDirection: "row",

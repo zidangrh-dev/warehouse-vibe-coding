@@ -7,19 +7,23 @@ import Svg, {
   Rect, Circle, Path, Line as SvgLine, Defs, Stop, LinearGradient as SvgGradient,
 } from 'react-native-svg';
 import Icon from './Icon';
-import { colors, radius, shadow, spacing, font, notice, confirmAsync, STATUS_META, statusLabel, statusColor, statusTint } from './theme';
+import { radius, shadow, spacing, font, notice, confirmAsync, STATUS_META, statusLabel, statusColor, statusTint, useTheme } from './theme';
 import { api } from './api';
 import { fmtUpdate } from './utils/format';
 
 // Helper: inline icon + text
-const IL = ({ icon, text, color, size = 13 }) => (
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-    <Icon name={icon} size={size} color={color || colors.sub} strokeWidth={2} />
-    <Text style={{ color: color || colors.sub, fontSize: size, fontWeight: '600' }}>{text}</Text>
-  </View>
-);
+const IL = ({ icon, text, color, size = 13 }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+      <Icon name={icon} size={size} color={color || colors.sub} strokeWidth={2} />
+      <Text style={{ color: color || colors.sub, fontSize: size, fontWeight: '600' }}>{text}</Text>
+    </View>
+  );
+};
 
 export function StatusPill({ status }) {
+  const s = useS();
   const c = statusColor(status);
   return (
     <View style={[s.pill, { borderColor: c + '55', backgroundColor: c + '0F' }]}>
@@ -49,6 +53,8 @@ export function tokoLabel(pkg) {
 // Pill tag NAMA — penanda siapa yang memproses done pickup (display-only,
 // persis seperti badge REFRESH; pengaturan nama dilakukan di PackageModal).
 function NameTag({ pkg }) {
+  const { colors } = useTheme();
+  const s = useS();
   if (!pkg.done_by) return null;
   return (
     <View style={s.nameTag}>
@@ -61,6 +67,8 @@ function NameTag({ pkg }) {
 }
 
 export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
+  const { colors } = useTheme();
+  const s = useS();
   return (
     <TouchableOpacity style={s.card} onPress={() => onPress(pkg)} activeOpacity={0.7}>
       <View style={s.cardTop}>
@@ -102,15 +110,15 @@ export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
           <Text style={s.codeChip} numberOfLines={1}>{pkg.pickup_code || '—'}</Text>
         </View>
         {pkg.pickup_type === 'anteran' && (
-          <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Icon name="box" size={9} color="#92400E" strokeWidth={2.5} />
-            <Text style={{ color: '#92400E', fontSize: 9.5, fontWeight: '800' }}>ANTERAN</Text>
+          <View style={{ backgroundColor: colors.amberBg, borderWidth: 1, borderColor: colors.amberBorder, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Icon name="box" size={9} color={colors.amberText} strokeWidth={2.5} />
+            <Text style={{ color: colors.amberText, fontSize: 9.5, fontWeight: '800' }}>ANTERAN</Text>
           </View>
         )}
         {pkg.pickup_type === 'buyback' && (
-          <View style={{ backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#C4B5FD', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Icon name="box" size={9} color="#6D28D9" strokeWidth={2.5} />
-            <Text style={{ color: '#6D28D9', fontSize: 9.5, fontWeight: '800' }}>BUYBACK</Text>
+          <View style={{ backgroundColor: colors.violetBg, borderWidth: 1, borderColor: colors.violetBorder, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Icon name="box" size={9} color={colors.violetText} strokeWidth={2.5} />
+            <Text style={{ color: colors.violetText, fontSize: 9.5, fontWeight: '800' }}>BUYBACK</Text>
           </View>
         )}
         {!!pkg.driver_refreshed && (
@@ -147,6 +155,8 @@ export function PackageRow({ pkg, onPress, action, selected, onToggleSelect }) {
 // stabil. Komponen yang dibuat di dalam fungsi render akan remount tiap render,
 // sehingga TextInput kehilangan fokus setiap kali diketik 1 huruf.
 function FilterInputCell({ placeholder, widthFlex, value, onChange }) {
+  const { colors } = useTheme();
+  const s = useS();
   const isActive = !!String(value || '').trim();
   return (
     <View style={{ flex: widthFlex, paddingRight: 4, position: 'relative', justifyContent: 'center' }}>
@@ -179,6 +189,8 @@ function FilterInputCell({ placeholder, widthFlex, value, onChange }) {
 }
 
 export function PackageTable({ items, onPress, renderAction, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
+  const { colors } = useTheme();
+  const s = useS();
   const [filters, setFilters] = useState({ invoice: '', customer: '', toko: '', courier: '', code: '', status: '', pickup_type: '' });
   const debounceRef = useRef(null);
   const filtersRef = useRef(filters);
@@ -275,7 +287,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
   return (
     <View style={s.table}>
       {/* Quick Interactive Filter Presets Bar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#F8FAFC', borderBottomWidth: 1, borderBottomColor: colors.border, flexWrap: 'wrap', gap: 6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.neutralBg, borderBottomWidth: 1, borderBottomColor: colors.border, flexWrap: 'wrap', gap: 6 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: colors.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                     Filter Cepat:
@@ -293,7 +305,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                   paddingHorizontal: 10,
                   paddingVertical: 4,
                   borderRadius: radius.pill,
-                  backgroundColor: isSelected ? colors.primary : '#E2E8F0',
+                  backgroundColor: isSelected ? colors.primary : colors.chipBg,
                 }}
                 onPress={() => applyQuickFilter(chip.type, chip.status)}
               >
@@ -310,7 +322,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
 
         {hasActiveFilters && (
           <TouchableOpacity
-            style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 }}
+            style={{ backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 }}
             onPress={resetFilters}
           >
             <Text style={{ color: colors.danger, fontSize: 11, fontWeight: '800' }}>
@@ -343,7 +355,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
       </View>
 
       {/* Filter Row (Bersih & Elegan - Hanya Warna Teks yang Berubah per Nama/Status) */}
-      <View style={[s.tableHeadRow, { backgroundColor: '#F8FAFC', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+      <View style={[s.tableHeadRow, { backgroundColor: colors.neutralBg, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
         <View style={{ width: 22, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="search" size={11} color={colors.sub} strokeWidth={2} />
         </View>
@@ -358,7 +370,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
           {Platform.OS === 'web' ? (
             <select
               style={{
-                backgroundColor: '#FFFFFF',
+backgroundColor: colors.surface,
                 border: filters.status ? `1.5px solid ${currentStatusColor}` : `1px solid ${colors.border}`,
                 borderRadius: 6,
                 padding: '4px 6px',
@@ -381,7 +393,7 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
             </select>
           ) : (
             <TextInput
-              style={[s.colInput, filters.status ? { backgroundColor: '#FFFFFF', borderColor: '#3B82F6', color: currentStatusColor, fontWeight: '700' } : null]}
+              style={[s.colInput, filters.status ? { backgroundColor: colors.surface, borderColor: colors.blueText, color: currentStatusColor, fontWeight: '700' } : null]}
               placeholder="Filter Status..."
               placeholderTextColor={colors.faint}
               value={filters.status}
@@ -425,15 +437,15 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
                 {pkg.pickup_code || '—'}
               </Text>
               {pkg.pickup_type === 'anteran' && (
-                <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Icon name="box" size={8} color="#92400E" strokeWidth={2.5} />
-                  <Text style={{ color: '#92400E', fontSize: 9, fontWeight: '800' }}>ANTERAN</Text>
+                <View style={{ backgroundColor: colors.amberBg, borderWidth: 1, borderColor: colors.amberBorder, borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Icon name="box" size={8} color={colors.amberText} strokeWidth={2.5} />
+                  <Text style={{ color: colors.amberText, fontSize: 9, fontWeight: '800' }}>ANTERAN</Text>
                 </View>
               )}
               {pkg.pickup_type === 'buyback' && (
-                <View style={{ backgroundColor: '#EDE9FE', borderWidth: 1, borderColor: '#C4B5FD', borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Icon name="box" size={8} color="#6D28D9" strokeWidth={2.5} />
-                  <Text style={{ color: '#6D28D9', fontSize: 9, fontWeight: '800' }}>BUYBACK</Text>
+                <View style={{ backgroundColor: colors.violetBg, borderWidth: 1, borderColor: colors.violetBorder, borderRadius: radius.pill, paddingHorizontal: 5, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Icon name="box" size={8} color={colors.violetText} strokeWidth={2.5} />
+                  <Text style={{ color: colors.violetText, fontSize: 9, fontWeight: '800' }}>BUYBACK</Text>
                 </View>
               )}
               {!!pkg.driver_refreshed && (
@@ -482,14 +494,17 @@ export function PackageTable({ items, onPress, renderAction, onSearchQuery, onCo
 
 // ---- Primitif dashboard ----
 
-export function StatCard({ label, value, sub, accent = colors.primary, icon, delta }) {
+export function StatCard({ label, value, sub, accent, icon, delta }) {
+  const { colors } = useTheme();
+  const s = useS();
+  const accentColor = accent || colors.primary;
   return (
     <View style={s.statCard}>
-      <View style={[s.statAccent, { backgroundColor: accent }]} />
+      <View style={[s.statAccent, { backgroundColor: accentColor }]} />
       <View style={s.statHead}>
         {icon ? (
-          <View style={[s.statIcon, { backgroundColor: accent + '18' }]}>
-            <Icon name={icon} size={18} color={accent} />
+          <View style={[s.statIcon, { backgroundColor: accentColor + '18' }]}>
+            <Icon name={icon} size={18} color={accentColor} />
           </View>
         ) : null}
         <Text style={s.statLabel} numberOfLines={2}>{label}</Text>
@@ -510,6 +525,7 @@ export function StatCard({ label, value, sub, accent = colors.primary, icon, del
 }
 
 export function SectionCard({ title, subtitle, right, children }) {
+  const s = useS();
   return (
     <View style={s.section}>
       <View style={s.sectionHead}>
@@ -527,6 +543,8 @@ export function SectionCard({ title, subtitle, right, children }) {
 // Bar chart vertikal sederhana berbasis SVG — cukup untuk dataset kecil
 // (jumlah status/hari/user), tanpa dependency chart tambahan.
 export function SimpleBarChart({ data, height = 140, valueKey = 'value', labelKey = 'label', colorKey }) {
+  const { colors } = useTheme();
+  const s = useS();
   const max = Math.max(1, ...data.map((d) => d[valueKey]));
   const barW = data.length ? Math.max(18, Math.min(48, 280 / data.length)) : 24;
   const gap = 10;
@@ -555,7 +573,9 @@ export function SimpleBarChart({ data, height = 140, valueKey = 'value', labelKe
 }
 
 // Area chart bergradien untuk deret waktu (throughput harian).
-export function AreaChart({ data, height = 150, valueKey = 'value', color = colors.primary, gradId = 'areaFill' }) {
+export function AreaChart({ data, height = 150, valueKey = 'value', color, gradId = 'areaFill' }) {
+  const { colors } = useTheme();
+  const lineColor = color || colors.primary;
   const n = data.length;
   if (!n) return null;
   const W = 320;
@@ -571,8 +591,8 @@ export function AreaChart({ data, height = 150, valueKey = 'value', color = colo
     <Svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none">
       <Defs>
         <SvgGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={color} stopOpacity="0.30" />
-          <Stop offset="1" stopColor={color} stopOpacity="0" />
+          <Stop offset="0" stopColor={lineColor} stopOpacity="0.30" />
+          <Stop offset="1" stopColor={lineColor} stopOpacity="0" />
         </SvgGradient>
       </Defs>
       {[0, 0.5, 1].map((g, i) => (
@@ -580,9 +600,9 @@ export function AreaChart({ data, height = 150, valueKey = 'value', color = colo
           stroke={colors.border} strokeWidth="1" strokeDasharray="4 5" />
       ))}
       <Path d={area} fill={`url(#${gradId})`} />
-      <Path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <Path d={line} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
       {pts.map(([px, py], i) => (
-        <Circle key={i} cx={px} cy={py} r={i === n - 1 ? 3.5 : 2} fill={colors.surface} stroke={color} strokeWidth="2" />
+        <Circle key={i} cx={px} cy={py} r={i === n - 1 ? 3.5 : 2} fill={colors.surface} stroke={lineColor} strokeWidth="2" />
       ))}
     </Svg>
   );
@@ -591,7 +611,9 @@ export function AreaChart({ data, height = 150, valueKey = 'value', color = colo
 // Chart throughput modern & responsif: area gradien + gridline bernomor +
 // tooltip interaktif (hover di web, tap di Android) + axis tanggal yang
 // dijarangkan otomatis. Tidak butuh dependency chart tambahan.
-export function ThroughputChart({ data, color = colors.primary, height = 200 }) {
+export function ThroughputChart({ data, color, height = 200 }) {
+  const { colors } = useTheme();
+  const lineColor = color || colors.primary;
   const [hover, setHover] = useState(null);
   const list = Array.isArray(data) ? data : [];
   const n = list.length;
@@ -627,9 +649,9 @@ export function ThroughputChart({ data, color = colors.primary, height = 200 }) 
       <Svg width="100%" height={height} viewBox={`0 0 ${W} ${height}`} preserveAspectRatio="none">
         <Defs>
           <SvgGradient id="thrFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={color} stopOpacity="0.32" />
-            <Stop offset="0.7" stopColor={color} stopOpacity="0.07" />
-            <Stop offset="1" stopColor={color} stopOpacity="0" />
+            <Stop offset="0" stopColor={lineColor} stopOpacity="0.32" />
+            <Stop offset="0.7" stopColor={lineColor} stopOpacity="0.07" />
+            <Stop offset="1" stopColor={lineColor} stopOpacity="0" />
           </SvgGradient>
         </Defs>
         {grid.map(({ g }, i) => (
@@ -637,12 +659,12 @@ export function ThroughputChart({ data, color = colors.primary, height = 200 }) 
             stroke={colors.border} strokeWidth="1" strokeDasharray={g === 0 ? '' : '4 6'} />
         ))}
         <Path d={area} fill="url(#thrFill)" />
-        <Path d={line} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+        <Path d={line} fill="none" stroke={lineColor} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
           <Circle key={i} cx={p.x} cy={p.y} r={i === n - 1 ? 4 : 2.6}
-            fill={i === n - 1 ? color : colors.surface} stroke={color} strokeWidth="2" />
+            fill={i === n - 1 ? lineColor : colors.surface} stroke={lineColor} strokeWidth="2" />
         ))}
-        {h && <Path d={`M ${h.x} ${padT} L ${h.x} ${bottomY}`} stroke={color} strokeWidth="1" strokeDasharray="3 4" opacity="0.7" />}
+        {h && <Path d={`M ${h.x} ${padT} L ${h.x} ${bottomY}`} stroke={lineColor} strokeWidth="1" strokeDasharray="3 4" opacity="0.7" />}
       </Svg>
 
       {/* Label angka gridline (kiri) */}
@@ -685,7 +707,7 @@ export function ThroughputChart({ data, color = colors.primary, height = 200 }) 
               flex: 1,
               textAlign: i === 0 ? 'left' : i === n - 1 ? 'right' : 'center',
               opacity: i % labelStep === 0 || i === n - 1 ? 1 : 0,
-              color: i === hover ? color : colors.faint,
+              color: i === hover ? lineColor : colors.faint,
               fontWeight: i === hover ? '700' : '400',
             },
           ]}>
@@ -701,6 +723,8 @@ const axisLabelStyle = { fontSize: 9.5 };
 
 // Donut chart untuk proporsi status, dengan angka total di tengah.
 export function SimpleDonutChart({ data, size = 140, valueKey = 'value', colorKey = 'color', centerLabel, centerSub }) {
+  const { colors } = useTheme();
+  const s = useS();
   const total = Math.max(1, data.reduce((a, d) => a + d[valueKey], 0));
   const r = size / 2 - 8;
   const cx = size / 2;
@@ -742,6 +766,8 @@ export function SimpleDonutChart({ data, size = 140, valueKey = 'value', colorKe
 
 // Tampilkan pickup code sebagai QR + tombol copy gambar & kirim WhatsApp ke customer.
 export function CodeModal({ pkg, onClose }) {
+  const { colors } = useTheme();
+  const s = useS();
   const qrRef = useRef(null);
   const [copying, setCopying] = useState(false);
 
@@ -903,6 +929,8 @@ export function CodeModal({ pkg, onClose }) {
 
 // Setelah admin scan kode customer: isi nama pengambil lalu konfirmasi.
 export function PickerNameModal({ visible, onSubmit, onClose }) {
+  const { colors } = useTheme();
+  const s = useS();
   const [name, setName] = useState('');
   if (!visible) return null;
   return (
@@ -937,6 +965,8 @@ export function PickerNameModal({ visible, onSubmit, onClose }) {
 // Dropdown nama staf kios: menandai siapa yang memproses done pickup.
 // Pengelolaan daftar (tambah/edit/hapus) hanya utk Super Admin & Admin.
 export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, onPicked }) {
+  const { colors } = useTheme();
+  const s = useS();
   const canManage = userRole === 'superadmin' || userRole === 'admin';
   const [names, setNames] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -1136,7 +1166,13 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
   );
 }
 
-export const s = StyleSheet.create({
+// Style factory — palet dibaca lewat useTheme() tiap render.
+function useS() {
+  const { colors } = useTheme();
+  return useMemo(() => makeStyles(colors), [colors]);
+}
+
+const makeStyles = (colors) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface, borderRadius: radius.card,
     borderWidth: 1, borderColor: colors.border,
@@ -1167,15 +1203,15 @@ export const s = StyleSheet.create({
   },
   time: { color: colors.faint, fontSize: 10.5, fontWeight: '600' },
   codeChip: { color: colors.sub, fontSize: 11.5, fontWeight: '700', fontFamily: font.mono },
-  refreshBadge: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  refreshBadge: { backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
   refreshBadgeText: { color: colors.danger, fontSize: 9, fontWeight: '800' },
-  holdBadge: { backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
-  holdBadgeText: { color: '#B45309', fontSize: 9, fontWeight: '800' },
-  cariBadge: { backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
-  cariBadgeText: { color: '#1D4ED8', fontSize: 9, fontWeight: '800' },
+  holdBadge: { backgroundColor: colors.warnBg, borderWidth: 1, borderColor: colors.warnBorder, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  holdBadgeText: { color: colors.warnText, fontSize: 9, fontWeight: '800' },
+  cariBadge: { backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.blueBorder, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  cariBadgeText: { color: colors.blueText, fontSize: 9, fontWeight: '800' },
   nameTag: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD',
+    backgroundColor: colors.blueBg, borderWidth: 1, borderColor: colors.blueBorder,
     borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1,
     maxWidth: 130,
   },
@@ -1189,7 +1225,7 @@ export const s = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, borderRadius: radius.input,
     paddingHorizontal: 12, paddingVertical: 9, backgroundColor: colors.bg,
   },
-  nameItemActive: { borderColor: colors.primary, backgroundColor: '#EFF6FF' },
+  nameItemActive: { borderColor: colors.primary, backgroundColor: colors.blueBg },
   nameItemText: { flex: 1, color: colors.ink, fontSize: 14, fontWeight: '600' },
   nameItemTextActive: { color: colors.primary, fontWeight: '800' },
   nameMiniBtn: {
@@ -1290,7 +1326,7 @@ export const s = StyleSheet.create({
   btnGhost: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   colInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 6,

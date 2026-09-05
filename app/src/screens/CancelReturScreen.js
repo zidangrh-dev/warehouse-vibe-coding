@@ -2,14 +2,49 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { api } from '../api';
-import { notice, colors, radius, statusColor, NEXT_ACTIONS } from '../theme';
+import { notice, radius, statusColor, NEXT_ACTIONS, useTheme } from '../theme';
 import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
-import { s } from './styles';
+import { useS } from './styles';
 import PackageModal from '../PackageModal';
 import ScannerModal from '../ScannerModal';
 
 export default function CancelReturScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useS();
+  const scanBarStyle = {
+    wrap: {
+      paddingHorizontal: 12,
+      paddingBottom: 8,
+      paddingTop: 2,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    input: {
+      flex: 1,
+      marginBottom: 0,
+      fontSize: 15,
+    },
+    pill: {
+      borderWidth: 1,
+      borderRadius: radius.pill,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      maxWidth: '55%',
+    },
+    pillText: {
+      fontWeight: '700',
+      fontSize: 12.5,
+    },
+    hint: {
+      fontSize: 11,
+      color: colors.faint,
+      marginTop: 4,
+    },
+  };
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('cancelretur', q, colFilters);
@@ -170,10 +205,10 @@ export default function CancelReturScreen({ user }) {
             />
             {scanResult && (
               <View style={[scanBarStyle.pill, {
-                backgroundColor: scanResult.ok ? '#DCFCE7' : '#FEE2E2',
-                borderColor: scanResult.ok ? '#86EFAC' : '#FCA5A5',
+                backgroundColor: scanResult.ok ? colors.okChip : colors.dangerBg,
+                borderColor: scanResult.ok ? colors.scanOkBorder : colors.dangerBorder,
               }]}>
-                <Text style={[scanBarStyle.pillText, { color: scanResult.ok ? '#15803D' : '#B91C1C' }]} numberOfLines={1}>
+                <Text style={[scanBarStyle.pillText, { color: scanResult.ok ? colors.okText : colors.dangerText }]} numberOfLines={1}>
                   {scanResult.text}
                 </Text>
               </View>
@@ -206,37 +241,3 @@ export default function CancelReturScreen({ user }) {
     </View>
   );
 }
-
-const scanBarStyle = {
-  wrap: {
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    paddingTop: 2,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    marginBottom: 0,
-    fontSize: 15,
-  },
-  pill: {
-    borderWidth: 1,
-    borderRadius: radius.pill,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    maxWidth: '55%',
-  },
-  pillText: {
-    fontWeight: '700',
-    fontSize: 12.5,
-  },
-  hint: {
-    fontSize: 11,
-    color: colors.faint,
-    marginTop: 4,
-  },
-};

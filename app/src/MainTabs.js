@@ -1,12 +1,13 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
-import { colors, shadow, spacing, radius, confirmAsync } from './theme';
+import { shadow, spacing, radius, confirmAsync, useTheme } from './theme';
 import { useBreakpoint } from './responsive';
 import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, KanbanScreen, BuybackScreen } from './screens/index';
 import DashboardScreen from './DashboardScreen';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { ThemeToggle } from './ThemeToggle';
 
 // Tab yang tampil menyesuaikan role user.
 const ALL_TABS = [
@@ -33,6 +34,8 @@ function greeting() {
 const TAB_STORAGE_KEY = 'gudang_active_tab';
 
 export default function MainTabs({ user, onLogout }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const { isDesktop, isUltraWide } = useBreakpoint();
   const tabs = ALL_TABS.filter((t) => t.roles?.includes(user?.role));
   const [active, setActive] = useState(() => (tabs[0]?.key || 'semua'));
@@ -84,6 +87,8 @@ export default function MainTabs({ user, onLogout }) {
           <View style={s.brandRow}>
             <Image source={require('../assets/icon.png')} style={{ width: 28, height: 28, borderRadius: 6, marginRight: 8 }} resizeMode="contain" />
             <Text style={s.brandText}>PickHub</Text>
+            <View style={{ flex: 1 }} />
+            <ThemeToggle style={s.themeBtn} />
           </View>
           <View style={{ flex: 1, marginTop: spacing.lg }}>
             {tabs.map((t) => {
@@ -116,7 +121,7 @@ export default function MainTabs({ user, onLogout }) {
                   <Text style={s.userActionBtnText}>Ganti Password</Text>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.userActionBtn, { backgroundColor: '#FEF2F2' }]} onPress={logout}>
+              <TouchableOpacity style={[s.userActionBtn, { backgroundColor: colors.dangerBg }]} onPress={logout}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Icon name="logout" size={11} color={colors.danger} strokeWidth={2.5} />
                   <Text style={[s.userActionBtnText, { color: colors.danger }]}>Log Out</Text>
@@ -154,6 +159,7 @@ export default function MainTabs({ user, onLogout }) {
           <Text style={s.role}>{ROLE_LABEL[user?.role] || user?.role} · PickHub</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <ThemeToggle style={s.themeBtn} />
           <Image source={require('../assets/icon.png')} style={{ width: 34, height: 34, borderRadius: 8 }} resizeMode="contain" />
           <TouchableOpacity style={s.avatar} onPress={handleMobileAvatarPress}>
             <Text style={s.avatarText}>{initials}</Text>
@@ -190,7 +196,8 @@ export default function MainTabs({ user, onLogout }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
+  themeBtn: { backgroundColor: colors.surfaceAlt, borderRadius: 18 },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 18, paddingBottom: 16,

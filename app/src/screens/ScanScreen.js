@@ -1,11 +1,11 @@
 // Tab 1: Scan Paket — paket baru datang dari kurir
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, Pressable } from 'react-native';
 import { api } from '../api';
-import { notice, colors, radius, shadow } from '../theme';
+import { notice, radius, shadow, useTheme } from '../theme';
 import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
-import { s } from './styles';
+import { useS } from './styles';
 import ScannerModal from '../ScannerModal';
 import PackageModal from '../PackageModal';
 import ManualInputModal from './ManualInputModal';
@@ -16,6 +16,11 @@ import Icon from '../Icon';
 // Enter, auto-clear + refocus sesudahnya sehingga bisa scan berturut-turut
 // tanpa sentuh apa pun. Feedback cukup pill visual yang tidak menutup layar.
 export default function ScanScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useS();
+  const scanBarStyle = useMemo(() => makeScanBarStyle(colors), [colors]);
+  const bulkBar = useMemo(() => makeBulkBarStyle(colors), [colors]);
+  const delModal = useMemo(() => makeDelModalStyle(colors), [colors]);
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('scan', q, colFilters);
@@ -194,10 +199,10 @@ export default function ScanScreen({ user }) {
             />
             {scanResult && (
               <View style={[scanBarStyle.pill, {
-                backgroundColor: scanResult.ok ? '#DCFCE7' : '#FEE2E2',
-                borderColor: scanResult.ok ? '#86EFAC' : '#FCA5A5',
+                backgroundColor: scanResult.ok ? colors.okChip : colors.dangerBg,
+                borderColor: scanResult.ok ? colors.okBorder : colors.dangerBorder,
               }]}>
-                <Text style={[scanBarStyle.pillText, { color: scanResult.ok ? '#15803D' : '#B91C1C' }]} numberOfLines={1}>
+                <Text style={[scanBarStyle.pillText, { color: scanResult.ok ? colors.okText : colors.dangerText }]} numberOfLines={1}>
                   {scanResult.text}
                 </Text>
               </View>
@@ -300,7 +305,7 @@ export default function ScanScreen({ user }) {
   );
 }
 
-const scanBarStyle = {
+const makeScanBarStyle = (colors) => ({
   wrap: {
     paddingHorizontal: 12,
     paddingBottom: 8,
@@ -332,15 +337,15 @@ const scanBarStyle = {
     color: colors.faint,
     marginTop: 4,
   },
-};
+});
 
-const bulkBar = {
+const makeBulkBarStyle = (colors) => ({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: colors.scanOkBg,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: colors.scanOkBorder,
     borderRadius: radius.card,
     marginHorizontal: 14,
     marginTop: 10,
@@ -349,13 +354,13 @@ const bulkBar = {
     gap: 8,
   },
   badge: {
-    backgroundColor: '#10B981',
+    backgroundColor: colors.okBright,
     borderRadius: 12,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   badgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  text: { fontSize: 13, fontWeight: '700', color: '#065F46' },
+  text: { fontSize: 13, fontWeight: '700', color: colors.scanOkText },
   btn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.primary,
@@ -364,12 +369,12 @@ const bulkBar = {
   btnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   cancelBtn: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.dangerBg, alignItems: 'center', justifyContent: 'center',
   },
   cancelText: { color: colors.danger, fontSize: 14, fontWeight: '800' },
-};
+});
 
-const delModal = {
+const makeDelModalStyle = (colors) => ({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center', alignItems: 'center', padding: 20,
@@ -381,7 +386,7 @@ const delModal = {
   head: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
   badgeIcon: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5',
+    backgroundColor: colors.dangerBg, borderWidth: 1, borderColor: colors.dangerBorder,
     alignItems: 'center', justifyContent: 'center',
   },
   title: { fontSize: 17, fontWeight: '800', color: colors.ink },
@@ -395,4 +400,4 @@ const delModal = {
   btnCancel: { backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
   btnCancelText: { color: colors.ink, fontWeight: '700', fontSize: 13.5 },
   btnConfirmText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13.5 },
-};
+});

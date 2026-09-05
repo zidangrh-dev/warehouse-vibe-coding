@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Pressable,
 } from 'react-native';
 import { api } from './api';
-import { colors, radius, shadow, notice } from './theme';
+import { radius, shadow, notice, useTheme } from './theme';
 import Icon from './Icon';
 
 export function ChangePasswordModal({ visible, onClose }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -134,7 +136,7 @@ export function ChangePasswordModal({ visible, onClose }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',

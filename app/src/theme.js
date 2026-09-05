@@ -1,8 +1,13 @@
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, useColorScheme } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 
-// Design tokens — gaya WMS: netral, data-dense, satu aksen fungsional.
-export const colors = {
+// ---- Design tokens ----
+// Dua palet: light (default, WMS netral) & dark. Komponen memakai palet aktif
+// lewat hook useTheme(); jangan impor `colors` statis di komponen UI.
+
+export const lightColors = {
   bg: '#F7F8FA',
   surface: '#FFFFFF',
   surfaceAlt: '#F1F3F6',
@@ -17,7 +22,84 @@ export const colors = {
   ok: '#16A34A',
   warn: '#F59E0B',
   header: '#FFFFFF',
+  // Semantic tokens — menggantikan hex hardcoded di komponen.
+  dangerBg: '#FEF2F2',
+  dangerBorder: '#FCA5A5',
+  dangerText: '#991B1B',
+  okBg: '#F0FDF4',
+  okBorder: '#BBF7D0',
+  okText: '#15803D',
+  okChip: '#DCFCE7',
+  scanOkBg: '#ECFDF5',
+  scanOkBorder: '#A7F3D0',
+  scanOkText: '#065F46',
+  okBright: '#10B981',
+  warnBg: '#FFFBEB',
+  warnBorder: '#FDE68A',
+  warnText: '#B45309',
+  amberBg: '#FEF3C7',
+  amberBorder: '#FCD34D',
+  amberText: '#92400E',
+  blueBg: '#EFF6FF',
+  blueBorder: '#93C5FD',
+  blueText: '#1D4ED8',
+  violetBg: '#EDE9FE',
+  violetBorder: '#C4B5FD',
+  violetText: '#6D28D9',
+  skyBg: '#E0F2FE',
+  skyText: '#0369A1',
+  neutralBg: '#F8FAFC',
+  neutralBorder: '#CBD5E1',
+  chipBg: '#E2E8F0',
 };
+
+export const darkColors = {
+  bg: '#0B1220',
+  surface: '#151F31',
+  surfaceAlt: '#1E2A3F',
+  ink: '#E6EDF7',
+  sub: '#9AA7BA',
+  faint: '#64748B',
+  border: '#2A3A55',
+  primary: '#5B8DEF',
+  primaryDark: '#3E6BC4',
+  primarySoft: 'rgba(91,141,239,0.16)',
+  danger: '#F87171',
+  ok: '#34D399',
+  warn: '#FBBF24',
+  header: '#0B1220',
+  dangerBg: '#3A1D24',
+  dangerBorder: '#7F3740',
+  dangerText: '#FDA4AF',
+  okBg: '#16291D',
+  okBorder: '#2E6B44',
+  okText: '#86EFAC',
+  okChip: '#1F4A30',
+  scanOkBg: 'rgba(52,211,153,0.10)',
+  scanOkBorder: '#2E8F6B',
+  scanOkText: '#86EFAC',
+  okBright: '#34D399',
+  warnBg: '#33280F',
+  warnBorder: '#8A6A24',
+  warnText: '#FCD34D',
+  amberBg: '#352A0F',
+  amberBorder: '#92690F',
+  amberText: '#FBBF24',
+  blueBg: '#12203A',
+  blueBorder: '#3B6EA5',
+  blueText: '#93C5FD',
+  violetBg: '#231A3D',
+  violetBorder: '#6D4FA6',
+  violetText: '#C4B5FD',
+  skyBg: '#0C2A40',
+  skyText: '#7DD3FC',
+  neutralBg: '#1B2637',
+  neutralBorder: '#3E4E6B',
+  chipBg: '#2A3852',
+};
+
+// Legacy: kode lama (bukan komponen UI) yang masih mengimpor `colors` melihat palet light.
+export const colors = lightColors;
 
 export const radius = { card: 12, pill: 8, input: 8, sheet: 16 };
 
@@ -88,8 +170,8 @@ export const NEXT_ACTION_ICONS = {
 export const chartPalette = Object.values(STATUS_META).map((m) => m.color);
 
 export const statusLabel = (s) => STATUS_META[s]?.label || s;
-export const statusColor = (s) => STATUS_META[s]?.color || colors.sub;
-export const statusTint = (s) => STATUS_META[s]?.tint || colors.border;
+export const statusColor = (s) => STATUS_META[s]?.color || lightColors.sub;
+export const statusTint = (s) => STATUS_META[s]?.tint || lightColors.border;
 
 export function confirmAsync(title, message) {
   if (Platform.OS === 'web') {
@@ -113,4 +195,73 @@ export function notice(message, type = 'info') {
     visibilityTime: 3500,
     position: 'top',
   });
+}
+
+// ---- Dark mode (on/off, default ikut sistem) ----
+
+const STORAGE_KEY = 'pickhub_theme_mode';
+
+async function readPref() {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) return window.localStorage.getItem(STORAGE_KEY);
+      return null;
+    }
+    return await AsyncStorage.getItem(STORAGE_KEY);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function savePref(mode) {
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(STORAGE_KEY, mode);
+      return;
+    }
+    await AsyncStorage.setItem(STORAGE_KEY, mode);
+  } catch (e) {
+    // abaikan — tema tetap berlaku selama sesi
+  }
+}
+
+const ThemeContext = createContext(null);
+
+export function ThemeProvider({ children }) {
+  const system = useColorScheme();
+  const [pref, setPref] = useState(null); // null = ikut sistem, 'light'/'dark' = pilihan user
+
+  useEffect(() => {
+    let alive = true;
+    readPref().then((saved) => { if (alive && (saved === 'light' || saved === 'dark')) setPref(saved); });
+    return () => { alive = false; };
+  }, []);
+
+  const mode = pref || (system === 'dark' ? 'dark' : 'light');
+  const colors = mode === 'dark' ? darkColors : lightColors;
+
+  const toggle = useCallback(() => {
+    setPref((p) => {
+      const current = p || (system === 'dark' ? 'dark' : 'light');
+      const next = current === 'dark' ? 'light' : 'dark';
+      savePref(next);
+      return next;
+    });
+  }, [system]);
+
+  const setMode = useCallback((m) => {
+    const next = m === 'dark' ? 'dark' : 'light';
+    savePref(next);
+    setPref(next);
+  }, []);
+
+  const value = useMemo(() => ({ mode, colors, isDark: mode === 'dark', toggle, setMode }), [mode, colors, toggle, setMode]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
+export function useTheme() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) return { mode: 'light', colors: lightColors, isDark: false, toggle: () => {}, setMode: () => {} };
+  return ctx;
 }

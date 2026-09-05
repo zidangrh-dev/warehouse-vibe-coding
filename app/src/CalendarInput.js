@@ -1,7 +1,9 @@
 import React from 'react';
 import { Platform, TextInput } from 'react-native';
+import { useTheme } from './theme';
 
 export function CalendarInput({ value, onChange }) {
+  const { colors } = useTheme();
   if (Platform.OS === 'web') {
     return React.createElement('input', {
       type: 'date',
@@ -10,13 +12,13 @@ export function CalendarInput({ value, onChange }) {
       style: {
         borderWidth: '1px',
         borderStyle: 'solid',
-        borderColor: '#CBD5E1',
+        borderColor: colors.neutralBorder,
         borderRadius: '8px',
         padding: '5px 10px',
         fontSize: '13px',
         fontWeight: '600',
-        color: '#0F172A',
-        backgroundColor: '#FFFFFF',
+        color: colors.ink,
+        backgroundColor: colors.surface,
         textAlign: 'center',
         outline: 'none',
         fontFamily: 'inherit',
@@ -29,14 +31,14 @@ export function CalendarInput({ value, onChange }) {
     <TextInput
       style={{
         borderWidth: 1,
-        borderColor: '#CBD5E1',
+        borderColor: colors.neutralBorder,
         borderRadius: 8,
         paddingHorizontal: 10,
         paddingVertical: 5,
         fontSize: 13,
         fontWeight: '600',
-        color: '#0F172A',
-        backgroundColor: '#FFFFFF',
+        color: colors.ink,
+        backgroundColor: colors.surface,
         textAlign: 'center',
         width: 120,
       }}

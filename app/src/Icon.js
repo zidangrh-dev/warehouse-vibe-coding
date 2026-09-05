@@ -5,7 +5,7 @@ import {
   FileText, Sparkles, SkipForward, Users, KeyRound, Archive,
   CalendarDays, ScanLine, Save, Copy, UserCheck, Zap, Monitor,
   TrendingUp, TrendingDown, AlertTriangle, Store, X,
-  Circle, Trash2, CheckSquare,
+  Circle, Trash2, CheckSquare, Moon, Sun,
 } from 'lucide-react-native';
 
 const ICON_MAP = {
@@ -49,10 +49,15 @@ const ICON_MAP = {
   circle: Circle,
   trash: Trash2,
   check_square: CheckSquare,
+  moon: Moon,
+  sun: Sun,
 };
 
-export default function Icon({ name, size = 20, color = '#0F172A', strokeWidth = 1.8 }) {
+import { useTheme } from './theme';
+
+export default function Icon({ name, size = 20, color, strokeWidth = 1.8 }) {
+  const { colors } = useTheme();
   const LucideIcon = ICON_MAP[name];
   if (!LucideIcon) return null;
-  return <LucideIcon size={size} color={color} strokeWidth={strokeWidth} />;
+  return <LucideIcon size={size} color={color || colors.ink} strokeWidth={strokeWidth} />;
 }

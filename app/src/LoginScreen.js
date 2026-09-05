@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
 import Icon from './Icon';
 import { login } from './api';
-import { colors, radius, shadow, spacing } from './theme';
+import { radius, shadow, spacing, useTheme } from './theme';
 import { useBreakpoint } from './responsive';
+import { ThemeToggle } from './ThemeToggle';
 
 export default function LoginScreen({ onLogin }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const { isDesktop } = useBreakpoint();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -65,13 +68,21 @@ export default function LoginScreen({ onLogin }) {
           <Text style={s.titleDark}>PickHub</Text>
           <Text style={s.subtitleDark}>Kelola paket retail pickup — cepat, rapi, realtime.</Text>
         </View>
-        <View style={s.formPanel}>{form}</View>
+        <View style={s.formPanel}>
+          <View style={{ position: 'absolute', top: 20, right: 20 }}>
+            <ThemeToggle style={s.themeBtn} />
+          </View>
+          {form}
+        </View>
       </View>
     );
   }
 
   return (
     <View style={s.wrap}>
+      <View style={{ position: 'absolute', top: 20, right: 20 }}>
+        <ThemeToggle style={s.themeBtn} />
+      </View>
       <View style={s.brand}>
         <Image source={require('../assets/icon.png')} style={{ width: 72, height: 72, borderRadius: 16, marginBottom: 14 }} resizeMode="contain" />
         <Text style={s.title}>PickHub</Text>
@@ -82,13 +93,10 @@ export default function LoginScreen({ onLogin }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   wrap: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: colors.bg },
   brand: { alignItems: 'center', marginBottom: 28 },
-  logoBox: {
-    width: 64, height: 64, borderRadius: radius.card, marginBottom: 14,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  themeBtn: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   title: { fontSize: 24, fontWeight: '800', color: colors.ink, letterSpacing: 0.2 },
   subtitle: { color: colors.sub, marginTop: 6, textAlign: 'center' },
 
