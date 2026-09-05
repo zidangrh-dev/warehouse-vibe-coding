@@ -2,15 +2,17 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { api } from '../api';
-import { notice, colors } from '../theme';
+import { notice, useTheme } from '../theme';
 import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
-import { s } from './styles';
+import { useS } from './styles';
 import { CodeModal } from '../components';
 import ScannerModal from '../ScannerModal';
 import PackageModal from '../PackageModal';
 
 export default function SelfPickupScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useS();
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
   const { items, total, page, setPage, loading, searching, refetch, updateItem } = usePackages('selfpickup', q, colFilters);

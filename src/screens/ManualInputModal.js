@@ -2,10 +2,12 @@
 import { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { api } from '../api';
-import { notice, colors } from '../theme';
-import { s } from './styles';
+import { notice, useTheme } from '../theme';
+import { useS } from './styles';
 
 export default function ManualInputModal({ visible, initialInvoice, onClose, onSaved }) {
+  const { colors } = useTheme();
+  const s = useS();
   const emptyForm = {
     invoice_no: '',
     customer_name: '',

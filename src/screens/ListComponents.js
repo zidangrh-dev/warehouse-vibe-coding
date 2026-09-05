@@ -1,13 +1,14 @@
 // Shared component: PaginationBar + List (display logic)
 import { View, Text, ScrollView, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { colors } from '../theme';
+import { useTheme } from '../theme';
 import { PackageRow, PackageTable } from '../components';
 import { useBreakpoint } from '../responsive';
-import { s } from './styles';
+import { useS } from './styles';
 
 const PAGE_SIZE = 50;
 
 export function PaginationBar({ page, total, pageSize, onPage }) {
+  const s = useS();
   const pages = Math.max(1, Math.ceil(total / pageSize));
   if (pages <= 1) return null;
   const from = (page - 1) * pageSize + 1;
@@ -37,6 +38,8 @@ export function PaginationBar({ page, total, pageSize, onPage }) {
 }
 
 export function PackageList({ items, loading, onOpen, rowAction, pagination, onSearchQuery, onColumnFilterChange, tab, selectedIds, onToggleSelect, onSelectAll }) {
+  const { colors } = useTheme();
+  const s = useS();
   const { isDesktop, isUltraWide } = useBreakpoint();
   if (loading && !items.length) return <ActivityIndicator style={{ marginTop: 30 }} color={colors.primary} />;
 

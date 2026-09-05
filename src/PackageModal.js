@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -19,7 +19,6 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { api, uploadPhoto, photoUrl, getSocket, authImageHeaders } from "./api";
 import AuthImage from "./AuthImage";
 import {
-  colors,
   radius,
   shadow,
   statusLabel,
@@ -27,20 +26,27 @@ import {
   NEXT_ACTIONS,
   notice,
   confirmAsync,
+  useTheme,
 } from "./theme";
 import { useBreakpoint } from "./responsive";
 import { ConfirmActionModal } from "./ConfirmActionModal";
 import { NamePickerModal, tokoLabel } from "./components";
 import Icon from "./Icon";
 
-const Field = ({ label, children }) => (
-  <View style={{ marginTop: 10 }}>
-    <Text style={s.label}>{label}</Text>
-    {children}
-  </View>
-);
+const Field = ({ label, children }) => {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
+  return (
+    <View style={{ marginTop: 10 }}>
+      <Text style={s.label}>{label}</Text>
+      {children}
+    </View>
+  );
+};
 
 export default function PackageModal({ pkgId, user, onClose, onChanged }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const { isWide } = useBreakpoint();
   const [pkg, setPkg] = useState(null);
   const [note, setNote] = useState("");
@@ -355,18 +361,18 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   if (canAct && !lockDriver) {
     tags.push({
       key: 'hold', label: 'HOLD (Paket Ditahan)', active: isHold,
-      color: '#B45309', bg: '#FFFBEB', border: '#FDE68A',
+      color: colors.warnText, bg: colors.warnBg, border: colors.warnBorder,
     });
   }
   if (isGojek && canAct && !lockDriver) {
     tags.push(
       {
         key: 'refresh', label: 'REFRESH (Driver Berganti)', active: driverRefreshed,
-        color: '#DC2626', bg: '#FEF2F2', border: '#FCA5A5',
+        color: colors.dangerText, bg: colors.dangerBg, border: colors.dangerBorder,
       },
       {
         key: 'caridriver', label: 'Cari Driver (sudah di MP)', active: isCariDriver,
-        color: '#1D4ED8', bg: '#EFF6FF', border: '#93C5FD',
+        color: colors.blueText, bg: colors.blueBg, border: colors.blueBorder,
       },
     );
   }
@@ -755,8 +761,8 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Field label="Jenis Ambilan">
               {pkg.pickup_type === 'anteran' ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <View style={{ backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#92400E' }}>Anteran Kurir Internal</Text>
+                  <View style={{ backgroundColor: colors.amberBg, borderWidth: 1, borderColor: colors.amberBorder, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: colors.amberText }}>Anteran Kurir Internal</Text>
                   </View>
                   {!isArchived && (user.role === 'warehouse' || user.role === 'superadmin') && (
                     <TouchableOpacity
@@ -878,9 +884,9 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
                     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                     marginTop: 8, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 6,
                     borderRadius: radius.pill,
-                    backgroundColor: (pkg.done_by || '').trim() ? '#EFF6FF' : colors.surfaceAlt,
+                    backgroundColor: (pkg.done_by || '').trim() ? colors.blueBg : colors.surfaceAlt,
                     borderWidth: 1.5,
-                    borderColor: (pkg.done_by || '').trim() ? '#93C5FD' : isAdmin ? colors.danger : colors.border,
+                    borderColor: (pkg.done_by || '').trim() ? colors.blueBorder : isAdmin ? colors.danger : colors.border,
                   }}
                   onPress={() => {
                     setConfirmAfterName(false);
@@ -1147,7 +1153,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             <Pressable style={s.backdropHit} onPress={() => setConfirmAnteranOpen(false)} />
             <View style={s.pvCard}>
               <View style={s.pvHead}>
-                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FCD34D', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.amberBg, borderWidth: 1, borderColor: colors.amberBorder, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="box" size={24} color="#D97706" strokeWidth={2} />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -1248,6 +1254,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 // Picker tag tunggal (ala label Trello): satu chip "+ Tag", klik buka panel
 // berisi toggle REFRESH / HOLD / Cari Driver.
 function TagPicker({ tags, open, onToggleOpen, onToggle }) {
+  const { colors } = useTheme();
   const activeCount = tags.filter((t) => t.active).length;
   return (
     <View style={{ marginTop: 8, marginBottom: 4, alignSelf: 'flex-start' }}>
@@ -1293,7 +1300,7 @@ function TagPicker({ tags, open, onToggleOpen, onToggle }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   modalRoot: {
     flex: 1,
     backgroundColor: "rgba(15,23,42,0.55)",
@@ -1486,9 +1493,9 @@ const s = StyleSheet.create({
     backgroundColor: '#0F172A',
   },
   archivedBanner: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.dangerBg,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: colors.dangerBorder,
     borderRadius: radius.card,
     padding: 10,
     marginTop: 8,
@@ -1501,11 +1508,11 @@ const s = StyleSheet.create({
   },
   archivedBannerText: {
     fontSize: 11,
-    color: '#991B1B',
+    color: colors.dangerText,
     marginTop: 2,
   },
   unarchiveBtn: {
-    backgroundColor: '#10B981',
+    backgroundColor: colors.okBright,
     borderRadius: radius.pill,
     paddingVertical: 7,
     paddingHorizontal: 14,

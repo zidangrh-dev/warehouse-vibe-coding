@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
   ActivityIndicator, Pressable,
 } from 'react-native';
 import { api } from './api';
-import { colors, radius, shadow, notice, confirmAsync } from './theme';
+import { radius, shadow, notice, confirmAsync, useTheme } from './theme';
 import Icon from './Icon';
 
 const ROLE_OPTIONS = [
@@ -14,14 +14,16 @@ const ROLE_OPTIONS = [
   { val: 'superadmin', label: 'Super Admin' },
 ];
 
-const ROLE_BADGE = {
-  superadmin: { bg: '#FEF2F2', color: '#991B1B', label: 'Super Admin' },
+const ROLE_BADGE = (colors) => ({
+  superadmin: { bg: colors.dangerBg, color: colors.dangerText, label: 'Super Admin' },
   admin: { bg: colors.primarySoft, color: colors.primary, label: 'Admin Kios' },
-  sales: { bg: '#F3E8FF', color: '#7C3AED', label: 'Sales' },
-  warehouse: { bg: '#E0F2FE', color: '#0369A1', label: 'Warehouse' },
-};
+  sales: { bg: colors.violetBg, color: colors.violetText, label: 'Sales' },
+  warehouse: { bg: colors.skyBg, color: colors.skyText, label: 'Warehouse' },
+});
 
 export default function UserManagementModal({ visible, user, onClose }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -219,7 +221,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
               ) : (
                 <ScrollView style={{ flex: 1, paddingHorizontal: 16 }}>
                   {users.map((u) => {
-                    const badge = ROLE_BADGE[u.role] || { bg: colors.surfaceAlt, color: colors.sub, label: u.role };
+                    const badge = ROLE_BADGE(colors)[u.role] || { bg: colors.surfaceAlt, color: colors.sub, label: u.role };
                     const isSelf = u.id === user?.id;
                     const cannotEdit = u.role === 'superadmin' && !isSuperAdmin;
 
@@ -244,7 +246,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
                               <Icon name="edit" size={15} color={colors.sub} />
                             </TouchableOpacity>
                             {!isSelf && (
-                              <TouchableOpacity style={[s.iconBtn, { backgroundColor: '#FEF2F2' }]} onPress={() => handleDelete(u)}>
+                              <TouchableOpacity style={[s.iconBtn, { backgroundColor: colors.dangerBg }]} onPress={() => handleDelete(u)}>
                                 <Icon name="x" size={13} color={colors.danger} strokeWidth={2.5} />
                               </TouchableOpacity>
                             )}
@@ -263,7 +265,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   backdrop: {
     flex: 1, backgroundColor: 'rgba(15,23,42,0.55)',
     justifyContent: 'center', alignItems: 'center', padding: 16,
@@ -305,7 +307,7 @@ const s = StyleSheet.create({
   userAvatarText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
   userName: { fontSize: 14, fontWeight: '700', color: colors.ink },
   userHandle: { fontSize: 12, color: colors.sub, marginTop: 1 },
-  selfBadge: { fontSize: 10, color: colors.ok, fontWeight: '700', backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
+  selfBadge: { fontSize: 10, color: colors.ok, fontWeight: '700', backgroundColor: colors.okChip, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
   badge: { borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: 9 },
   badgeText: { fontSize: 11, fontWeight: '700' },
   iconBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },

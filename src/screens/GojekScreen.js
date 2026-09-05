@@ -2,10 +2,10 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { api } from '../api';
-import { notice, colors, radius, statusColor, NEXT_ACTIONS } from '../theme';
+import { notice, radius, statusColor, NEXT_ACTIONS, useTheme } from '../theme';
 import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
-import { s } from './styles';
+import { useS } from './styles';
 import PackageModal from '../PackageModal';
 import { useBreakpoint } from '../responsive';
 
@@ -18,6 +18,8 @@ const CHIP_STATUSES = [
 ];
 
 export default function GojekScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useS();
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('gojek', q, colFilters);
@@ -85,7 +87,7 @@ export default function GojekScreen({ user }) {
                   paddingHorizontal: 10,
                   paddingVertical: 5,
                   borderRadius: radius.pill,
-                  backgroundColor: active ? colors.primary : '#E2E8F0',
+                  backgroundColor: active ? colors.primary : colors.chipBg,
                   flexShrink: 0,
                   maxWidth: 180,
                   alignItems: 'center',

@@ -3,14 +3,16 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { importCsvProgress } from '../api';
-import { notice, colors } from '../theme';
+import { notice, useTheme } from '../theme';
 import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
-import { s } from './styles';
+import { useS } from './styles';
 import PackageModal from '../PackageModal';
 import ImportProgressModal from '../ImportProgressModal';
 
 export default function SemuaScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useS();
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('semua', q, colFilters);

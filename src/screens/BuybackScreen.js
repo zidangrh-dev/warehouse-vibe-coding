@@ -4,13 +4,15 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { api } from '../api';
-import { notice, colors, radius } from '../theme';
+import { notice, radius, useTheme } from '../theme';
 import { usePackages } from '../hooks/usePackages';
 import { PackageList } from './ListComponents';
-import { s } from './styles';
+import { useS } from './styles';
 import PackageModal from '../PackageModal';
 
 export default function BuybackScreen({ user }) {
+  const { colors } = useTheme();
+  const s = useS();
   const [q, setQ] = useState('');
   const [colFilters, setColFilters] = useState({});
   const { items, total, page, setPage, loading, searching, refetch } = usePackages('buyback', q, colFilters);
@@ -90,22 +92,22 @@ export default function BuybackScreen({ user }) {
 
           {/* Panel hasil proses */}
           {result && result.errors?.length > 0 && (
-            <View style={{ marginTop: 12, backgroundColor: '#FEF2F2', borderRadius: radius.card, borderWidth: 1, borderColor: '#FCA5A5', padding: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B', marginBottom: 8 }}>
+            <View style={{ marginTop: 12, backgroundColor: colors.dangerBg, borderRadius: radius.card, borderWidth: 1, borderColor: colors.dangerBorder, padding: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: colors.dangerText, marginBottom: 8 }}>
                 {result.errors.length} baris gagal diproses:
               </Text>
               {result.errors.map((err, i) => (
                 <View key={i} style={{ marginBottom: 4 }}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: colors.ink }}>{err.line}</Text>
-                  <Text style={{ fontSize: 11, color: '#991B1B' }}>→ {err.reason}</Text>
+                  <Text style={{ fontSize: 11, color: colors.dangerText }}>→ {err.reason}</Text>
                 </View>
               ))}
             </View>
           )}
 
           {result && result.errors?.length === 0 && (
-            <View style={{ marginTop: 12, backgroundColor: '#ECFDF5', borderRadius: radius.card, borderWidth: 1, borderColor: '#A7F3D0', padding: 12 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#065F46' }}>
+            <View style={{ marginTop: 12, backgroundColor: colors.scanOkBg, borderRadius: radius.card, borderWidth: 1, borderColor: colors.scanOkBorder, padding: 12 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.scanOkText }}>
                 ✓ Berhasil diproses {result.processed} paket
               </Text>
             </View>

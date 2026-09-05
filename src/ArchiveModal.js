@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Pressable,
 } from 'react-native';
 import { api } from './api';
-import { colors, radius, shadow, notice } from './theme';
+import { radius, shadow, notice, useTheme } from './theme';
 import Icon from './Icon';
 import { CalendarInput } from './CalendarInput';
 
 export function ArchiveModal({ visible, onClose, onArchived }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const [beforeDate, setBeforeDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [mode, setMode] = useState('before'); // 'before' (sebelum), 'exact' (tepat), 'on_or_before' (sampai)
   const [onlyCompleted, setOnlyCompleted] = useState(true);
@@ -62,7 +64,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
         <Pressable style={s.card} onPress={(e) => e?.stopPropagation?.()}>
           {/* Header */}
           <View style={s.head}>
-            <View style={[s.iconBadge, confirming && { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5' }]}>
+            <View style={[s.iconBadge, confirming && { backgroundColor: colors.dangerBg, borderColor: colors.dangerBorder }]}>
               <Icon name="box" size={20} color={confirming ? colors.danger : colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
@@ -215,7 +217,7 @@ export function ArchiveModal({ visible, onClose, onArchived }) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.75)',
@@ -265,9 +267,9 @@ const s = StyleSheet.create({
     padding: 6,
   },
   alertBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.dangerBg,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: colors.dangerBorder,
     borderRadius: radius.card,
     padding: 12,
     marginBottom: 10,
@@ -280,7 +282,7 @@ const s = StyleSheet.create({
   },
   alertText: {
     fontSize: 11.5,
-    color: '#991B1B',
+    color: colors.dangerText,
     lineHeight: 16,
   },
   label: {
@@ -381,9 +383,9 @@ const s = StyleSheet.create({
     fontSize: 13,
   },
   confirmWarningBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.dangerBg,
     borderWidth: 1,
-    borderColor: '#FCA5A5',
+    borderColor: colors.dangerBorder,
     borderRadius: radius.card,
     padding: 14,
     marginBottom: 12,
@@ -396,7 +398,7 @@ const s = StyleSheet.create({
   },
   confirmWarningText: {
     fontSize: 12,
-    color: '#7F1D1D',
+    color: colors.dangerText,
     lineHeight: 17,
   },
   summaryCard: {

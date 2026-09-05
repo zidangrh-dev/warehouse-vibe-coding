@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Pressable } from 'react-native';
-import { colors, radius, font } from './theme';
+import { radius, font, useTheme } from './theme';
 
 export default function ImportProgressModal({ visible, progress, error, onClose }) {
+  const { colors } = useTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
   const barWidth = useRef(new Animated.Value(0)).current;
 
   const {
@@ -54,19 +56,19 @@ export default function ImportProgressModal({ visible, progress, error, onClose 
 
           {/* Realtime Stats Counter Grid */}
           <View style={s.statsGrid}>
-            <View style={[s.statBox, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-              <Text style={[s.statVal, { color: '#15803D' }]}>{inserted}</Text>
-              <Text style={[s.statLabel, { color: '#166534' }]}>Baru</Text>
+            <View style={[s.statBox, { backgroundColor: colors.okBg, borderColor: colors.okBorder }]}>
+              <Text style={[s.statVal, { color: colors.okText }]}>{inserted}</Text>
+              <Text style={[s.statLabel, { color: colors.okText }]}>Baru</Text>
             </View>
 
-            <View style={[s.statBox, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
-              <Text style={[s.statVal, { color: '#1D4ED8' }]}>{updated}</Text>
-              <Text style={[s.statLabel, { color: '#1E40AF' }]}>Diperbarui</Text>
+            <View style={[s.statBox, { backgroundColor: colors.blueBg, borderColor: colors.blueBorder }]}>
+              <Text style={[s.statVal, { color: colors.blueText }]}>{updated}</Text>
+              <Text style={[s.statLabel, { color: colors.blueText }]}>Diperbarui</Text>
             </View>
 
-            <View style={[s.statBox, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
-              <Text style={[s.statVal, { color: '#64748B' }]}>{skipped}</Text>
-              <Text style={[s.statLabel, { color: '#475569' }]}>Dilewati</Text>
+            <View style={[s.statBox, { backgroundColor: colors.neutralBg, borderColor: colors.neutralBorder }]}>
+              <Text style={[s.statVal, { color: colors.sub }]}>{skipped}</Text>
+              <Text style={[s.statLabel, { color: colors.sub }]}>Dilewati</Text>
             </View>
           </View>
 
@@ -96,7 +98,7 @@ export default function ImportProgressModal({ visible, progress, error, onClose 
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (colors) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
@@ -107,7 +109,7 @@ const s = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 480,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 24,
     shadowColor: '#000',
@@ -122,12 +124,12 @@ const s = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.ink,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: colors.sub,
     lineHeight: 18,
   },
   progressSection: {
@@ -142,7 +144,7 @@ const s = StyleSheet.create({
   progressText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.ink,
   },
   percentText: {
     fontSize: 14,
@@ -152,7 +154,7 @@ const s = StyleSheet.create({
   },
   track: {
     height: 12,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: colors.chipBg,
     borderRadius: 6,
     overflow: 'hidden',
   },
@@ -184,15 +186,15 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
   errorBox: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
+    backgroundColor: colors.dangerBg,
+    borderColor: colors.dangerBorder,
     borderWidth: 1,
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
   errorText: {
-    color: '#991B1B',
+    color: colors.dangerText,
     fontSize: 12,
     fontWeight: '600',
   },
