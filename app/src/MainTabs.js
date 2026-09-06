@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
 import { shadow, spacing, radius, confirmAsync, useTheme } from './theme';
@@ -214,7 +214,7 @@ const makeStyles = (colors) => StyleSheet.create({
   avatarText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
   body: { flex: 1, backgroundColor: colors.bg },
   floatWrap: {
-    position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20,
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20,
     alignItems: 'center', justifyContent: 'center', paddingBottom: 12,
   },
   floatBar: {

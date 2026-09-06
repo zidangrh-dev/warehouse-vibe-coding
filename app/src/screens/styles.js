@@ -13,6 +13,7 @@ export function makeStyles(colors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: colors.bg },
     topBar: { flexDirection: 'row', gap: 10, padding: 14, paddingBottom: 0 },
+    topBarInput: { flex: 1, marginBottom: 0, flexShrink: 1, minWidth: 60 },
     bigBtn: {
       borderRadius: radius.pill,
       paddingVertical: 13,
@@ -20,6 +21,7 @@ export function makeStyles(colors) {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: colors.primary,
+      flexShrink: 1,
       ...shadow.card,
     },
     btnText: { color: '#fff', fontWeight: '700' },

@@ -61,7 +61,7 @@ export default function GojekScreen({ user }) {
     <View style={s.screen}>
       <View style={s.topBar}>
         <TextInput
-          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          style={[s.input, s.topBarInput]}
           placeholder="Cari invoice / nama / kode..."
           placeholderTextColor={colors.faint}
           value={q}
