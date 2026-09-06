@@ -182,7 +182,7 @@ export default function ScanScreen({ user }) {
     <View style={s.screen}>
       <View style={s.topBar}>
         <TextInput
-          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          style={[s.input, s.topBarInput]}
           placeholder="Cari invoice / nama / kode..."
           placeholderTextColor={colors.faint}
           value={q}
@@ -194,13 +194,13 @@ export default function ScanScreen({ user }) {
               style={[s.bigBtn, { backgroundColor: colors.primary }]}
               onPress={() => setScanOpen(true)}
             >
-              <Text style={s.btnText}>{isWarehouse ? 'Scan Cari Paket' : 'Scan Paket Sampai'}</Text>
+<Text style={s.btnText} numberOfLines={1}>{isWarehouse ? 'Scan Cari Paket' : 'Scan Paket Sampai'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.bigBtn, { backgroundColor: colors.sub }]}
               onPress={() => { setManualInvoice(''); setManualOpen(true); }}
             >
-              <Text style={s.btnText}>Manual</Text>
+              <Text style={s.btnText} numberOfLines={1}>Manual</Text>
             </TouchableOpacity>
           </>
         )}
@@ -332,9 +332,9 @@ export default function ScanScreen({ user }) {
 
 const makeScanBarStyle = (colors) => ({
   wrap: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
+    paddingTop: 8,
     paddingBottom: 8,
-    paddingTop: 2,
   },
   row: {
     flexDirection: 'row',

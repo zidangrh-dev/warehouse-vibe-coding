@@ -11,6 +11,9 @@ import { ThemeProvider, useTheme } from './src/theme';
 
 function scrollbarCss(isDark) {
   return `
+    html, body, #root { height: 100%; margin: 0; }
+    @supports (height: 100dvh) { html, body, #root { height: 100dvh; } }
+    body { overflow: hidden; overscroll-behavior: none; }
     /* Scrollbar modern ramping & auto-hide ala macOS */
     ::-webkit-scrollbar {
       width: 6px;

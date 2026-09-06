@@ -268,7 +268,7 @@ export default function KanbanScreen({ user }) {
     <View style={s.screen}>
       <View style={s.topBar}>
         <TextInput
-          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          style={[s.input, s.topBarInput]}
           placeholder="Cari invoice / nama / driver..."
           placeholderTextColor={colors.faint}
           value={q}
@@ -278,7 +278,7 @@ export default function KanbanScreen({ user }) {
           style={[s.bigBtn, { backgroundColor: colors.primary }]}
           onPress={() => setArchiveListOpen(true)}
         >
-          <Text style={s.btnText}>Arsip</Text>
+          <Text style={s.btnText} numberOfLines={1}>Arsip</Text>
         </TouchableOpacity>
       </View>
 

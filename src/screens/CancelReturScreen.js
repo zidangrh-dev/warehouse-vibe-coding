@@ -161,7 +161,7 @@ export default function CancelReturScreen({ user }) {
     <View style={s.screen}>
       <View style={s.topBar}>
         <TextInput
-          style={[s.input, { flex: 1, marginBottom: 0 }]}
+          style={[s.input, s.topBarInput]}
           placeholder="Cari invoice / nama / kode..."
           placeholderTextColor={colors.faint}
           value={q}
@@ -172,7 +172,7 @@ export default function CancelReturScreen({ user }) {
             style={[s.bigBtn, { backgroundColor: '#D97706' }]}
             onPress={() => setScanMode('ship')}
           >
-            <Text style={s.btnText}>Scan Dikirim ke Gudang</Text>
+            <Text style={s.btnText} numberOfLines={1}>Scan Dikirim ke Gudang</Text>
           </TouchableOpacity>
         )}
         {canReceive && (
@@ -180,7 +180,7 @@ export default function CancelReturScreen({ user }) {
             style={[s.bigBtn, { backgroundColor: '#059669' }]}
             onPress={() => setScanMode('receive')}
           >
-            <Text style={s.btnText}>Scan Diterima Gudang</Text>
+            <Text style={s.btnText} numberOfLines={1}>Scan Diterima Gudang</Text>
           </TouchableOpacity>
         )}
       </View>

@@ -1,6 +1,6 @@
 // Shared component: PaginationBar + List (display logic)
 import { useState, useRef } from 'react';
-import { View, Text, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useTheme, shadow } from '../theme';
 import { PackageRow, PackageTable } from '../components';
 import { useBreakpoint } from '../responsive';
@@ -128,7 +128,7 @@ export function PackageList({ items, loading, onOpen, rowAction, pagination, onS
 
 const styles = StyleSheet.create({
   floatWrap: {
-    position: 'absolute',
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
     left: 16,
     right: 16,
     bottom: 80,
