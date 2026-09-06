@@ -81,6 +81,18 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     load();
   }, [pkgId]);
 
+  // Mirror pkg TERBARU (bukan closure render lama). Autosave note berhasil
+  // memanggil setPkg, tapi closure fungsi aksi (retur, saveCode, dll) masih
+  // menahan pkg lama -> baseUpdatedAt basi -> HTTP 409 "diubah pengguna lain".
+  const pkgRef = useRef(null);
+  useEffect(() => {
+    pkgRef.current = pkg;
+  }, [pkg]);
+
+  // Promise autosave note terakhir — aksi lain menunggu ini selesai dulu
+  // supaya tidak ada dua PATCH berurutan yang saling membatalkan (409).
+  const noteSaveRef = useRef(null);
+
   // Konflik versi (HTTP 409 dari guard updated_at): data diubah pengguna lain
   // yang serentak — muat ulang diam-diam supaya tidak menimpa data basi.
   const reloadOnConflict = async (e) => {
@@ -125,25 +137,36 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     if (cur === noteLastSavedRef.current) return;
     noteLastSavedRef.current = cur;
 
-    // Retry sekali otomatis saat kena 409 supaya tidak muncul notice mengganggu
-    const doSave = async (retryCount = 0) => {
+    // Pakai basePkg sebagai argumen (bukan closure pkg) supaya retry 409 memakai
+    // updated_at yang fresh. Setelah sukses, pkg di-refresh dari respons server
+    // agar aksi berikutnya (retur, close, dll) tidak kena 409 beruntun.
+    const doSave = async (basePkg, retryCount = 0) => {
       try {
-        await api.updatePackage(pkg.id, { admin_note: cur, baseUpdatedAt: pkg.updated_at });
+        const saved = await api.updatePackage(basePkg.id, {
+          admin_note: cur,
+          baseUpdatedAt: basePkg.updated_at,
+        });
+        if (saved && saved.updated_at) {
+          const merged = { ...(pkgRef.current || basePkg), ...saved };
+          pkgRef.current = merged;
+          setPkg(merged);
+        }
         onChanged?.();
       } catch (e) {
         if (e && e.status === 409 && retryCount < 1) {
           try {
-            const fresh = await api.getPackage(pkg.id);
+            const fresh = await api.getPackage(basePkg.id);
             if (fresh) {
+              pkgRef.current = fresh;
               setPkg(fresh);
-              return doSave(retryCount + 1);
+              return doSave(fresh, retryCount + 1);
             }
           } catch {}
         }
         if (!(await reloadOnConflict(e))) notice(e.message);
       }
     };
-    doSave();
+    noteSaveRef.current = doSave(pkg);
   }, [pkg, note, onChanged, reloadOnConflict]);
 
   const onChangeNote = (v) => {
@@ -160,53 +183,59 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     onClose(); // Tutup UI duluan secara instan (optimistic close)
 
     if (!pkg) return;
+    // Tunggu autosave note selesai dulu (kalau sedang jalan) supaya PATCH
+    // close ini tidak rebutan updated_at dengan autosave -> 409.
+    if (noteSaveRef.current) {
+      try { await noteSaveRef.current; } catch {}
+    }
+    const pkgLatest = pkgRef.current || pkg;
     try {
       const payload = {};
 
       // 1. Admin note
       const curNote = note.trim();
-      const baseNote = (pkg.admin_note || "").trim();
+      const baseNote = (pkgLatest.admin_note || "").trim();
       if (curNote !== baseNote && curNote !== noteLastSavedRef.current) {
         payload.admin_note = curNote;
         noteLastSavedRef.current = curNote;
       }
 
       // 2. Driver info & Tags
-      const isArchived = !!pkg.archived;
+      const isArchived = !!pkgLatest.archived;
       const canAct = !isArchived && (user.role === 'superadmin' || user.role === 'admin' || user.role === 'warehouse');
-      const isGojek = pkg.pickup_type === 'gojek';
-      const lockDriver = isArchived || !!pkg.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkg.status);
+      const isGojek = pkgLatest.pickup_type === 'gojek';
+      const lockDriver = isArchived || !!pkgLatest.driver_locked || ['selesai', 'retur', 'cancel'].includes(pkgLatest.status);
 
       if (canAct && !lockDriver && isGojek) {
-        if (driverInfo.trim() !== (pkg.driver_info || '').trim()) payload.driver_info = driverInfo.trim();
-        if (driverRefreshed !== !!pkg.driver_refreshed) payload.driver_refreshed = driverRefreshed;
-        if (isCariDriver !== !!pkg.is_cari_driver) payload.is_cari_driver = isCariDriver;
+        if (driverInfo.trim() !== (pkgLatest.driver_info || '').trim()) payload.driver_info = driverInfo.trim();
+        if (driverRefreshed !== !!pkgLatest.driver_refreshed) payload.driver_refreshed = driverRefreshed;
+        if (isCariDriver !== !!pkgLatest.is_cari_driver) payload.is_cari_driver = isCariDriver;
       }
-      if (canAct && !lockDriver && isHold !== !!pkg.is_hold) {
+      if (canAct && !lockDriver && isHold !== !!pkgLatest.is_hold) {
         payload.is_hold = isHold;
       }
 
       // 3. Pickup Code
       const canEditCode = !lockDriver && (user.role === 'sales' || user.role === 'admin' || user.role === 'superadmin' || user.role === 'warehouse');
       if (canEditCode) {
-        if (!!codeVal.trim() && codeVal.trim() !== (pkg.pickup_code || '').trim()) {
+        if (!!codeVal.trim() && codeVal.trim() !== (pkgLatest.pickup_code || '').trim()) {
           payload.pickup_code = codeVal.trim();
         }
       }
 
       // Jika ada perubahan, kirim dalam SATU request PATCH saja
       if (Object.keys(payload).length > 0) {
-        payload.baseUpdatedAt = pkg.updated_at;
+        payload.baseUpdatedAt = pkgLatest.updated_at;
         try {
-          await api.updatePackage(pkg.id, payload);
+          await api.updatePackage(pkgLatest.id, payload);
           onChanged?.();
         } catch (e) {
           if (e && e.status === 409) {
             // Retry senyap jika terjadi bentrok versi saat close
-            const fresh = await api.getPackage(pkg.id);
+            const fresh = await api.getPackage(pkgLatest.id);
             if (fresh) {
               payload.baseUpdatedAt = fresh.updated_at;
-              await api.updatePackage(pkg.id, payload);
+              await api.updatePackage(pkgLatest.id, payload);
               onChanged?.();
             }
           }
@@ -391,7 +420,13 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     }
     if (field && pkg) {
       try {
-        const res = await api.updatePackage(pkg.id, { [field]: nextVal, baseUpdatedAt: pkg.updated_at });
+        // Tunggu autosave note dulu biar baseUpdatedAt tidak basi (409).
+        if (noteSaveRef.current) {
+          try { await noteSaveRef.current; } catch {}
+        }
+        const base = pkgRef.current || pkg;
+        const res = await api.updatePackage(base.id, { [field]: nextVal, baseUpdatedAt: base.updated_at });
+        pkgRef.current = res;
         setPkg(res);
         onChanged?.();
       } catch (e) {
@@ -614,25 +649,48 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const setStatus = async (to) => {
     setBusy(true);
     try {
+      // Tunggu autosave note selesai dulu — mencegah dua PATCH berebut
+      // updated_at (salah satunya pasti kena 409).
+      if (noteSaveRef.current) {
+        try { await noteSaveRef.current; } catch {}
+      }
+      const base = pkgRef.current || pkg;
       const payload = { status: to };
       if (isGojek && !lockDriver) {
-        if (driverInfo.trim() !== (pkg.driver_info || '').trim()) {
+        if (driverInfo.trim() !== (base.driver_info || '').trim()) {
           payload.driver_info = driverInfo.trim();
         }
-        if (driverRefreshed !== !!pkg.driver_refreshed) {
+        if (driverRefreshed !== !!base.driver_refreshed) {
           payload.driver_refreshed = driverRefreshed;
         }
-        if (isCariDriver !== !!pkg.is_cari_driver) {
+        if (isCariDriver !== !!base.is_cari_driver) {
           payload.is_cari_driver = isCariDriver;
         }
       }
-      if (!lockDriver && isHold !== !!pkg.is_hold) {
+      if (!lockDriver && isHold !== !!base.is_hold) {
         payload.is_hold = isHold;
       }
-      await api.updatePackage(pkg.id, { ...payload, baseUpdatedAt: pkg.updated_at });
+      await api.updatePackage(base.id, { ...payload, baseUpdatedAt: base.updated_at });
       onChanged();
       await load();
     } catch (e) {
+      if (e && e.status === 409) {
+        // Retry senyap SEKALI: kalau statusnya masih sama seperti yang dilihat
+        // user (tidak ada perubahan nyata dari user lain), kirim ulang dengan
+        // base terbaru — aksi jadi tetap 1x klik, tanpa notice.
+        try {
+          const cur = pkgRef.current || pkg;
+          const fresh = await api.getPackage(cur.id);
+          if (fresh && fresh.status === pkg.status) {
+            pkgRef.current = fresh;
+            setPkg((prev) => (prev ? { ...prev, ...fresh } : prev));
+            await api.updatePackage(fresh.id, { ...payload, baseUpdatedAt: fresh.updated_at });
+            onChanged();
+            await load();
+            return;
+          }
+        } catch {}
+      }
       if (!(await reloadOnConflict(e))) notice(e.message);
     } finally {
       setBusy(false);
@@ -642,7 +700,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const saveCode = async () => {
     setBusy(true);
     try {
-      await api.updatePackage(pkg.id, { pickup_code: codeVal.trim(), baseUpdatedAt: pkg.updated_at });
+      if (noteSaveRef.current) {
+        try { await noteSaveRef.current; } catch {}
+      }
+      const base = pkgRef.current || pkg;
+      await api.updatePackage(base.id, { pickup_code: codeVal.trim(), baseUpdatedAt: base.updated_at });
       onChanged();
       await load();
       notice("Pickup code berhasil disimpan!");
@@ -657,7 +719,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     if (busy) return;
     setBusy(true);
     try {
-      await api.updatePackage(pkg.id, { pickup_type: 'customer', status: 'absen_ambil_customer', baseUpdatedAt: pkg.updated_at });
+      if (noteSaveRef.current) {
+        try { await noteSaveRef.current; } catch {}
+      }
+      const base = pkgRef.current || pkg;
+      await api.updatePackage(base.id, { pickup_type: 'customer', status: 'absen_ambil_customer', baseUpdatedAt: base.updated_at });
       notice('Jenis ambilan berhasil diubah menjadi Ambil Customer!');
       setConfirmAnteranOpen(false);
       onChanged();
@@ -672,12 +738,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const saveDriver = async () => {
     setBusy(true);
     try {
-      await api.updatePackage(pkg.id, {
+      if (noteSaveRef.current) {
+        try { await noteSaveRef.current; } catch {}
+      }
+      const base = pkgRef.current || pkg;
+      await api.updatePackage(base.id, {
         driver_info: driverInfo.trim(),
         driver_refreshed: driverRefreshed,
         is_hold: isHold,
         is_cari_driver: isCariDriver,
-        baseUpdatedAt: pkg.updated_at,
+        baseUpdatedAt: base.updated_at,
       });
       notice("Data driver tersimpan");
       onChanged();
