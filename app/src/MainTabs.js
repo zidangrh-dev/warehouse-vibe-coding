@@ -167,28 +167,28 @@ export default function MainTabs({ user, onLogout }) {
         </View>
       </View>
 
-      <View style={{ flex: 1 }}>
-        <View style={s.body}>
-          <Animated.View style={{ flex: 1, opacity: screenOpacity, transform: [{ translateY: screenTranslateY }] }}>
-            <ActiveScreen user={user} />
-          </Animated.View>
-        </View>
+      <View style={s.body}>
+        <Animated.View style={{ flex: 1, opacity: screenOpacity, transform: [{ translateY: screenTranslateY }] }}>
+          <ActiveScreen user={user} />
+        </Animated.View>
       </View>
 
-      <View style={s.tabBar}>
-        {tabs.map((t) => {
-          const isActive = active === t.key;
-          return (
-            <TouchableOpacity
-              key={t.key}
-              style={[s.tab, isActive && s.tabActive]}
-              onPress={() => switchTab(t.key)}
-            >
-              <Icon name={t.icon} size={17} color={isActive ? colors.primary : colors.sub} />
-              {isActive && <Text style={s.tabLabel}>{t.label}</Text>}
-            </TouchableOpacity>
-          );
-        })}
+      <View style={s.floatWrap} pointerEvents="box-none">
+        <View style={s.floatBar}>
+          {tabs.map((t) => {
+            const isActive = active === t.key;
+            return (
+              <TouchableOpacity
+                key={t.key}
+                style={[s.tab, isActive && s.tabActive]}
+                onPress={() => switchTab(t.key)}
+                accessibilityLabel={t.label}
+              >
+                <Icon name={t.icon} size={isActive ? 22 : 19} color={isActive ? colors.primary : colors.sub} strokeWidth={isActive ? 2.4 : 2} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       <ChangePasswordModal visible={pwdModalOpen} onClose={() => setPwdModalOpen(false)} />
@@ -213,17 +213,23 @@ const makeStyles = (colors) => StyleSheet.create({
   },
   avatarText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
   body: { flex: 1, backgroundColor: colors.bg },
-  tabBar: {
-    flexDirection: 'row', backgroundColor: colors.surface,
-    borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 8, paddingHorizontal: 8, gap: 4,
+  floatWrap: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20,
+    alignItems: 'center', justifyContent: 'center', paddingBottom: 12,
+  },
+  floatBar: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.surface, borderRadius: 30,
+    borderWidth: 1, borderColor: colors.border,
+    paddingVertical: 6, paddingHorizontal: 6, gap: 2,
+    ...shadow.float,
   },
   tab: {
-    flex: 1, flexDirection: 'row', gap: 6,
+    flex: 1, minWidth: 38, maxWidth: 56,
+    height: 42, borderRadius: 24,
     alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 10, borderRadius: 10,
   },
-  tabActive: { backgroundColor: colors.primarySoft, flex: 1.6 },
-  tabLabel: { color: colors.primary, fontWeight: '700', fontSize: 12 },
+  tabActive: { backgroundColor: colors.primarySoft },
 
   // Sidebar desktop
   sidebar: {
