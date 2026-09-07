@@ -90,6 +90,24 @@ export const api = {
     p.set('pageSize', String(pageSize));
     return req('GET', `/api/packages?${p.toString()}`);
   },
+  // Export paket sesuai tab + filter yang sedang aktif (format: 'csv' | 'xlsx').
+  // Web: unduh lewat blob (token tidak bocor ke URL navigasi).
+  // Android: unduh ke cache lalu buka via share sheet.
+  exportPackages: (format, tab, q, extraFilters) => {
+    const p = new URLSearchParams();
+    p.set('tab', tab || 'semua');
+    p.set('format', format === 'xlsx' ? 'xlsx' : 'csv');
+    if (q) p.set('q', q);
+    if (extraFilters && typeof extraFilters === 'object') {
+      for (const [k, v] of Object.entries(extraFilters)) {
+        if (v && String(v).trim()) p.set(k, String(v).trim());
+      }
+    }
+    const url = `${apiBase()}/api/packages/export?${p.toString()}`;
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:\-T]/g, '');
+    const filename = `${tab || 'paket'}-${stamp}.${format === 'xlsx' ? 'xlsx' : 'csv'}`;
+    return downloadFile(url, filename);
+  },
   getPackage: (id) => req('GET', `/api/packages/${id}`),
   createPackage: (data) => req('POST', '/api/packages', data),
   updatePackage: (id, data) => req('PATCH', `/api/packages/${id}`, data),
@@ -139,6 +157,46 @@ export const api = {
   updateStaffName: (id, name) => req('PATCH', `/api/staff-names/${id}`, { name }),
   deleteStaffName: (id) => req('DELETE', `/api/staff-names/${id}`),
 };
+
+// Unduh file ber-otentikasi (token di header, bukan URL). Web: blob + <a download>.
+// Android: downloadAsync ke cache lalu share sheet bila tersedia.
+async function downloadFile(url, filename) {
+  if (Platform.OS === 'web') {
+    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Export gagal (HTTP ${res.status})`);
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    return { ok: true };
+  }
+  const FileSystem = await import('expo-file-system/legacy');
+  const dl = await FileSystem.downloadAsync(url, `${FileSystem.cacheDirectory}${filename}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (dl.status < 200 || dl.status >= 300) throw new Error(`Export gagal (HTTP ${dl.status})`);
+  try {
+    const Sharing = (await import('expo-sharing')).default;
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(dl.uri, {
+        mimeType: filename.endsWith('.xlsx')
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'text/csv',
+        dialogTitle: 'Export Data',
+      });
+    }
+  } catch (e) {
+    // share gagal/opsional — file tetap tersimpan di cache.
+  }
+  return { ok: true };
+}
 
 // Upload bukti foto (kind: 'wajah' | 'ktp' | 'barang').
 // Web: FormData + fetch browser. Native: FileSystem.uploadAsync dari expo-file-system/legacy.

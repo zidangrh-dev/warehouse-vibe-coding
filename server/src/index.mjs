@@ -656,6 +656,155 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   res.json({ items: r.rows, total, page, pageSize, searching });
 }));
 
+// ---- Export daftar paket (CSV / XLSX) — hasilnya mengikuti filter yang sama
+// dengan tabel yang sedang dibuka user (tab, pencarian atas, filter kolom,
+// termasuk status pickup code 'empty'/'filled' belum/sudah digenerate). ----
+const EXPORT_COLUMNS = [
+  { key: 'invoice_no', header: 'Invoice' },
+  { key: 'awb_no', header: 'AWB / Resi' },
+  { key: 'customer_name', header: 'Customer' },
+  { key: 'customer_phone', header: 'No HP' },
+  { key: 'item_desc', header: 'Barang' },
+  { key: 'pickup_type', header: 'Jenis Ambilan' },
+  { key: 'status', header: 'Status' },
+  { key: 'pickup_code', header: 'Pickup Code' },
+  { key: 'driver_info', header: 'Driver' },
+  { key: 'courier', header: 'Kurir' },
+  { key: 'platform', header: 'Platform' },
+  { key: 'seller_name', header: 'Nama Toko' },
+  { key: 'gojek_at', header: 'Jam Gojek' },
+  { key: 'done_by', header: 'Dikonfirmasi oleh' },
+  { key: 'updated_at', header: 'Update Terakhir' },
+];
+
+const EXPORT_STATUS_LABEL = {
+  data_masuk: 'Data Masuk', absen_ambil_customer: 'Absen Ambil Customer', absen_gojek: 'Absen Gojek',
+  absen_buyback: 'Absen Buyback', mencari_driver: 'Mencari Driver', driver_sampai_kios: 'Driver Sampai Kios',
+  retur: 'Retur', selesai: 'Selesai', cancel: 'Cancel',
+  dikirim_ke_gudang: 'Dikirim ke Gudang', diterima_gudang: 'Diterima Gudang',
+};
+const EXPORT_TYPE_LABEL = { gojek: 'Gojek', customer: 'Ambil Customer', buyback: 'Buyback', anteran: 'Anteran' };
+
+function exportDate(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function exportCell(key, row) {
+  if (key === 'status') return EXPORT_STATUS_LABEL[row.status] || row.status || '';
+  if (key === 'pickup_type') return EXPORT_TYPE_LABEL[row.pickup_type] || row.pickup_type || '';
+  if (key === 'gojek_at' || key === 'updated_at') return exportDate(row[key]);
+  return row[key] == null ? '' : String(row[key]);
+}
+
+function exportRows(rows) {
+  return rows.map((row) => EXPORT_COLUMNS.map((c) => exportCell(c.key, row)));
+}
+
+function csvEscape(v) {
+  const s = String(v ?? '');
+  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function buildExportCsv(rows) {
+  const lines = [EXPORT_COLUMNS.map((c) => csvEscape(c.header)).join(';')];
+  for (const vals of exportRows(rows)) lines.push(vals.map(csvEscape).join(';'));
+  // BOM UTF-8 supaya karakter Indonesia tidak rusak saat dibuka Excel.
+  return '\uFEFF' + lines.join('\r\n');
+}
+
+async function buildExportXlsx(rows) {
+  const mod = await import('exceljs');
+  const ExcelJS = mod.default?.Workbook ? mod.default : mod;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Data');
+  ws.columns = EXPORT_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 18 }));
+  for (const vals of exportRows(rows)) ws.addRow(vals);
+  const head = ws.getRow(1);
+  head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E5AAC' } };
+  head.eachCell((cell) => { cell.alignment = { vertical: 'middle' }; });
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
+}
+
+app.get('/api/packages/export', requireAuth, wrap(async (req, res) => {
+  if (req.query.tab === 'arsip' && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Hanya Super Admin yang dapat mengekspor arsip.' });
+  }
+  const { tab, q, invoice, customer, toko, courier, code, status, pickup_type, pickup_code } = req.query;
+  const cond = [];
+  const values = [];
+  cond.push('archived = false');
+  const filter = tab && TAB_FILTERS[tab];
+  if (filter) {
+    values.push(filter.statuses);
+    cond.push(`status = ANY($${values.length})`);
+    if (filter.pickup_type) {
+      values.push(filter.pickup_type);
+      cond.push(`pickup_type = $${values.length}`);
+    }
+  }
+  if (invoice && String(invoice).trim()) {
+    values.push(`%${String(invoice).trim()}%`);
+    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length})`);
+  }
+  if (customer && String(customer).trim()) {
+    values.push(`%${String(customer).trim()}%`);
+    cond.push(`(customer_name ILIKE $${values.length} OR customer_phone ILIKE $${values.length})`);
+  }
+  if (toko && String(toko).trim()) {
+    values.push(`%${String(toko).trim()}%`);
+    cond.push(`(seller_name ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length})`);
+  }
+  if (courier && String(courier).trim()) {
+    values.push(`%${String(courier).trim()}%`);
+    cond.push(`courier ILIKE $${values.length}`);
+  }
+  if (code && String(code).trim()) {
+    values.push(`%${String(code).trim()}%`);
+    cond.push(`(pickup_code ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
+  }
+  if (status && String(status).trim()) {
+    values.push(String(status).trim());
+    cond.push(`status = $${values.length}`);
+  }
+  if (pickup_type && String(pickup_type).trim()) {
+    values.push(String(pickup_type).trim());
+    cond.push(`pickup_type = $${values.length}`);
+  }
+  // Filter status generate pickup code ('empty' belum / 'filled' sudah digenerate).
+  if (pickup_code === 'empty') {
+    cond.push(`(pickup_code IS NULL OR pickup_code = '')`);
+  } else if (pickup_code === 'filled') {
+    cond.push(`(pickup_code IS NOT NULL AND pickup_code <> '')`);
+  }
+  if (q && String(q).trim()) {
+    values.push(`%${String(q).trim()}%`);
+    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
+  }
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+  const r = await pool.query(
+    `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages ${where} ORDER BY updated_at DESC LIMIT 10000`, values);
+  const rows = r.rows || [];
+
+  const fmt = String(req.query.format || 'csv').toLowerCase() === 'xlsx' ? 'xlsx' : 'csv';
+  const stamp = exportDate(new Date()).replace(/[:\- ]/g, '').slice(0, 12);
+  const base = `${String(tab || 'paket')}-${stamp}`;
+
+  if (fmt === 'xlsx') {
+    const buf = await buildExportXlsx(rows);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${base}.xlsx"`);
+    return res.send(buf);
+  }
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${base}.csv"`);
+  res.send(buildExportCsv(rows));
+}));
+
 app.get('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   const r = await pool.query('SELECT * FROM packages WHERE id=$1', [Number(req.params.id)]);
   if (!r.rows[0]) return res.status(404).json({ error: 'Paket tidak ditemukan' });
