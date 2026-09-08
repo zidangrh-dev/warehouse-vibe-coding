@@ -98,7 +98,7 @@ export default function SemuaScreen({ user }) {
         items={items}
         loading={loading}
         onOpen={(p) => setOpenId(p.id)}
-        pagination={searching ? null : { page, total, onPage: setPage }}
+        pagination={{ page, total, onPage: setPage }}
         onSearchQuery={setQ}
         onColumnFilterChange={setColFilters}
         tab="semua"
