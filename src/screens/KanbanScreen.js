@@ -195,7 +195,7 @@ export default function KanbanScreen({ user }) {
   const total = items.length;
   const searching = !!(q.trim() || typeFilter);
 
-  const moveTo = async (pkg, target, extraData) => {
+  const moveTo = useCallback(async (pkg, target, extraData) => {
     if (pkg.status === target && !extraData) return;
     if (!allowedTargets(pkg.status).includes(target)) {
       notice(`Tidak bisa langsung pindah ke "${statusLabel(target)}".`);
@@ -224,9 +224,9 @@ export default function KanbanScreen({ user }) {
         notice(e.message);
       }
     }
-  };
+  }, [canShip, canReceive, load]);
 
-  const saveDriver = async (pkg, info, code) => {
+  const saveDriver = useCallback(async (pkg, info, code) => {
     try {
       await api.updatePackage(pkg.id, {
         status: 'driver_sampai_kios',
@@ -243,7 +243,7 @@ export default function KanbanScreen({ user }) {
         notice(e.message);
       }
     }
-  };
+  }, [load]);
 
   // Drop pada kolom (status) — validasi transisi primary tetap di moveTo().
   // `insert` hanya penanda visual; urutan akhir tetap hasil query updated_at.
@@ -259,6 +259,38 @@ export default function KanbanScreen({ user }) {
   const handleSaveDriverCard = useCallback((pkg, info, code) => saveDriver(pkg, info, code), [saveDriver]);
   const handleDragStartCard = useCallback((pkg) => { dragging.current = pkg; }, []);
   const handleDragEndCard = useCallback(() => { dragging.current = null; }, []);
+
+  // Identitas fungsi ini menentukan apakah memo() pada KanbanCard bekerja. Saat
+  // dibuat inline di JSX, setiap render papan (mis. membuka modal, satu event
+  // socket) membangun ulang seluruh kartu di sembilan kolom.
+  const renderCard = useCallback((pkg, regNode) => (
+    <KanbanCard
+      key={pkg.id}
+      pkg={pkg}
+      isAdmin={isAdmin}
+      canShip={canShip}
+      canReceive={canReceive}
+      isWeb={isWeb}
+      regNode={regNode}
+      onOpen={handleOpenCard}
+      onMove={handleMoveCard}
+      onSaveDriver={handleSaveDriverCard}
+      onDragStart={handleDragStartCard}
+      onDragEnd={handleDragEndCard}
+    />
+  ), [isAdmin, canShip, canReceive, isWeb, handleOpenCard, handleMoveCard,
+      handleSaveDriverCard, handleDragStartCard, handleDragEndCard]);
+
+  const handleToggleSort = useCallback((st) => {
+    setColSort((prev) => ({
+      ...prev,
+      [st]: (prev[st] || 'desc') === 'desc' ? 'asc' : 'desc',
+    }));
+  }, []);
+
+  const handleColSearch = useCallback((st, v) => {
+    setColSearch((prev) => ({ ...prev, [st]: v }));
+  }, []);
 
   if (loading && !items.length) {
     return <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />;
@@ -327,33 +359,13 @@ export default function KanbanScreen({ user }) {
             status={st}
             count={byStatus[st]?.length || 0}
             sortOrder={colSort[st] || 'desc'}
-            onToggleSort={() =>
-              setColSort((prev) => ({
-                ...prev,
-                [st]: (prev[st] || 'desc') === 'desc' ? 'asc' : 'desc',
-              }))
-            }
+            onToggleSort={handleToggleSort}
             insert={insert}
             onInsert={setInsert}
-            onDrop={() => handleDrop(st)}
+            onDrop={handleDrop}
             search={colSearch[st] || ''}
-            onSearch={(v) => setColSearch((prev) => ({ ...prev, [st]: v }))}
-            renderCard={(pkg, regNode) => (
-              <KanbanCard
-                key={pkg.id}
-                pkg={pkg}
-                isAdmin={isAdmin}
-                canShip={canShip}
-                canReceive={canReceive}
-                isWeb={isWeb}
-                regNode={regNode}
-                onOpen={handleOpenCard}
-                onMove={handleMoveCard}
-                onSaveDriver={handleSaveDriverCard}
-                onDragStart={handleDragStartCard}
-                onDragEnd={handleDragEndCard}
-              />
-            )}
+            onSearch={handleColSearch}
+            renderCard={renderCard}
             cards={byStatus[st] || []}
           />
         ))}
@@ -443,7 +455,9 @@ function ArchiveListModal({ visible, groups, customDate, onCustomDate, onPick, o
 }
 
 // ---- Kolom papan ----
-function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, search, onSearch, sortOrder = 'desc', onToggleSort }) {
+// memo: sembilan kolom dirender setiap papan berubah; tanpa ini satu event
+// socket membuat seluruh kolom (dan isinya) dibangun ulang.
+const KanbanColumn = memo(function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, search, onSearch, sortOrder = 'desc', onToggleSort }) {
   const { colors } = useTheme();
   const kb = useMemo(() => makeKbStyles(colors), [colors]);
   const colRef = useRef(null);
@@ -495,7 +509,7 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
     };
     const onDropEv = (e) => {
       e.preventDefault();
-      onDrop();
+      onDrop(status);
     };
 
     node.addEventListener('dragenter', onDragEnter);
@@ -524,7 +538,7 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
         </Text>
         <TouchableOpacity
           style={{ padding: 2, marginRight: 2 }}
-          onPress={onToggleSort}
+          onPress={() => onToggleSort(status)}
           activeOpacity={0.7}
           accessibilityLabel={`Urutan ${sortOrder === 'desc' ? 'Terbaru' : 'Terlama'}`}
         >
@@ -545,10 +559,10 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
           placeholder="cari invoice/driver/toko..."
           placeholderTextColor={colors.faint}
           value={search}
-          onChangeText={onSearch}
+          onChangeText={(v) => onSearch(status, v)}
         />
         {!!search && (
-          <TouchableOpacity style={kb.colSearchClear} onPress={() => onSearch('')}>
+          <TouchableOpacity style={kb.colSearchClear} onPress={() => onSearch(status, '')}>
             <Text style={kb.colSearchClearText}>
               <Icon name="x" size={11} color={colors.sub} strokeWidth={3} />
             </Text>
@@ -584,7 +598,7 @@ function KanbanColumn({ status, cards, insert, onInsert, onDrop, renderCard, sea
       </ScrollView>
     </View>
   );
-}
+});
 
 // ---- Kartu papan (input inline sesuai status) ----
 const KanbanCard = memo(function KanbanCard({ pkg, isAdmin, canShip, canReceive, isWeb, regNode, onOpen, onMove, onSaveDriver, onDragStart, onDragEnd }) {
