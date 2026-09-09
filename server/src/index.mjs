@@ -520,10 +520,17 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
 
     const meiliResult = await searchPackages(searchQuery, meiliFilters);
     // searchPackages mengembalikan null hanya saat Meilisearch error/tidak aktif.
-    // Hasil 0 dokumen adalah jawaban yang sah, bukan kegagalan: dulu keduanya
-    // disamakan sehingga tiap pencarian tanpa hasil jatuh ke ILIKE PostgreSQL
-    // dan memicu sequential scan pada seluruh tabel.
-    if (meiliResult) {
+    // Hasil 0 dokumen adalah jawaban yang sah, bukan kegagalan: menyamakan keduanya
+    // membuat tiap pencarian tanpa hasil jatuh ke ILIKE PostgreSQL dan memicu
+    // sequential scan pada seluruh tabel.
+    //
+    // Pengecualian: Meilisearch mencocokkan per kata, sehingga potongan tengah/akhir
+    // nomor ("4178" dari "...774178") tidak pernah cocok — bahkan bisa mengembalikan
+    // nomor lain yang kebetulan memuat "4178" sebagai kata utuh. Query yang murni
+    // digit karena itu selalu dilayani SQL di bawah, yang memakai index trigram pada
+    // invoice_no, awb_no, dan pickup_code sehingga tetap memakai index.
+    const numericQuery = /^\d{3,}$/.test(searchQuery.trim());
+    if (meiliResult && !numericQuery) {
       const totalPages = Math.max(1, Math.ceil(meiliResult.total / pageSize));
       return res.json({
         items: meiliResult.hits,
@@ -624,8 +631,16 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
   );
 
   if (q && String(q).trim()) {
-    values.push(`%${String(q).trim()}%`);
-    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
+    const term = String(q).trim();
+    values.push(`%${term}%`);
+    // Query murni digit (nomor invoice/resi/pickup code) hanya disisir ke kolom
+    // bernomor yang punya index trigram. Menyertakan status/courier/item_desc di
+    // sini memaksa sequential scan untuk pencarian yang paling sering dipakai.
+    if (/^\d{3,}$/.test(term)) {
+      cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR customer_phone ILIKE $${values.length})`);
+    } else {
+      cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
+    }
   }
 
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
@@ -786,8 +801,13 @@ app.get('/api/packages/export', requireAuth, wrap(async (req, res) => {
     cond.push(`(pickup_code IS NOT NULL AND pickup_code <> '')`);
   }
   if (q && String(q).trim()) {
-    values.push(`%${String(q).trim()}%`);
-    cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
+    const term = String(q).trim();
+    values.push(`%${term}%`);
+    if (/^\d{3,}$/.test(term)) {
+      cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR customer_phone ILIKE $${values.length})`);
+    } else {
+      cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
+    }
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
   const r = await pool.query(
