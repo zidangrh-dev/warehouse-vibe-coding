@@ -519,7 +519,11 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
     meiliFilters.offset = (page - 1) * pageSize;
 
     const meiliResult = await searchPackages(searchQuery, meiliFilters);
-    if (meiliResult && meiliResult.hits.length > 0) {
+    // searchPackages mengembalikan null hanya saat Meilisearch error/tidak aktif.
+    // Hasil 0 dokumen adalah jawaban yang sah, bukan kegagalan: dulu keduanya
+    // disamakan sehingga tiap pencarian tanpa hasil jatuh ke ILIKE PostgreSQL
+    // dan memicu sequential scan pada seluruh tabel.
+    if (meiliResult) {
       const totalPages = Math.max(1, Math.ceil(meiliResult.total / pageSize));
       return res.json({
         items: meiliResult.hits,
@@ -1507,6 +1511,7 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
 
     const norm = (str) => String(str || '').replace(/\r?\n|\r/g, ' ').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
     let inserted = 0, updated = 0, skipped = 0, skippedCourier = 0;
+    const insertedIds = [];
     const invoiceSeen = new Set();
 
     // Optimasi Performa: Preload data existing untuk seluruh baris di batch ini (1 query per batch, bukan N query per baris).
@@ -1599,12 +1604,13 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
 
         if (!ex) {
           // Paket BARU! Insert ke DB
-          await pool.query(
+          const ins = await pool.query(
             `INSERT INTO packages (invoice_no, awb_no, customer_name, customer_phone, item_desc, platform, courier, pickup_type, pickup_code, seller_name, status, raw, source)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,$12,'import')`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10,$11,$12,'import') RETURNING id`,
             [cleanInvoice, cleanAwb, norm(m.customer_name), norm(m.customer_phone), norm(m.item_desc),
              norm(m.platform), norm(m.courier), ptype, codeToSet, norm(m.seller_name), initialStatus, JSON.stringify(m.raw)]
           );
+          if (ins.rows[0]) insertedIds.push(ins.rows[0].id);
           inserted++;
         } else {
           // Paket SUDAH ADA di DB! Field lain TIDAK BOLEH diubah oleh CSV baru.
@@ -1631,11 +1637,18 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
         skipped++;
       }
     }
-    // Bulk index ke Meilisearch: fetch semua paket yang baru diinsert
-    if (inserted > 0) {
+    // Bulk index ke Meilisearch berdasarkan id yang benar-benar diinsert.
+    // Sebelumnya memakai filter `received_at > now() - interval '1 minute'`, yang
+    // meleset pada import besar: baris yang masuk di awal sudah lewat 1 menit saat
+    // query ini jalan, sehingga tidak pernah terindeks.
+    if (insertedIds.length) {
       try {
-        const bulkRes = await pool.query(`SELECT ${PACKAGE_LIST_COLUMNS} FROM packages WHERE source='import' AND received_at > now() - interval '1 minute'`);
-        bulkIndexPackages(bulkRes.rows);
+        for (let i = 0; i < insertedIds.length; i += 1000) {
+          const chunk = insertedIds.slice(i, i + 1000);
+          const bulkRes = await pool.query(
+            `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages WHERE id = ANY($1)`, [chunk]);
+          await bulkIndexPackages(bulkRes.rows);
+        }
       } catch (e) {
         console.error('Meilisearch bulk index error:', e.message);
       }
