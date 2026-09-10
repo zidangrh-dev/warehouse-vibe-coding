@@ -1306,6 +1306,10 @@ app.post('/api/packages/buyback-arrive', requireAuth, requireRole('admin', 'supe
         [pkg.id, parsed.code]);
       if (!r.rowCount) { skipped++; errors.push({ line: line.trim(), reason: 'gagal update' }); continue; }
       await logEvent(pkg.id, req.user, 'buyback_arrive', `AWB/IP ${parsed.awb} -> pickup code ${parsed.code}, status -> absen_buyback`);
+      // Tanpa ini indeks Meili menyimpan status/pickup_type lama, sehingga paket
+      // tidak muncul di tab Buyback (yang memfilter pickup_type='buyback')
+      // padahal datanya sudah benar di PostgreSQL.
+      await indexPackage(pkg.id);
       processed++;
     } catch (e) {
       skipped++;
