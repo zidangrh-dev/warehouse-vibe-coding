@@ -771,18 +771,80 @@ async function streamExportCsv(res, sql, values, chunkSize = 500) {
 }
 
 /**
- * Versi mengalir dari buildExportXlsx.
+ * Menyisipkan <dimension> ke sheet di dalam berkas XLSX yang sudah jadi.
  *
- * WorkbookWriter menulis langsung ke response dan membuang baris yang sudah
- * selesai dari memori (lewat commit), sehingga 50.000 baris tidak perlu
- * ditahan utuh seperti pada writeBuffer().
+ * ExcelJS WorkbookWriter melewatkan elemen ini karena menulis secara mengalir:
+ * saat header sheet dikirim, jumlah barisnya belum diketahui. Excel memakai
+ * <dimension> sebagai penanda rentang data — tanpa itu Excel bisa berhenti di
+ * tengah, sementara pembaca lain (ExcelJS, LibreOffice) tetap membaca semua
+ * baris sehingga masalahnya tidak terlihat kecuali dibuka di Excel asli.
+ */
+async function sisipkanDimensiXlsx(filePath, totalBaris, totalKolom) {
+  const fsp = await import('node:fs/promises');
+  const JSZip = (await import('jszip')).default;
+
+  const kolomKeHuruf = (n) => {
+    let s = '';
+    while (n > 0) {
+      const sisa = (n - 1) % 26;
+      s = String.fromCharCode(65 + sisa) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  };
+  const ref = `A1:${kolomKeHuruf(totalKolom)}${totalBaris}`;
+
+  const zip = await JSZip.loadAsync(await fsp.readFile(filePath));
+  const namaSheet = 'xl/worksheets/sheet1.xml';
+  const berkas = zip.file(namaSheet);
+  if (!berkas) return;
+
+  let xml = await berkas.async('string');
+  if (/<dimension[^>]*>/.test(xml)) {
+    xml = xml.replace(/<dimension[^>]*\/>/, `<dimension ref="${ref}"/>`);
+  } else {
+    // Urutan elemen di dalam <worksheet> mengikat: <dimension> harus berada
+    // tepat sebelum <sheetViews>, kalau tidak Excel menolak berkasnya.
+    xml = xml.replace(/(<worksheet[^>]*>)/, `$1<dimension ref="${ref}"/>`);
+  }
+
+  zip.file(namaSheet, xml);
+  const keluaran = await zip.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+  await fsp.writeFile(filePath, keluaran);
+}
+
+/**
+ * Menulis XLSX ke berkas sementara lalu mengalirkannya ke pengunduh.
+ *
+ * XLSX adalah ZIP: pembacanya melompat ke central directory di akhir berkas,
+ * lalu mundur mencari isinya. Menulis WorkbookWriter langsung ke response
+ * menghasilkan ZIP yang penandanya tidak tersusun utuh — ExcelJS masih sanggup
+ * membacanya, tetapi Excel asli lebih ketat dan berhenti di tengah (terbukti:
+ * 13.829 baris hanya terbaca sekitar separuhnya).
+ *
+ * Perantara disk menjaga arsipnya benar-benar rampung sebelum dikirim, tanpa
+ * menahan seluruh workbook di memori seperti writeBuffer(). Barisnya tetap
+ * dibaca bertahap lewat kursor, jadi RAM proses tetap rata.
  */
 async function streamExportXlsx(res, sql, values, chunkSize = 500) {
   const mod = await import('exceljs');
   const ExcelJS = mod.default?.Workbook ? mod.default : mod;
   const Cursor = (await import('pg-cursor')).default;
+  const fsp = await import('node:fs/promises');
+  const fsSync = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
 
-  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res, useStyles: true });
+  const tmpPath = path.join(
+    os.tmpdir(),
+    `export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xlsx`,
+  );
+
+  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ filename: tmpPath, useStyles: true });
   const ws = wb.addWorksheet('Data');
   ws.columns = EXPORT_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 18 }));
   const head = ws.getRow(1);
@@ -810,6 +872,30 @@ async function streamExportXlsx(res, sql, values, chunkSize = 500) {
   } finally {
     await new Promise((resolve) => cursor.close(resolve));
     client.release();
+  }
+
+  // WorkbookWriter tidak menuliskan <dimension> karena jumlah baris belum
+  // diketahui saat header sheet dikirim. Excel memakai elemen itu untuk
+  // menentukan rentang data dan bisa berhenti lebih awal bila tidak ada —
+  // pembaca lain tetap membaca semuanya, sehingga cacatnya tidak kelihatan
+  // kecuali dibuka di Excel. Rentangnya sekarang sudah pasti, jadi disisipkan
+  // setelah berkas rampung.
+  await sisipkanDimensiXlsx(tmpPath, jumlah + 1, EXPORT_COLUMNS.length);
+
+  try {
+    // Content-Length dipasang supaya pengunduh tahu ukuran pastinya — klien
+    // Android sempat bermasalah dengan respons chunked tanpa panjang.
+    const { size } = await fsp.stat(tmpPath);
+    res.setHeader('Content-Length', String(size));
+    await new Promise((resolve, reject) => {
+      const baca = fsSync.createReadStream(tmpPath);
+      baca.on('error', reject);
+      res.on('error', reject);
+      res.on('finish', resolve);
+      baca.pipe(res);
+    });
+  } finally {
+    await fsp.unlink(tmpPath).catch(() => {});
   }
   return jumlah;
 }
