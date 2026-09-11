@@ -727,26 +727,91 @@ function csvEscape(v) {
   return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function buildExportCsv(rows) {
-  const lines = [EXPORT_COLUMNS.map((c) => csvEscape(c.header)).join(';')];
-  for (const vals of exportRows(rows)) lines.push(vals.map(csvEscape).join(';'));
-  // BOM UTF-8 supaya karakter Indonesia tidak rusak saat dibuka Excel.
-  return '\uFEFF' + lines.join('\r\n');
+/**
+ * Mengalirkan hasil query ke response sepotong demi sepotong.
+ *
+ * Cara lama menumpuk seluruh baris di array lalu merangkainya jadi satu string
+ * raksasa sebelum dikirim — pada 50.000 baris itu menahan data berkali-kali
+ * lipat di memori sekaligus. Dengan kursor, hanya CHUNK baris yang dipegang
+ * pada satu waktu, jadi pemakaian RAM tetap rata berapa pun jumlah datanya.
+ * Konsekuensinya unduhan terasa sedikit lebih lambat, dan itu memang pilihan
+ * yang diambil: lebih baik lama tapi server tidak goyah.
+ */
+async function streamExportCsv(res, sql, values, chunkSize = 500) {
+  const Cursor = (await import('pg-cursor')).default;
+  const client = await pool.connect();
+  const cursor = client.query(new Cursor(sql, values));
+
+  const bacaBerikutnya = () => new Promise((resolve, reject) => {
+    cursor.read(chunkSize, (err, rows) => (err ? reject(err) : resolve(rows)));
+  });
+
+  // Menunggu drain mencegah data menumpuk di buffer socket ketika jaringan
+  // klien lebih lambat daripada database.
+  const tulis = (teks) => new Promise((resolve) => {
+    if (res.write(teks)) return resolve();
+    res.once('drain', resolve);
+  });
+
+  let jumlah = 0;
+  try {
+    await tulis('\uFEFF' + EXPORT_COLUMNS.map((c) => csvEscape(c.header)).join(';') + '\r\n');
+    for (;;) {
+      const rows = await bacaBerikutnya();
+      if (!rows.length) break;
+      const potongan = exportRows(rows).map((vals) => vals.map(csvEscape).join(';')).join('\r\n');
+      await tulis(potongan + '\r\n');
+      jumlah += rows.length;
+    }
+  } finally {
+    await new Promise((resolve) => cursor.close(resolve));
+    client.release();
+  }
+  return jumlah;
 }
 
-async function buildExportXlsx(rows) {
+/**
+ * Versi mengalir dari buildExportXlsx.
+ *
+ * WorkbookWriter menulis langsung ke response dan membuang baris yang sudah
+ * selesai dari memori (lewat commit), sehingga 50.000 baris tidak perlu
+ * ditahan utuh seperti pada writeBuffer().
+ */
+async function streamExportXlsx(res, sql, values, chunkSize = 500) {
   const mod = await import('exceljs');
   const ExcelJS = mod.default?.Workbook ? mod.default : mod;
-  const wb = new ExcelJS.Workbook();
+  const Cursor = (await import('pg-cursor')).default;
+
+  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res, useStyles: true });
   const ws = wb.addWorksheet('Data');
   ws.columns = EXPORT_COLUMNS.map((c) => ({ header: c.header, key: c.key, width: 18 }));
-  for (const vals of exportRows(rows)) ws.addRow(vals);
   const head = ws.getRow(1);
   head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E5AAC' } };
   head.eachCell((cell) => { cell.alignment = { vertical: 'middle' }; });
-  const buf = await wb.xlsx.writeBuffer();
-  return Buffer.from(buf);
+  head.commit();
+
+  const client = await pool.connect();
+  const cursor = client.query(new Cursor(sql, values));
+  const bacaBerikutnya = () => new Promise((resolve, reject) => {
+    cursor.read(chunkSize, (err, rows) => (err ? reject(err) : resolve(rows)));
+  });
+
+  let jumlah = 0;
+  try {
+    for (;;) {
+      const rows = await bacaBerikutnya();
+      if (!rows.length) break;
+      for (const vals of exportRows(rows)) ws.addRow(vals).commit();
+      jumlah += rows.length;
+    }
+    await ws.commit();
+    await wb.commit();
+  } finally {
+    await new Promise((resolve) => cursor.close(resolve));
+    client.release();
+  }
+  return jumlah;
 }
 
 app.get('/api/packages/export', requireAuth, wrap(async (req, res) => {
@@ -810,23 +875,25 @@ app.get('/api/packages/export', requireAuth, wrap(async (req, res) => {
     }
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-  const r = await pool.query(
-    `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages ${where} ORDER BY updated_at DESC LIMIT 10000`, values);
-  const rows = r.rows || [];
+  // Batas 50.000 baris. Datanya TIDAK ditarik sekaligus: kursor membacanya
+  // 500 baris sekali jalan lalu langsung dialirkan ke pengunduh, jadi RAM
+  // server tetap rata meski hasilnya puluhan ribu baris.
+  const sql = `SELECT ${PACKAGE_LIST_COLUMNS} FROM packages ${where} ORDER BY updated_at DESC LIMIT 50000`;
 
   const fmt = String(req.query.format || 'csv').toLowerCase() === 'xlsx' ? 'xlsx' : 'csv';
   const stamp = exportDate(new Date()).replace(/[:\- ]/g, '').slice(0, 12);
   const base = `${String(tab || 'paket')}-${stamp}`;
 
   if (fmt === 'xlsx') {
-    const buf = await buildExportXlsx(rows);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${base}.xlsx"`);
-    return res.send(buf);
+    await streamExportXlsx(res, sql, values);
+    return;
   }
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${base}.csv"`);
-  res.send(buildExportCsv(rows));
+  await streamExportCsv(res, sql, values);
+  res.end();
 }));
 
 app.get('/api/packages/:id', requireAuth, wrap(async (req, res) => {
