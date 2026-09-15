@@ -44,6 +44,11 @@ const Field = ({ label, children }) => {
   );
 };
 
+// Banyaknya percobaan ulang saat server menolak dengan 409 (data diubah
+// pengguna lain). Kanban dipakai banyak admin sekaligus, jadi bentrok versi
+// bisa terjadi beruntun — satu kali percobaan ulang tidak cukup.
+const MAX_RETRY_SIMPAN = 3;
+
 export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -137,7 +142,6 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
     const base = pkg.admin_note || "";
     if (cur === base) return;
     if (cur === noteLastSavedRef.current) return;
-    noteLastSavedRef.current = cur;
 
     // Pakai basePkg sebagai argumen (bukan closure pkg) supaya retry 409 memakai
     // updated_at yang fresh. Setelah sukses, pkg di-refresh dari respons server
@@ -148,6 +152,12 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           admin_note: cur,
           baseUpdatedAt: basePkg.updated_at,
         });
+        // Penanda "sudah tersimpan" HANYA boleh diisi setelah server
+        // mengonfirmasi. Sebelumnya diisi di awal, sehingga saat penyimpanan
+        // gagal penanda tetap berisi teks baru dan handleClose menyangka
+        // catatan sudah aman -> catatan tidak ikut terkirim dan hilang,
+        // membuat admin harus mengetik ulang ("harus simpan 2 kali").
+        noteLastSavedRef.current = cur;
         if (saved && saved.updated_at) {
           const merged = { ...(pkgRef.current || basePkg), ...saved };
           pkgRef.current = merged;
@@ -155,8 +165,11 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         }
         onChanged?.();
       } catch (e) {
-        if (e && e.status === 409 && retryCount < 1) {
+        // Bentrok versi bisa terjadi beruntun ketika beberapa admin menyentuh
+        // paket yang sama, jadi satu kali percobaan ulang tidak cukup.
+        if (e && e.status === 409 && retryCount < MAX_RETRY_SIMPAN) {
           try {
+            await new Promise((r) => setTimeout(r, 150 * (retryCount + 1)));
             const fresh = await api.getPackage(basePkg.id);
             if (fresh) {
               pkgRef.current = fresh;
@@ -165,10 +178,16 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
             }
           } catch {}
         }
+        // Gagal: kembalikan penanda ke nilai lama supaya handleClose tahu
+        // catatan ini masih perlu dikirim ulang.
+        noteLastSavedRef.current = base;
         if (!(await reloadOnConflict(e))) notice(e.message);
+        throw e;
       }
     };
-    noteSaveRef.current = doSave(pkg);
+    // Kegagalan ditangani di dalam doSave; penolakan ini ditangkap supaya
+    // tidak muncul sebagai unhandled rejection saat di-await handleClose.
+    noteSaveRef.current = doSave(pkg).catch(() => {});
   }, [pkg, note, onChanged, reloadOnConflict]);
 
   const onChangeNote = (v) => {
@@ -227,24 +246,44 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
 
       // Jika ada perubahan, kirim dalam SATU request PATCH saja
       if (Object.keys(payload).length > 0) {
-        payload.baseUpdatedAt = pkgLatest.updated_at;
-        try {
-          await api.updatePackage(pkgLatest.id, payload);
-          onChanged?.();
-        } catch (e) {
-          if (e && e.status === 409) {
-            // Retry senyap jika terjadi bentrok versi saat close
-            const fresh = await api.getPackage(pkgLatest.id);
-            if (fresh) {
-              payload.baseUpdatedAt = fresh.updated_at;
-              await api.updatePackage(pkgLatest.id, payload);
-              onChanged?.();
-            }
+        // Percobaan ulang bertahap saat bentrok versi. Sebelumnya hanya satu
+        // kali, sehingga bentrok beruntun membuat perubahan hilang diam-diam.
+        let basis = pkgLatest;
+        let tersimpan = false;
+        let galatTerakhir = null;
+
+        for (let percobaan = 0; percobaan <= MAX_RETRY_SIMPAN; percobaan++) {
+          try {
+            payload.baseUpdatedAt = basis.updated_at;
+            await api.updatePackage(basis.id, payload);
+            tersimpan = true;
+            onChanged?.();
+            break;
+          } catch (e) {
+            galatTerakhir = e;
+            if (!e || e.status !== 409 || percobaan === MAX_RETRY_SIMPAN) break;
+            await new Promise((r) => setTimeout(r, 150 * (percobaan + 1)));
+            const fresh = await api.getPackage(pkgLatest.id).catch(() => null);
+            if (!fresh) break;
+            basis = fresh;
           }
+        }
+
+        if (!tersimpan) {
+          // Modal sudah tertutup duluan, jadi kegagalan WAJIB diberitahukan.
+          // Sebelumnya ditelan diam-diam sehingga admin mengira perubahannya
+          // tersimpan, lalu harus mengetik ulang tanpa tahu sebabnya.
+          if (payload.admin_note !== undefined) {
+            noteLastSavedRef.current = pkgLatest.admin_note || "";
+          }
+          const alasan = galatTerakhir && galatTerakhir.status === 409
+            ? 'data diubah pengguna lain'
+            : (galatTerakhir?.message || 'koneksi bermasalah');
+          notice(`Perubahan GAGAL disimpan (${alasan}). Buka lagi paketnya dan ulangi.`, 'error');
         }
       }
     } catch (e) {
-      // Abaikan error di background saat close agar tidak mengganggu pengguna
+      notice(`Perubahan gagal disimpan: ${e?.message || 'koneksi bermasalah'}`, 'error');
     }
   };
 
