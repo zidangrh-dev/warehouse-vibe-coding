@@ -73,7 +73,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
       resetForm();
       await loadUsers();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -95,7 +95,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
       resetForm();
       await loadUsers();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -110,7 +110,7 @@ export default function UserManagementModal({ visible, user, onClose }) {
       notice('User berhasil dihapus');
       await loadUsers();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }

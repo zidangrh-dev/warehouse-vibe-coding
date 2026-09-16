@@ -59,7 +59,7 @@ export default function ScanScreen({ user }) {
       clearSelection();
       refetch();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     }
   }, [selectedIds, clearSelection, refetch]);
 
@@ -77,7 +77,7 @@ export default function ScanScreen({ user }) {
       clearSelection();
       refetch();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusyDelete(false);
       setConfirmDeleteOpen(false);
@@ -158,7 +158,7 @@ export default function ScanScreen({ user }) {
       if (isWarehouse) {
         const p = await api.findByCode(code);
         if (!p) {
-          notice('Data paket tidak ditemukan.');
+          notice('Data paket tidak ditemukan.', 'error');
           return;
         }
         notice(`${p.invoice_no} — ${p.customer_name || p.recipient_name || ''}`);
@@ -166,14 +166,14 @@ export default function ScanScreen({ user }) {
         return;
       }
       const p = await api.arrive(code);
-      notice(`${p.invoice_no} sampai kios → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Absen Ambil Customer'}`);
+      notice(`${p.invoice_no} sampai kios → ${p.pickup_type === 'gojek' ? 'Absen Gojek' : 'Absen Ambil Customer'}`, 'success');
     } catch (e) {
       if (e.status === 404) {
         setManualInvoice(code);
         setManualOpen(true);
-        notice('Data paket tidak ditemukan — tanya Sales, lalu isi manual.');
+        notice('Data paket tidak ditemukan — tanya Sales, lalu isi manual.', 'error');
       } else {
-        notice(e.message);
+        notice(e.message, 'error');
       }
     }
   };

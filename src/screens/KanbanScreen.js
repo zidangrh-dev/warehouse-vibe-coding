@@ -221,7 +221,7 @@ export default function KanbanScreen({ user }) {
         notice("Data diubah pengguna lain — memuat ulang...");
         load();
       } else {
-        notice(e.message);
+        notice(e.message, 'error');
       }
     }
   }, [canShip, canReceive, load]);
@@ -240,7 +240,7 @@ export default function KanbanScreen({ user }) {
         notice("Data diubah pengguna lain — memuat ulang...");
         load();
       } else {
-        notice(e.message);
+        notice(e.message, 'error');
       }
     }
   }, [load]);

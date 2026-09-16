@@ -36,7 +36,7 @@ export default function GojekScreen({ user }) {
         onPress={async () => {
           const fail = (e) => {
             if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); refetch(); }
-            else notice(e.message);
+            else notice(e.message, 'error');
           };
           if (next.to === 'selesai' || next.to === 'retur' || next.to === 'cancel') return setOpenId(pkg.id);
           try {

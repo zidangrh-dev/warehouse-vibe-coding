@@ -36,7 +36,7 @@ export default function BuybackScreen({ user }) {
       setPaste('');
       refetch();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }

@@ -185,10 +185,60 @@ export function confirmAsync(title, message) {
   });
 }
 
+// Bunyi pendek penanda kegagalan. Dipisah per platform: di web nada
+// dibangkitkan lewat Web Audio API supaya tidak perlu memuat berkas, di
+// Android/iOS memutar assets/nada-gagal.wav lewat expo-audio.
+//
+// Semua dibungkus try/catch dan tidak pernah di-await oleh notice(): kalau
+// audio diblokir browser atau gagal dimuat, notifikasinya tetap muncul.
+let _pemutarNativeSiap = null;
+
+function bunyiGagalWeb() {
+  const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
+  if (!AC) return;
+  const ctx = new AC();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 350;
+  // Amplop naik-turun singkat supaya tidak terdengar 'klik' di ujung nada.
+  const t0 = ctx.currentTime;
+  gain.gain.setValueAtTime(0, t0);
+  gain.gain.linearRampToValueAtTime(0.35, t0 + 0.01);
+  gain.gain.setValueAtTime(0.35, t0 + 0.2);
+  gain.gain.linearRampToValueAtTime(0, t0 + 0.25);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.26);
+  osc.onended = () => { try { ctx.close(); } catch {} };
+}
+
+async function bunyiGagalNative() {
+  const { createAudioPlayer, setAudioModeAsync } = require('expo-audio');
+  if (!_pemutarNativeSiap) {
+    // Mode ini membuat bunyi tetap keluar saat HP dalam posisi senyap —
+    // penting di gudang yang ramai dan HP biasanya disenyapkan.
+    await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    _pemutarNativeSiap = createAudioPlayer(require('../assets/nada-gagal.wav'));
+  }
+  _pemutarNativeSiap.seekTo(0);
+  _pemutarNativeSiap.play();
+}
+
+export function bunyiGagal() {
+  try {
+    if (Platform.OS === 'web') bunyiGagalWeb();
+    else bunyiGagalNative().catch(() => {});
+  } catch {
+    // Bunyi bersifat pelengkap; kegagalannya tidak boleh menjatuhkan aplikasi.
+  }
+}
+
 // Toast notification via react-native-toast-message.
 // type: 'success' | 'error' | 'info' | 'warning'
 export function notice(message, type = 'info') {
   const safeType = type === 'warning' ? 'info' : (['success', 'error', 'info'].includes(type) ? type : 'info');
+  if (safeType === 'error') bunyiGagal();
   Toast.show({
     type: safeType,
     text1: message,

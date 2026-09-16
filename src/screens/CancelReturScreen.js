@@ -124,7 +124,7 @@ export default function CancelReturScreen({ user }) {
       }
       refetch();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     }
   };
 
@@ -148,7 +148,7 @@ export default function CancelReturScreen({ user }) {
             refetch();
           } catch (e) {
             if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); refetch(); }
-            else notice(e.message);
+            else notice(e.message, 'error');
           }
         }}
       >

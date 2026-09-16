@@ -33,7 +33,7 @@ export default function SelfPickupScreen({ user }) {
       }
       setCodePkg(p);
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     }
   };
 
@@ -42,7 +42,7 @@ export default function SelfPickupScreen({ user }) {
       const p = await api.findByCode(code.trim());
       setOpenId(p.id);
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     }
   };
 

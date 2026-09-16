@@ -34,7 +34,7 @@ export default function ManualInputModal({ visible, initialInvoice, onClose, onS
       onClose();
       setF(emptyForm);
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     }
   };
 

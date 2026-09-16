@@ -181,7 +181,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         // Gagal: kembalikan penanda ke nilai lama supaya handleClose tahu
         // catatan ini masih perlu dikirim ulang.
         noteLastSavedRef.current = base;
-        if (!(await reloadOnConflict(e))) notice(e.message);
+        if (!(await reloadOnConflict(e))) notice(e.message, 'error');
         throw e;
       }
     };
@@ -472,7 +472,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         setPkg(res);
         onChanged?.();
       } catch (e) {
-        if (!(await reloadOnConflict(e))) notice(e.message);
+        if (!(await reloadOnConflict(e))) notice(e.message, 'error');
       }
     }
   };
@@ -537,7 +537,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       await load();
       if (isWeb) notice("Foto berhasil ditambahkan!", "success");
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -733,7 +733,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
           }
         } catch {}
       }
-      if (!(await reloadOnConflict(e))) notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -751,7 +751,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       await load();
       notice("Pickup code berhasil disimpan!");
     } catch (e) {
-      if (!(await reloadOnConflict(e))) notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -771,7 +771,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       onChanged();
       await load();
     } catch (e) {
-      if (!(await reloadOnConflict(e))) notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -795,7 +795,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       onChanged();
       await load();
     } catch (e) {
-      if (!(await reloadOnConflict(e))) notice(e.message);
+      if (!(await reloadOnConflict(e))) notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -809,7 +809,7 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
       onChanged();
       onClose();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }

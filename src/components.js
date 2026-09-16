@@ -992,7 +992,7 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
     try {
       setNames(await api.staffNames());
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     }
   }, []);
 
@@ -1016,7 +1016,7 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
       onClose();
     } catch (e) {
       if (e && e.status === 409) { notice("Data diubah pengguna lain — memuat ulang..."); onChanged?.(); }
-      else notice(e.message);
+      else notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -1032,7 +1032,7 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
       setAdding(false);
       await loadNames();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -1048,7 +1048,7 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
       setEditName('');
       await loadNames();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -1061,7 +1061,7 @@ export function NamePickerModal({ visible, pkg, userRole, onClose, onChanged, on
       await api.deleteStaffName(it.id);
       await loadNames();
     } catch (e) {
-      notice(e.message);
+      notice(e.message, 'error');
     } finally {
       setBusy(false);
     }
