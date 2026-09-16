@@ -2,7 +2,7 @@
   "expo": {
     "name": "PickHub",
     "slug": "pickhub",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,6 +11,7 @@
     },
     "android": {
       "package": "com.pickhub.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#0b5394",
         "foregroundImage": "./assets/android-icon-foreground.png",
