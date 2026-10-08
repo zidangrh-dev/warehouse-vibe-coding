@@ -18,6 +18,10 @@ export const lightColors = {
   primary: '#2E5AAC',
   primaryDark: '#1E3F80',
   primarySoft: '#E8EFFA',
+  // Warna teks di atas bidang berisi warna. Di palet terang teks putih sudah
+  // kontras; di palet gelap primary lebih terang sehingga teks harus dibalik.
+  onPrimary: '#FFFFFF',
+  onDanger: '#FFFFFF',
   danger: '#E5484D',
   ok: '#16A34A',
   warn: '#F59E0B',
@@ -64,6 +68,10 @@ export const darkColors = {
   primary: '#5B8DEF',
   primaryDark: '#3E6BC4',
   primarySoft: 'rgba(91,141,239,0.16)',
+  // Teks di atas primary/danger dibalik jadi gelap: latarnya lebih terang di
+  // mode gelap, jadi putih justru jatuh di bawah ambang kontras WCAG AA.
+  onPrimary: '#0B1220',
+  onDanger: '#0B1220',
   danger: '#F87171',
   ok: '#34D399',
   warn: '#FBBF24',
