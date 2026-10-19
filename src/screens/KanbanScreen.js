@@ -129,10 +129,6 @@ export default function KanbanScreen({ user }) {
 
   const load = useCallback(async () => {
     const cacheKey = `${debouncedQ}|${typeFilter}|${selectedDate || ''}`;
-    // Stale-while-revalidate: tampilkan data cache yang masih sesuai dulu.
-    if (kanbanCache.key === cacheKey && kanbanCache.items?.length) {
-      setItems(kanbanCache.items);
-    }
     try {
       const res = await api.kanbanBoard(debouncedQ, {
         pickup_type: typeFilter,
@@ -153,15 +149,21 @@ export default function KanbanScreen({ user }) {
     loadSummary();
     const socket = getSocket();
     // 1. Instant Single Package Update (10ms): Perbarui item di memori tanpa panggil API HTTP
-    const onSingleUpdated = (updatedPkg) => {
-      if (!updatedPkg || !updatedPkg.id) return;
+    const onSingleUpdated = (payload) => {
+      if (!payload?.pkg || !payload?.pkg.id) return;
+      const changedBy = payload.changedBy ?? null;
       setItems((prev) => {
-        const idx = prev.findIndex((p) => p.id === updatedPkg.id);
-        if (idx < 0) return [updatedPkg, ...prev];
+        const idx = prev.findIndex((p) => p.id === payload.pkg.id);
+        if (idx < 0) return [payload.pkg, ...prev];
         const next = [...prev];
-        next[idx] = { ...next[idx], ...updatedPkg };
+        next[idx] = { ...next[idx], ...payload.pkg };
         return next;
       });
+      // Kalau event ini dipicu dari SANGAT AKAN (device sendiri, akun sama),
+      // skip reload supaya tidak flickering. Laptop + HP lain tetap reload otomatis.
+      if (user?.id != null && Number(changedBy) === Number(user.id)) return;
+      load();
+      loadSummary();
     };
     // 2. Koalesce burst event socket: banyak perubahan cepat -> cukup satu refetch fallback.
     const reloadTimerRef = { current: null };

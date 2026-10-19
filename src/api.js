@@ -27,6 +27,17 @@ export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
 export function getToken() { return token; }
 
+export function getUserId() {
+  try {
+    const raw = AsyncStorage.getItem('gudang_user');
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return u?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadSession() {
   try {
     token = await AsyncStorage.getItem('gudang_token');
