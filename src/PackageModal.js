@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
-import { api, uploadPhoto, photoUrl, getSocket, authImageHeaders } from "./api";
+import { api, uploadPhoto, photoUrl, getSocket, getDeviceId, authImageHeaders } from "./api";
 import AuthImage from "./AuthImage";
 import {
   radius,
@@ -116,7 +116,10 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
   useEffect(() => {
     if (!pkgId || !pkg) return;
     const socket = getSocket();
-    const handler = () => {
+    const myDevice = getDeviceId();
+    const handler = (payload) => {
+      // Perubahan dari tab ini sendiri → jangan reload (hindari kedip).
+      if (payload?.deviceId && payload.deviceId === myDevice) return;
       const dirty =
         note.trim() !== (pkg.admin_note || "").trim() ||
         codeVal !== (pkg.pickup_code || "") ||

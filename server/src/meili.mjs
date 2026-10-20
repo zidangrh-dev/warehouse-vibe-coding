@@ -122,6 +122,25 @@ export async function searchPackages(q, filters = {}) {
     }
     const filterStr = filterArr.length ? filterArr.join(' AND ') : undefined;
 
+    // Strategi pencarian general (tanpa filter per kolom):
+    // - Exact code: query ada '/' DAN >=8 char -> exact filter + matchingStrategy 'all'
+    //   (mencegah 'SO/1026/96EB793' terpecah jadi token 'SO','1026','96EB793'
+    //   yang mengembalikan 1000 paket terbaru karena sort updated_at:desc).
+    //   Syarat '/' wajib: tanpa itu, nama toko panjang seperti 'rizkyapple'
+    //   (10 char) salah masuk mode exact dan hanya disisir ke invoice_no.
+    // - Numeric: query murni digit >=3 -> fokus ke kolom bernomor (index trigram).
+    // - Code campuran: alphanumeric 5+ TANPA spasi DAN mengandung digit ->
+    //   fokus ke kolom kode (mencegah 5-7 char nyasar ke nama/HP).
+    //   Syarat mengandung digit wajib: 'rizkyapple' (huruf saja, 10 char) bukan
+    //   kode paket, tetap masuk mode nama biar seller/customer ketemu.
+    // - Lainnya (nama/umum): pakai seluruh SEARCHABLE list supaya nama
+    //   customer/toko tetap ketemu.
+    const qTrim = String(q || '').trim();
+    const isExact = /[\/]/.test(qTrim) && qTrim.length >= 8;
+    const isNumericOnly = /^\d{3,}$/.test(qTrim);
+    const isCodeQuery = /^(?=.*\d)[A-Za-z0-9]{5,}$/.test(qTrim) && !qTrim.includes(' ');
+    const generalOn = ['invoice_no', 'awb_no', 'pickup_code'];
+
     const opts = {
       limit: filters.limit || 200,
       offset: filters.offset || 0,
@@ -134,7 +153,20 @@ export async function searchPackages(q, filters = {}) {
         'done_by', 'is_hold', 'is_cari_driver',
       ],
     };
-    if (searchOn) opts.attributesToSearchOn = searchOn;
+    if (searchOn) {
+      // Filter per kolom: pakai field spesifik
+      opts.attributesToSearchOn = searchOn;
+    } else if (isExact && !qTrim.includes(' ')) {
+      // Exact code: hanya invoice_no/awb_no, semua token wajib ada
+      opts.attributesToSearchOn = ['invoice_no', 'awb_no'];
+      opts.matchingStrategy = 'all';
+    } else if (isNumericOnly || isCodeQuery) {
+      // Query angka/kode: fokus ke field kode, bukan nama/toko
+      opts.attributesToSearchOn = generalOn;
+    } else {
+      // Query nama/umum: cari di semua field (default SEARCHABLE list)
+      // biar user bisa cari nama customer, seller, dll
+    }
     if (filterStr) opts.filter = filterStr;
 
     const result = await meili.index(INDEX_NAME).search(q, opts);

@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { api, getSocket } from "./api";
+import { api, getSocket, getDeviceId } from "./api";
 import {
   spacing,
   radius,
@@ -85,7 +85,9 @@ function useDashboard(startDate, endDate) {
   useEffect(() => {
     refetch();
     const socket = getSocket();
-    const onChanged = () => {
+    const myDevice = getDeviceId();
+    const onChanged = (payload) => {
+      if (payload?.deviceId && payload.deviceId === myDevice) return;
       clearTimeout(timer.current);
       timer.current = setTimeout(refetch, 500);
     };

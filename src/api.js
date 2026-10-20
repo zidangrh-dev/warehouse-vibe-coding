@@ -27,25 +27,58 @@ export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
 export function getToken() { return token; }
 
-export function getUserId() {
+// ===== Device ID (per tab / per install) =====
+// Penanda unik untuk tab browser atau install APK. Dipakai untuk membedakan
+// "device saya" vs "device lain" saat broadcast realtime. WAJIB per-device,
+// BUKAN per-user: HP & laptop yang login akun SAMA tetap dua device berbeda,
+// jadi perubahan di HP tetap muncul di laptop tanpa refresh manual.
+let deviceId = null;
+
+export function getDeviceId() {
+  if (deviceId) return deviceId;
   try {
-    const raw = AsyncStorage.getItem('gudang_user');
-    if (!raw) return null;
-    const u = JSON.parse(raw);
-    return u?.id ?? null;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // sessionStorage = unik per TAB, bertahan saat reload, hilang saat tab ditutup.
+      const KEY = 'gudang_device_id';
+      let v = window.sessionStorage.getItem(KEY);
+      if (!v) {
+        v = 'w-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+        window.sessionStorage.setItem(KEY, v);
+      }
+      deviceId = v;
+      return deviceId;
+    }
   } catch {
-    return null;
+    /* sessionStorage bisa diblokir (private mode ketat) — jatuh ke memori */
   }
+  deviceId = 'd-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  return deviceId;
+}
+
+// Id user yang sedang login sebagai CACHE SINKRON.
+// AsyncStorage bersifat async, jadi tidak bisa dipakai langsung untuk
+// pembanding `changedBy` di listener socket (nilainya Promise → selalu null).
+// Cache diisi saat loadSession/login, dibaca sinkron kapan pun dibutuhkan.
+let cachedUserId = null;
+
+export function getUserId() {
+  return cachedUserId;
 }
 
 export async function loadSession() {
   try {
     token = await AsyncStorage.getItem('gudang_token');
     const rawUser = await AsyncStorage.getItem('gudang_user');
-    if (!token || !rawUser || rawUser === 'undefined') return null;
-    return JSON.parse(rawUser);
+    if (!token || !rawUser || rawUser === 'undefined') {
+      cachedUserId = null;
+      return null;
+    }
+    const u = JSON.parse(rawUser);
+    cachedUserId = u?.id ?? null;
+    return u;
   } catch (e) {
     token = null;
+    cachedUserId = null;
     await AsyncStorage.multiRemove(['gudang_token', 'gudang_user']).catch(() => {});
     return null;
   }
@@ -54,6 +87,7 @@ export async function loadSession() {
 export async function login(username, password) {
   const data = await req('POST', '/api/login', { username, password }, true);
   token = data.token;
+  cachedUserId = data.user?.id ?? null;
   await AsyncStorage.setItem('gudang_token', data.token);
   await AsyncStorage.setItem('gudang_user', JSON.stringify(data.user));
   return data.user;
@@ -61,6 +95,7 @@ export async function login(username, password) {
 
 export async function logout() {
   token = null;
+  cachedUserId = null;
   await AsyncStorage.multiRemove(['gudang_token', 'gudang_user']);
 }
 
@@ -70,6 +105,8 @@ async function req(method, path, body, skipAuth = false) {
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(!skipAuth && token ? { Authorization: `Bearer ${token}` } : {}),
+      // deviceId pemicu → server menyiarkan ke device lain, bukan ke diri sendiri.
+      'X-Device-Id': getDeviceId(),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -373,16 +410,18 @@ export async function importCsvProgress(fileAsset, onProgress) {
 
 let socket;
 export function getSocket() {
-  const token = getToken();
   if (!socket) {
     socket = io(apiBase(), {
       transports: ['websocket', 'polling'],
-      auth: { token },
+      // deviceId dikirim saat handshake supaya klien bisa membedakan
+      // "tab/device saya" vs "device lain" walau akun login sama.
+      auth: { token: getToken(), deviceId: getDeviceId() },
+      extraHeaders: { 'X-Device-Id': getDeviceId() },
     });
     // Jika token berubah (login ulang / session baru), reconnect dengan token baru.
-    socket.on('connect_error', (err) => {
+    socket.on('connect_error', () => {
       if (socket.auth?.token !== getToken()) {
-        socket.auth = { token: getToken() };
+        socket.auth = { token: getToken(), deviceId: getDeviceId() };
         socket.connect();
       }
     });

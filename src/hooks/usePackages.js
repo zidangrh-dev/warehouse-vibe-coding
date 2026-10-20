@@ -1,6 +1,6 @@
 // hooks/usePackages.js
 import { useCallback, useEffect, useState } from 'react';
-import { api, getSocket } from '../api';
+import { api, getSocket, getDeviceId } from '../api';
 import { notice } from '../theme';
 
 const PAGE_SIZE = 50;
@@ -57,53 +57,30 @@ export function usePackages(tab, q, colFilters) {
     setPage(1);
   }, [tab, debouncedQ, filterString]);
 
-  // Penentu userId sekaligus saat ini (sync, bukan async) — supaya
-  // `me !== Promise` dan bisa dibandingkan langsung. Membaca AsyncStorage
-  // sekali per render; cache lokal agar trimannya tidak dipunchi terus.
-  const [userId, setUserId] = useState(null);
+  // Muat data saat pertama render DAN setiap kali parameter berubah
+  // (tab, kata kunci, filter kolom, halaman). Efek ini WAJIB ada: tanpa
+  // panggilan awal, `loading` tetap true selamanya → spinner berputar terus
+  // dan tabel hanya terisi kalau ada event socket dari device lain.
   useEffect(() => {
-    (async () => {
-      const id = await getUserId();
-      setUserId(id ?? null);
-    })();
-  }, []);
+    refetch();
+  }, [refetch]);
 
-  // Socket listener: terima peristiwa cache dari device lain (HP/Laptop), refresh.
-  // Pengecekan `changedBy` BANYAK sekali: masing-masing listener memanggil
-  // getUserId() lagi (bisa Promise / dua kali), sehingga filter auto-skip
-  // lama selalu gagal → semua device refresh manual.
-  // Perbaikan: `userId` (synchronous, angka) dibandingkan langsung dengan
-  // `payload.changedBy`. Kalau perubahan yang terjadi itu usang sendiri,
-  // SKIP refetch (biar tidak flicker / spin). Kalau beda, refetch full.
+  // deviceId = penanda tab/install ini. Broadcast dari device INI di-skip
+  // (biar tidak flicker setelah aksi sendiri); broadcast dari device LAIN
+  // (HP vs laptop, walau akun sama) → refetch otomatis.
+  const myDevice = getDeviceId();
+
+  // Socket listener: terima peristiwa perubahan dari device lain.
   useEffect(() => {
     const socket = getSocket();
-    const onPackagesChanged = async (payload) => {
-      const { changedBy, pkg } = payload ?? {};
-      const me = userId; // userId: angka atau null, bukan Promise
-      if (!pkg?.id) {
-        // Event tanpa paket (mis. packages:changed tanpa pkg) → semuanya refresh.
-        return refetch();
-      }
-      // Kalau perubahan itu sendiri dari SAYA, SKIP refetch untuk mengubah:
-      // biar tidak flickering/spinning di device pemicu.
-      if (me !== null && Number(changedBy) === Number(me)) return;
-      // Bedakan user lain: paket yang bersangkutan refresh saja (1 request),
-      // sisanya refresh list penuh.
-      if (me !== null && Number(pkg.id) === Number(me)) {
-        try {
-          const p = await fetch(`/api/packages/${pkg.id}`).then((r) => r.json());
-          setItems((prev) => prev.map((x) => (x.id === p.id ? p : x)));
-          setTotal((prev) => prev);
-        } catch {
-          /* cache saja */
-        }
-        return;
-      }
+    const onPackagesChanged = (payload) => {
+      const from = payload?.deviceId ?? payload?.pkg?.deviceId;
+      if (from && from === myDevice) return;   // perubahan dari tab ini → skip
       refetch();
     };
     socket.on('packages:changed', onPackagesChanged);
     return () => socket.off('packages:changed', onPackagesChanged);
-  }, [refetch, userId]);
+  }, [refetch, myDevice]);
 
   return { items, total, page, setPage, loading, refetch, searching, updateItem };
 }

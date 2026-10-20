@@ -104,21 +104,43 @@ app.use('/uploads', (req, res, next) => {
   } catch {
     return res.status(401).json({ error: 'Akses ke foto butuh autentikasi' });
   }
-}, express.static(UPLOAD_DIR));
+}, express.static(UPLOAD_DIR, { maxAge: '365d', immutable: true }));
+
+// Broadcast ke SEMUA client dengan payload {changedBy, deviceId}.
+// `changedBy` = id user; `deviceId` = penanda unik tab/device pemicu.
+// PENTING: filter skip-self HARUS pakai `deviceId`, BUKAN `changedBy`.
+// Kalau pakai changedBy, HP & laptop yang login akun yang SAMA akan saling
+// skip → perubahan di HP tidak pernah muncul di laptop (bug asimetris).
+// deviceId dikirim oleh client lewat handshake auth.
+const emitToAll = (event, payload) => {
+  io.emit(event, payload);
+};
 
 let notifyTimer = null;
-const notify = () => {
+let notifySkip = new Set();
+// deviceId = penanda tab/device pemicu (dari header X-Device-Id).
+// Client yang deviceId-nya sama dengan pemicu → skip reload (biar tidak
+// flicker). Client lain — TERMASUK device lain dengan akun yang sama
+// (HP vs laptop) → refetch. Inilah kunci realtime simetris.
+const notify = (changedBy = null, deviceId = null) => {
+  notifySkip.add(Number(changedBy));
   clearTimeout(notifyTimer);
-  notifyTimer = setTimeout(() => io.emit('packages:changed'), 100);
+  notifyTimer = setTimeout(() => {
+    notifySkip = new Set();
+    emitToAll('packages:changed', { changedBy, deviceId: deviceId || null });
+  }, 100);
 };
 
-const notifyPackageUpdated = (pkg) => {
+const notifyPackageUpdated = (pkg, changedBy = null, deviceId = null) => {
   if (pkg) {
     indexPackage(pkg);
-    io.emit('package:updated', pkg);
+    emitToAll('package:updated', { pkg, changedBy, deviceId: deviceId || null });
   }
-  notify();
+  notify(changedBy, deviceId);
 };
+
+// Ambil deviceId pemicu dari header request (dikirim klien di setiap mutasi).
+const devOf = (req) => (req?.headers?.['x-device-id'] || '').toString().slice(0, 80) || null;
 
 const wrap = (fn) => (req, res) =>
   fn(req, res).catch((err) => {
@@ -529,8 +551,14 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
     // nomor lain yang kebetulan memuat "4178" sebagai kata utuh. Query yang murni
     // digit karena itu selalu dilayani SQL di bawah, yang memakai index trigram pada
     // invoice_no, awb_no, dan pickup_code sehingga tetap memakai index.
-    const numericQuery = /^\d{3,}$/.test(searchQuery.trim());
-    if (meiliResult && !numericQuery) {
+    //
+    // Potongan kode campuran huruf+angka (mis. 5-7 karakter terakhir seperti
+    // "96EB793" atau "ZD1026") juga dilayani SQL: Meilisearch tidak melakukan
+    // substring match, jadi suffix hanya bisa dijamin via ILIKE + index trigram.
+    const qTrim2 = searchQuery.trim();
+    const numericQuery = /^\d{3,}$/.test(qTrim2);
+    const suffixQuery = /^[A-Za-z0-9]{5,7}$/.test(qTrim2) && !qTrim2.includes(' ');
+    if (meiliResult && !numericQuery && !suffixQuery) {
       const totalPages = Math.max(1, Math.ceil(meiliResult.total / pageSize));
       return res.json({
         items: meiliResult.hits,
@@ -636,7 +664,11 @@ app.get('/api/packages', requireAuth, wrap(async (req, res) => {
     // Query murni digit (nomor invoice/resi/pickup code) hanya disisir ke kolom
     // bernomor yang punya index trigram. Menyertakan status/courier/item_desc di
     // sini memaksa sequential scan untuk pencarian yang paling sering dipakai.
-    if (/^\d{3,}$/.test(term)) {
+    //
+    // Potongan kode campuran (mis. "96EB793", "ZD1026") juga difokuskan ke kolom
+    // bernomor saja: menyertakan customer_name/seller_name membuat 5-7 karakter
+    // pendek cocok ke banyak paket tak relevan (angka acak ada di mana-mana).
+    if (/^\d{3,}$/.test(term) || (/^[A-Za-z0-9]{5,7}$/.test(term) && !term.includes(' '))) {
       cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR customer_phone ILIKE $${values.length})`);
     } else {
       cond.push(`(invoice_no ILIKE $${values.length} OR awb_no ILIKE $${values.length} OR customer_name ILIKE $${values.length} OR pickup_code ILIKE $${values.length} OR status ILIKE $${values.length} OR courier ILIKE $${values.length} OR platform ILIKE $${values.length} OR item_desc ILIKE $${values.length} OR driver_info ILIKE $${values.length})`);
@@ -1038,7 +1070,7 @@ app.post('/api/packages/:id/photos', requireAuth, requireRole('superadmin', 'adm
       [id, kind, filename]);
     await logEvent(id, req.user, 'foto', kind);
     const fullPkg = await pool.query(`SELECT ${PACKAGE_LIST_COLUMNS} FROM packages WHERE id=$1`, [id]);
-    notifyPackageUpdated(fullPkg.rows[0]);
+    notifyPackageUpdated(fullPkg.rows[0], req.user?.id, devOf(req));
     res.status(201).json(r.rows[0]);
   }));
 
@@ -1065,7 +1097,7 @@ app.delete('/api/photos/:id', requireAuth, requireRole('superadmin', 'admin'), w
 
   await pool.query('DELETE FROM package_photos WHERE id=$1', [photoId]);
   fs.rm(path.join(UPLOAD_DIR, photo.filename), () => {});
-  notify();
+  notify(req.user?.id, devOf(req));
   res.json({ ok: true });
 }));
 
@@ -1090,7 +1122,7 @@ app.post('/api/packages', requireAuth, requireRole('superadmin', 'admin', 'wareh
   if (!r.rows[0]) return res.status(409).json({ error: 'No invoice sudah terdaftar' });
   await logEvent(r.rows[0].id, req.user, 'input_manual', `status awal ${st}${cleanCode ? ` (pickup code: ${cleanCode})` : ''}`);
   indexPackage(r.rows[0]);
-  notify();
+  notify(req.user?.id, devOf(req));
   res.status(201).json(r.rows[0]);
 }));
 
@@ -1272,7 +1304,7 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
     await logEvent(id, req.user, 'update', detailParts.join(' | '));
     indexPackage(r.rows[0]);
-    notify();
+    notify(req.user?.id, devOf(req));
     res.json(r.rows[0]);
   } catch (e) {
     await cli.query('ROLLBACK');
@@ -1319,7 +1351,7 @@ app.post('/api/packages/archive', requireAuth, requireRole('superadmin', 'admin'
     );
     bulkIndexPackages(arch.rows);
   }
-  notify();
+  notify(req.user?.id, devOf(req));
   res.json({ ok: true, count: r.rowCount });
 }));
 
@@ -1333,7 +1365,7 @@ app.post('/api/packages/:id/unarchive', requireAuth, requireRole('superadmin', '
   if (!r.rows[0]) return res.status(404).json({ error: 'Paket tidak ditemukan' });
   await logEvent(id, req.user, 'unarchive', 'Mengembalikan paket dari arsip ke data aktif');
   indexPackage(r.rows[0]);
-  notify();
+  notify(req.user?.id, devOf(req));
   res.json({ ok: true, package: r.rows[0] });
 }));
 
@@ -1366,7 +1398,7 @@ app.post('/api/archives/restore-by-date', requireAuth, requireRole('superadmin')
   if (r.rowCount > 0) {
     bulkIndexPackages(r.rows);
   }
-  notify();
+  notify(req.user?.id, devOf(req));
   res.json({ ok: true, count: r.rowCount });
 }));
 
@@ -1391,7 +1423,7 @@ app.post('/api/packages/arrive', requireAuth, requireRole('admin', 'superadmin')
        updated_at=now() WHERE id=$1 RETURNING *`,
     [pkg.id, st, newPickupType]);
     await logEvent(pkg.id, req.user, 'scan_sampai', `status -> ${st}`);
-    notifyPackageUpdated(r.rows[0]);
+    notifyPackageUpdated(r.rows[0], req.user?.id, devOf(req));
     res.json(r.rows[0]);
 }));
 
@@ -1407,7 +1439,7 @@ app.post('/api/packages/bulk-arrive', requireAuth, requireRole('admin', 'superad
     await logEvent(null, req.user, 'bulk_arrive', `${r.rowCount} anteran → ambil customer`);
     bulkIndexPackages(r.rows);
   }
-  notify();
+  notify(req.user?.id, devOf(req));
   res.json({ updated: r.rowCount });
 }));
 
@@ -1469,7 +1501,7 @@ app.post('/api/packages/buyback-arrive', requireAuth, requireRole('admin', 'supe
       errors.push({ line: line.trim(), reason: e.code === '23505' ? 'pickup code sudah dipakai paket lain' : e.message });
     }
   }
-  notify();
+  notify(req.user?.id, devOf(req));
   res.json({ processed, skipped, errors: errors.slice(0, 50) });
 }));
 
@@ -1482,7 +1514,7 @@ app.delete('/api/packages/bulk', requireAuth, requireRole('superadmin'), wrap(as
   if (r.rowCount > 0) {
     await logEvent(null, req.user, 'bulk_delete', `Hapus ${r.rowCount} paket`);
   }
-  notify();
+  notify(req.user?.id, devOf(req));
   res.json({ deleted: r.rowCount });
 }));
 
@@ -1504,7 +1536,7 @@ app.post('/api/packages/ship-to-warehouse', requireAuth, requireRole('admin', 's
     [pkg.id]
   );
   await logEvent(pkg.id, req.user, 'dikirim_ke_gudang', 'Admin Kios menyerahkan fisik barang cancel ke Kurir untuk dikirim ke Gudang Utama');
-  notifyPackageUpdated(r.rows[0]);
+  notifyPackageUpdated(r.rows[0], req.user?.id, devOf(req));
   res.json(r.rows[0]);
 }));
 
@@ -1526,7 +1558,7 @@ app.post('/api/packages/receive-at-warehouse', requireAuth, requireRole('warehou
     [pkg.id]
   );
   await logEvent(pkg.id, req.user, 'diterima_gudang', 'Tim Warehouse menerima fisik barang cancel di Gudang Utama');
-  notifyPackageUpdated(r.rows[0]);
+  notifyPackageUpdated(r.rows[0], req.user?.id, devOf(req));
   res.json(r.rows[0]);
 }));
 
@@ -1563,7 +1595,7 @@ app.post('/api/packages/:id/pickup-code', requireAuth, requireRole('sales', 'sup
       }
       await logEvent(id, req.user, 'generate_code', code);
       indexPackage(r.rows[0]);
-      notifyPackageUpdated(r.rows[0]);
+      notifyPackageUpdated(r.rows[0], req.user?.id, devOf(req));
       return res.json(r.rows[0]);
     } catch (e) {
       if (!String(e.message).includes('duplicate')) throw e; // tabrakan kode: coba lagi
@@ -1830,7 +1862,7 @@ app.post('/api/packages/import', requireAuth, requireRole('superadmin', 'warehou
         console.error('Meilisearch bulk index error:', e.message);
       }
     }
-    notify();
+    notify(req.user?.id, devOf(req));
     res.json({ inserted, updated, skipped: skipped + skippedCourier, skippedCourier, total: rows.length });
   }));
 

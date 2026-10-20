@@ -11,7 +11,7 @@ import {
   View, Text, TextInput, ScrollView, TouchableOpacity, Modal,
   Platform, StyleSheet, ActivityIndicator,
 } from 'react-native';
-import { api, getSocket } from '../api';
+import { api, getSocket, getDeviceId } from '../api';
 import {
   radius, shadow, font, notice, confirmAsync,
   statusLabel, statusColor, statusTint, NEXT_ACTIONS, useTheme,
@@ -148,10 +148,10 @@ export default function KanbanScreen({ user }) {
     load();
     loadSummary();
     const socket = getSocket();
-    // 1. Instant Single Package Update (10ms): Perbarui item di memori tanpa panggil API HTTP
+    const myDevice = getDeviceId();
+    // 1. Instant Single Package Update: perbarui item di memori tanpa panggil API HTTP.
     const onSingleUpdated = (payload) => {
       if (!payload?.pkg || !payload?.pkg.id) return;
-      const changedBy = payload.changedBy ?? null;
       setItems((prev) => {
         const idx = prev.findIndex((p) => p.id === payload.pkg.id);
         if (idx < 0) return [payload.pkg, ...prev];
@@ -159,15 +159,17 @@ export default function KanbanScreen({ user }) {
         next[idx] = { ...next[idx], ...payload.pkg };
         return next;
       });
-      // Kalau event ini dipicu dari SANGAT AKAN (device sendiri, akun sama),
-      // skip reload supaya tidak flickering. Laptop + HP lain tetap reload otomatis.
-      if (user?.id != null && Number(changedBy) === Number(user.id)) return;
+      // Skip reload hanya kalau event datang dari TAB/DEVICE ini sendiri.
+      // PENTING: jangan pakai changedBy/user.id — HP & laptop dengan akun yang
+      // sama akan saling skip, sehingga perubahan HP tak muncul di laptop.
+      if (payload.deviceId && payload.deviceId === myDevice) return;
       load();
       loadSummary();
     };
     // 2. Koalesce burst event socket: banyak perubahan cepat -> cukup satu refetch fallback.
     const reloadTimerRef = { current: null };
-    const onChanged = () => {
+    const onChanged = (payload) => {
+      if (payload?.deviceId && payload.deviceId === myDevice) return;
       if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
       reloadTimerRef.current = setTimeout(() => load(), 200);
     };
