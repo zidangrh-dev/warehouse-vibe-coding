@@ -1992,16 +1992,22 @@ app.get('/api/dashboard/activity', requireAuth, requireRole('superadmin', 'admin
 
 // ---- TikTok Shop ----
 // Marketplace Manager: daftar toko terhubung + link otorisasi per platform.
-app.get('/api/marketplace/shops', requireAuth, requireRole('superadmin'), wrap(async (_req, res) => {
+// Sales hanya melihat toko yang dia hubungkan sendiri.
+app.get('/api/marketplace/shops', requireAuth, requireRole('superadmin', 'sales'), wrap(async (req, res) => {
+  const isSales = req.user.role === 'sales';
   const r = await pool.query(
     `SELECT 'tiktok' AS platform, shop_id, name, region, code, access_expires_at, refresh_expires_at, updated_at,
        health, health_error, last_check_at
-     FROM tiktok_shops ORDER BY name`);
+     FROM tiktok_shops ${isSales ? 'WHERE connected_by=$1' : ''} ORDER BY name`, isSales ? [req.user.id] : []);
   res.json({
     shops: r.rows,
     platforms: {
-      // app secret tidak pernah dikirim ke klien, cukup penanda sudah terisi.
-      tiktok: { configured: tiktok.isConfigured(), authUrl: tiktok.authUrl(), appKey: tiktok.appKey(), hasSecret: tiktok.hasSecret() },
+      // app secret tidak pernah dikirim ke klien, cukup penanda sudah terisi. Sales cukup tahu link otorisasinya.
+      tiktok: {
+        configured: tiktok.isConfigured(),
+        authUrl: tiktok.authUrl(),
+        ...(!isSales && { appKey: tiktok.appKey(), hasSecret: tiktok.hasSecret() }),
+      },
       shopee: { configured: false, authUrl: '' },
     },
   });
@@ -2029,20 +2035,20 @@ app.post('/api/marketplace/tiktok/check', requireAuth, requireRole('superadmin')
   res.status(202).json({ ok: true });
 }));
 
-app.post('/api/marketplace/tiktok/:shopId/check', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+app.post('/api/marketplace/tiktok/:shopId/check', requireAuth, requireRole('superadmin', 'sales'), wrap(async (req, res) => {
   const shop = (await pool.query('SELECT * FROM tiktok_shops WHERE shop_id=$1', [req.params.shopId])).rows[0];
-  if (!shop) return res.status(404).json({ error: 'Toko tidak ditemukan' });
+  if (!shop || (req.user.role === 'sales' && shop.connected_by !== req.user.id)) return res.status(404).json({ error: 'Toko tidak ditemukan' });
   const health = await tiktok.checkShop(shop);
   emitToAll('marketplace:changed', {});
   res.json({ health });
 }));
 
 // TikTok me-redirect ke root web (?app_key=..&code=..); klien yang login meneruskan code ke sini.
-app.post('/api/marketplace/tiktok/connect', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+app.post('/api/marketplace/tiktok/connect', requireAuth, requireRole('superadmin', 'sales'), wrap(async (req, res) => {
   const code = String(req.body.code || '');
   if (!code) return res.status(400).json({ error: 'Auth code kosong' });
   try {
-    const shops = await tiktok.connectShops(code);
+    const shops = await tiktok.connectShops(code, req.user.role === 'sales' ? req.user.id : null);
     emitToAll('marketplace:changed', {});
     res.json({ shops });
   } catch (e) {

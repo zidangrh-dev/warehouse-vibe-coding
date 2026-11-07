@@ -188,6 +188,9 @@ ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS health TEXT NOT NULL DEFAULT '
 ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS health_error TEXT NOT NULL DEFAULT '';
 ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS last_check_at TIMESTAMPTZ;
 
+-- Sales yang menghubungkan toko; NULL = hanya terlihat oleh superadmin.
+ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS connected_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
 -- Kredensial app & link otorisasi per platform, diatur dari menu Marketplace.
 CREATE TABLE IF NOT EXISTS marketplace_settings (
   platform TEXT PRIMARY KEY,

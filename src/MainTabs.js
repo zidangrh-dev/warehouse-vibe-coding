@@ -21,7 +21,7 @@ const ALL_TABS = [
   { key: 'semua', icon: 'list', label: 'Semua', roles: ['superadmin', 'admin', 'sales', 'warehouse'], Screen: SemuaScreen },
   { key: 'kanban', icon: 'columns', label: 'Kanban', roles: ['superadmin', 'admin'], Screen: KanbanScreen },
   { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['superadmin', 'admin', 'warehouse', 'sales'], Screen: DashboardScreen },
-  { key: 'marketplace', icon: 'store', label: 'Marketplace', roles: ['superadmin'], Screen: MarketplaceScreen },
+  { key: 'marketplace', icon: 'store', label: 'Marketplace', roles: ['superadmin', 'sales'], Screen: MarketplaceScreen },
 ];
 
 const ROLE_LABEL = { superadmin: 'Super Admin', admin: 'Admin Kios', sales: 'Sales', warehouse: 'Warehouse' };
@@ -74,7 +74,7 @@ export default function MainTabs({ user, onLogout }) {
   const [active, setActive] = useState(() => (tabs[0]?.key || 'semua'));
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const ActiveScreen = tabs.find((t) => t.key === active)?.Screen || SemuaScreen;
-  const mpIssues = useMarketplaceIssues(user?.role === 'superadmin');
+  const mpIssues = useMarketplaceIssues(['superadmin', 'sales'].includes(user?.role));
 
   // Hasil permintaan driver yang diulang server setelah sempat terputus.
   useEffect(() => {

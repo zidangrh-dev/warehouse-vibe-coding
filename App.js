@@ -67,8 +67,8 @@ function ThemedApp() {
     const code = params.get('code');
     if (!code || !params.get('app_key')) return;
     window.history.replaceState(null, '', window.location.pathname);
-    if (user.role !== 'superadmin') {
-      notice('Hanya Super Admin yang bisa menghubungkan toko marketplace.', 'error');
+    if (!['superadmin', 'sales'].includes(user.role)) {
+      notice('Hanya Super Admin dan Sales yang bisa menghubungkan toko marketplace.', 'error');
       return;
     }
     api.connectTiktok(code)

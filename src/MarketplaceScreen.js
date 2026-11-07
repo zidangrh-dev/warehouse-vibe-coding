@@ -35,7 +35,9 @@ function parseAuthCode(text) {
   return t.includes('://') ? '' : t;
 }
 
-export default function MarketplaceScreen() {
+export default function MarketplaceScreen({ user }) {
+  // Sales hanya menghubungkan dan mengecek tokonya sendiri; server menolak sisanya.
+  const canManage = user?.role === 'superadmin';
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const [data, setData] = useState({ shops: [], platforms: {} });
@@ -56,7 +58,7 @@ export default function MarketplaceScreen() {
       const d = await api.marketplaceShops();
       setData(d);
       setForm((old) => ({ ...old, app_key: d.platforms.tiktok?.appKey || '', auth_url: d.platforms.tiktok?.authUrl || '' }));
-      if (!d.platforms.tiktok?.authUrl) setShowSettings(true);
+      if (canManage && !d.platforms.tiktok?.authUrl) setShowSettings(true);
     } catch (e) {
       notice(`Gagal memuat marketplace: ${e.message}`, 'error');
     } finally {
@@ -85,6 +87,7 @@ export default function MarketplaceScreen() {
 
   const connect = () => {
     if (!tiktok.configured || !tiktok.authUrl) {
+      if (!canManage) return notice('Belum bisa menghubungkan toko. Minta Super Admin melengkapi pengaturan marketplace.', 'error');
       setShowSettings(true);
       return notice('Lengkapi App Key, App Secret, dan Link Otorisasi dulu.', 'error');
     }
@@ -172,14 +175,18 @@ export default function MarketplaceScreen() {
       <View style={s.headRow}>
         <View style={{ flex: 1, minWidth: 220 }}>
           <Text style={s.title}>Marketplace</Text>
-          <Text style={s.subtitle}>Toko yang terhubung ke PickHub. Status dites ke marketplace tiap 30 menit.</Text>
+          <Text style={s.subtitle}>
+            {canManage ? 'Toko yang terhubung ke PickHub.' : 'Toko yang kamu hubungkan ke PickHub.'} Status dites ke marketplace tiap 30 menit.
+          </Text>
         </View>
-        <TouchableOpacity style={s.btnGhost} onPress={() => setShowSettings((v) => !v)}>
-          <Text style={s.btnGhostText}>{showSettings ? 'Tutup Pengaturan' : 'Pengaturan'}</Text>
-        </TouchableOpacity>
+        {canManage && (
+          <TouchableOpacity style={s.btnGhost} onPress={() => setShowSettings((v) => !v)}>
+            <Text style={s.btnGhostText}>{showSettings ? 'Tutup Pengaturan' : 'Pengaturan'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {showSettings && (
+      {canManage && showSettings && (
         <View style={s.panel}>
           <Text style={s.panelTitle}>Pengaturan TikTok Shop</Text>
           <Text style={s.hint}>Salin dari Partner Center, di halaman app ISV kamu.</Text>
@@ -256,9 +263,11 @@ export default function MarketplaceScreen() {
           onChangeText={setQ}
           autoCapitalize="none"
         />
-        <TouchableOpacity style={[s.btnGhost, (checkingAll || !data.shops.length) && { opacity: 0.5 }]} onPress={checkAll} disabled={checkingAll || !data.shops.length}>
-          <Text style={s.btnGhostText}>{checkingAll ? 'Mengecek...' : 'Cek Semua'}</Text>
-        </TouchableOpacity>
+        {canManage && (
+          <TouchableOpacity style={[s.btnGhost, (checkingAll || !data.shops.length) && { opacity: 0.5 }]} onPress={checkAll} disabled={checkingAll || !data.shops.length}>
+            <Text style={s.btnGhostText}>{checkingAll ? 'Mengecek...' : 'Cek Semua'}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={s.chipRow}>
@@ -292,13 +301,15 @@ export default function MarketplaceScreen() {
             <TouchableOpacity style={s.smallBtn} onPress={() => checkOne(sh)} disabled={!!checkingShop}>
               <Text style={s.smallBtnText}>{checkingShop === sh.shop_id ? 'Mengecek...' : 'Cek'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.iconBtn, { backgroundColor: colors.dangerBg }]}
-              onPress={() => remove(sh)}
-              accessibilityLabel={`Putuskan ${sh.name}`}
-            >
-              <Icon name="x" size={13} color={colors.danger} strokeWidth={2.5} />
-            </TouchableOpacity>
+            {canManage && (
+              <TouchableOpacity
+                style={[s.iconBtn, { backgroundColor: colors.dangerBg }]}
+                onPress={() => remove(sh)}
+                accessibilityLabel={`Putuskan ${sh.name}`}
+              >
+                <Icon name="x" size={13} color={colors.danger} strokeWidth={2.5} />
+              </TouchableOpacity>
+            )}
           </View>
         );
       })}

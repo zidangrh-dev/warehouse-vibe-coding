@@ -112,7 +112,9 @@ export async function accessToken(shop) {
 }
 
 // Callback OAuth: tukar auth_code -> token, lalu simpan semua toko yang diotorisasi seller.
-export async function connectShops(authCode) {
+// ownerId = sales yang menghubungkan; null (superadmin) membiarkan pemilik lama.
+// shortcut: satu toko satu pemilik, otorisasi ulang oleh sales lain memindahkannya; pakai tabel relasi kalau satu toko dipegang banyak sales.
+export async function connectShops(authCode, ownerId = null) {
   const t = await tokenRequest('/api/v2/token/get', { auth_code: authCode, grant_type: 'authorized_code' });
   const [at, exp, rt, rexp] = saveTokens(t);
   const tmp = { id: null, access_token: at, access_expires_at: exp, refresh_token: rt };
@@ -120,11 +122,11 @@ export async function connectShops(authCode) {
   const saved = [];
   for (const s of data.shops || []) {
     await pool.query(
-      `INSERT INTO tiktok_shops (shop_id, name, cipher, access_token, access_expires_at, refresh_token, refresh_expires_at, region, code)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `INSERT INTO tiktok_shops (shop_id, name, cipher, access_token, access_expires_at, refresh_token, refresh_expires_at, region, code, connected_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        ON CONFLICT (shop_id) DO UPDATE SET name=$2, cipher=$3, access_token=$4, access_expires_at=$5, refresh_token=$6,
-         refresh_expires_at=$7, region=$8, code=$9, updated_at=now()`,
-      [s.id, s.name, s.cipher, at, exp, rt, rexp, s.region || '', s.code || '']);
+         refresh_expires_at=$7, region=$8, code=$9, connected_by=COALESCE($10, tiktok_shops.connected_by), updated_at=now()`,
+      [s.id, s.name, s.cipher, at, exp, rt, rexp, s.region || '', s.code || '', ownerId]);
     saved.push(s.name);
     const row = (await pool.query('SELECT * FROM tiktok_shops WHERE shop_id=$1', [s.id])).rows[0];
     await checkShop(row);
