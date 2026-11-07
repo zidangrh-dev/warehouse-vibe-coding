@@ -6,11 +6,12 @@ import bcrypt from 'bcryptjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const pool = new pg.Pool({
-  connectionString:
-    process.env.DATABASE_URL ||
-    'postgres://postgres:postgres@127.0.0.1:5433/postgres',
-});
+// Wajib eksplisit: schema.sql berisi DROP TABLE, jadi jangan sampai jalan di database proyek lain.
+if (!process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL belum di-set. Pakai `npm run dev` untuk lokal, atau set di .env production.');
+}
+
+export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 export async function migrate() {
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');

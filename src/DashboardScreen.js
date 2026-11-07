@@ -267,7 +267,6 @@ export default function DashboardScreen({ user }) {
         user={user}
         onClose={() => setUserModalOpen(false)}
       />
-
       <View style={s.statGrid}>
         {stats.map((st) => (
           <View

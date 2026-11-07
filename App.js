@@ -4,10 +4,10 @@ import { StyleSheet, ActivityIndicator, View, Platform, Text } from 'react-nativ
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
-import { loadSession, logout, setUnauthorizedHandler } from './src/api';
+import { api, loadSession, logout, setUnauthorizedHandler } from './src/api';
 import LoginScreen from './src/LoginScreen';
 import MainTabs from './src/MainTabs';
-import { ThemeProvider, useTheme } from './src/theme';
+import { ThemeProvider, useTheme, notice } from './src/theme';
 
 function scrollbarCss(isDark) {
   return `
@@ -58,6 +58,23 @@ function ThemedApp() {
       .finally(() => setReady(true));
     setUnauthorizedHandler(() => { doLogout(); });
   }, [doLogout]);
+
+  // Redirect otorisasi TikTok mendarat di root web (?app_key=..&code=..).
+  // Diproses setelah login; URL tetap utuh selama belum login.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !user) return;
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code || !params.get('app_key')) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    if (user.role !== 'superadmin') {
+      notice('Hanya Super Admin yang bisa menghubungkan toko marketplace.', 'error');
+      return;
+    }
+    api.connectTiktok(code)
+      .then((r) => notice(`Toko TikTok terhubung: ${r.shops.join(', ') || '(tidak ada)'}`, 'success'))
+      .catch((e) => notice(`Gagal menghubungkan toko: ${e.message}`, 'error'));
+  }, [user]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;

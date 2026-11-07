@@ -2,7 +2,9 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Animated, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from './Icon';
-import { shadow, spacing, radius, confirmAsync, useTheme } from './theme';
+import { shadow, spacing, radius, confirmAsync, notice, useTheme } from './theme';
+import { api, getSocket, MARKETPLACE_NOTICE } from './api';
+import MarketplaceScreen, { healthLevel } from './MarketplaceScreen';
 import { useBreakpoint } from './responsive';
 import { ScanPaketScreen, SelfPickupScreen, GojekScreen, CancelReturScreen, SemuaScreen, KanbanScreen, BuybackScreen } from './screens/index';
 import DashboardScreen from './DashboardScreen';
@@ -19,6 +21,7 @@ const ALL_TABS = [
   { key: 'semua', icon: 'list', label: 'Semua', roles: ['superadmin', 'admin', 'sales', 'warehouse'], Screen: SemuaScreen },
   { key: 'kanban', icon: 'columns', label: 'Kanban', roles: ['superadmin', 'admin'], Screen: KanbanScreen },
   { key: 'dashboard', icon: 'chart', label: 'Dashboard', roles: ['superadmin', 'admin', 'warehouse', 'sales'], Screen: DashboardScreen },
+  { key: 'marketplace', icon: 'store', label: 'Marketplace', roles: ['superadmin'], Screen: MarketplaceScreen },
 ];
 
 const ROLE_LABEL = { superadmin: 'Super Admin', admin: 'Admin Kios', sales: 'Sales', warehouse: 'Warehouse' };
@@ -33,6 +36,36 @@ function greeting() {
 
 const TAB_STORAGE_KEY = 'gudang_active_tab';
 
+// Jumlah toko marketplace yang perlu dicek, diperbarui realtime. Toast saat jumlahnya naik.
+function useMarketplaceIssues(enabled) {
+  const [count, setCount] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const load = async () => {
+      try {
+        const { shops } = await api.marketplaceShops();
+        const n = shops.filter((sh) => healthLevel(sh) !== 'ok').length;
+        if (n > prev.current) notice(`${n} toko marketplace perlu dicek`, 'error');
+        prev.current = n;
+        setCount(n);
+      } catch (e) {}
+    };
+    load();
+    const socket = getSocket();
+    socket.on('marketplace:changed', load);
+    socket.on('connect', load);
+    // Interval: mendeteksi status basi kalau pengecekan server berhenti (tidak ada event).
+    const timer = setInterval(load, 5 * 60 * 1000);
+    return () => {
+      socket.off('marketplace:changed', load);
+      socket.off('connect', load);
+      clearInterval(timer);
+    };
+  }, [enabled]);
+  return count;
+}
+
 export default function MainTabs({ user, onLogout }) {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -41,6 +74,16 @@ export default function MainTabs({ user, onLogout }) {
   const [active, setActive] = useState(() => (tabs[0]?.key || 'semua'));
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const ActiveScreen = tabs.find((t) => t.key === active)?.Screen || SemuaScreen;
+  const mpIssues = useMarketplaceIssues(user?.role === 'superadmin');
+
+  // Hasil permintaan driver yang diulang server setelah sempat terputus.
+  useEffect(() => {
+    if (!['superadmin', 'admin'].includes(user?.role)) return undefined;
+    const socket = getSocket();
+    const onDriver = ({ mode, message }) => notice(message, MARKETPLACE_NOTICE[mode] || 'info');
+    socket.on('marketplace:driver', onDriver);
+    return () => socket.off('marketplace:driver', onDriver);
+  }, [user?.role]);
 
   const userName = user?.name || user?.display_name || user?.username || 'User';
   const initials = userName.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -80,6 +123,14 @@ export default function MainTabs({ user, onLogout }) {
     if (await confirmAsync('Keluar?', `Logout dari akun ${userName}.`)) onLogout();
   };
 
+  const mpBanner = mpIssues > 0 && active !== 'marketplace' && (
+    <TouchableOpacity style={s.alertBanner} onPress={() => switchTab('marketplace')} accessibilityRole="button">
+      <Icon name="alert" size={16} color={colors.dangerText} />
+      <Text style={s.alertText}>{mpIssues} toko marketplace perlu dicek. Cari Driver bisa gagal untuk toko ini.</Text>
+      <Text style={s.alertLink}>Lihat</Text>
+    </TouchableOpacity>
+  );
+
   if (isDesktop) {
     return (
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.bg }}>
@@ -101,6 +152,9 @@ export default function MainTabs({ user, onLogout }) {
                 >
                   <Icon name={t.icon} size={18} color={isActive ? colors.primary : colors.sub} />
                   <Text style={[s.navLabel, isActive && s.navLabelActive]}>{t.label}</Text>
+                  {t.key === 'marketplace' && mpIssues > 0 && (
+                    <View style={s.navCount}><Text style={s.navCountText}>{mpIssues}</Text></View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -133,6 +187,7 @@ export default function MainTabs({ user, onLogout }) {
 
         <View style={s.desktopBody}>
           <View style={[s.desktopInner, isUltraWide && s.desktopInnerUltraWide]}>
+            {mpBanner}
             <ActiveScreen user={user} />
           </View>
         </View>
@@ -167,6 +222,7 @@ export default function MainTabs({ user, onLogout }) {
         </View>
       </View>
 
+      {mpBanner}
       <View style={s.body}>
         <Animated.View style={{ flex: 1, opacity: screenOpacity, transform: [{ translateY: screenTranslateY }] }}>
           <ActiveScreen user={user} />
@@ -185,6 +241,7 @@ export default function MainTabs({ user, onLogout }) {
                 accessibilityLabel={t.label}
               >
                 <Icon name={t.icon} size={isActive ? 22 : 19} color={isActive ? colors.primary : colors.sub} strokeWidth={isActive ? 2.4 : 2} />
+                {t.key === 'marketplace' && mpIssues > 0 && <View style={s.tabDot} />}
               </TouchableOpacity>
             );
           })}
@@ -198,6 +255,19 @@ export default function MainTabs({ user, onLogout }) {
 
 const makeStyles = (colors) => StyleSheet.create({
   themeBtn: { backgroundColor: colors.surfaceAlt, borderRadius: 18 },
+  alertBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: spacing.lg, paddingVertical: 10,
+    backgroundColor: colors.dangerBg, borderBottomWidth: 1, borderBottomColor: colors.dangerBorder,
+  },
+  alertText: { flex: 1, color: colors.dangerText, fontSize: 13, fontWeight: '600' },
+  alertLink: { color: colors.dangerText, fontSize: 13, fontWeight: '800', textDecorationLine: 'underline' },
+  navCount: {
+    marginLeft: 'auto', minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.danger,
+  },
+  navCountText: { color: colors.onDanger, fontSize: 11, fontWeight: '800' },
+  tabDot: { position: 'absolute', top: 6, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.danger },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 18, paddingBottom: 16,

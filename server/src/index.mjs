@@ -12,6 +12,7 @@ import { parse as parseCsv } from 'csv-parse/sync';
 import { Server } from 'socket.io';
 import { pool, migrate, seedIfEmpty } from './db.mjs';
 import { ensureIndex, indexPackage, removePackage, bulkIndexPackages, searchPackages } from './meili.mjs';
+import * as tiktok from './tiktok.mjs';
 
 const PORT = Number(process.env.PORT || 4000);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-gudang-board';
@@ -27,6 +28,7 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
       'https://apps-pickhub.cloud',
       'http://202.10.44.147',
       'http://localhost:8081',
+      'http://localhost:8082',
       'http://localhost:4000',
       'http://localhost:19006',
     ];
@@ -1182,6 +1184,21 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
   }
   if (!sets.length) return res.status(400).json({ error: 'Tidak ada field yang diubah' });
 
+  // Dicek sebelum transaksi: baris tidak boleh terkunci selama menunggu TikTok.
+  let checked = null;
+  if (isOperational) {
+    const cur = (await pool.query('SELECT * FROM packages WHERE id=$1', [id])).rows[0];
+    if (cur && !cur.archived && tiktok.needsOrderConfirm(cur, req.body)) {
+      checked = await tiktok.previewOrder(cur);
+      if (checked.mode === 'confirm') {
+        return res.status(428).json({
+          error: 'Cocokkan data order dulu sebelum memanggil driver.',
+          driverConfirm: { title: checked.title, message: checked.message },
+        });
+      }
+    }
+  }
+
   const cli = await pool.connect();
   try {
     await cli.query('BEGIN');
@@ -1192,6 +1209,17 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     // KUNCI KEAMANAN ARSIP: Paket yang diarsip terkunci permanen untuk siapapun
     if (pkg?.archived) throw fail(400, 'Paket ini telah diarsip dan tidak dapat diubah oleh siapapun.');
     if (!pkg) throw fail(404, 'Paket tidak ditemukan');
+
+    // Request yang sama terkirim ulang (browser mengulang saat koneksi putus, atau dua orang
+    // klik bersamaan): hasil yang diminta sudah tersimpan, jadi ini sukses, bukan konflik.
+    const requested = Object.keys(req.body).filter((k) => allowed.includes(k));
+    if (requested.length && requested.every((k) => req.body[k] === pkg[k])) {
+      await cli.query('ROLLBACK');
+      return res.json({
+        ...pkg,
+        ...(pkg.driver_request_pending && { marketplace: { mode: 'pending', message: 'Permintaan driver sedang diproses.' } }),
+      });
+    }
 
     // Kunci PERMANEN data driver: setelah paket sekali dilakukan Done Pickup,
     // data driver TIDAK boleh diganti — berlaku bahkan jika paket diretur lalu
@@ -1277,6 +1305,12 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
       sets.push(`driver_locked=false`);
     }
 
+    // Klik Cari Driver diteruskan ke marketplace. Dicatat di transaksi ini supaya bisa
+    // diulang kalau server mati sebelum marketplace terpanggil.
+    const asked = tiktok.asksDriver(pkg, req.body);
+    const wantsDriver = isOperational && asked && tiktok.isTiktokOrder(pkg) && !tiktok.needsOrderConfirm(pkg, req.body);
+    if (wantsDriver) sets.push('driver_request_pending=true', 'driver_request_at=now()', 'driver_request_lease_at=now()');
+
     // Guard versi: kalau client kirim baseUpdatedAt yang basi -> 409 (mencegah
     // data usang menimpa data baru dari user lain yang serentak). Dibandingkan
     // dalam presisi MILIDETIK karena JSON (toISOString) hanya memuat ms, sedang
@@ -1301,11 +1335,15 @@ app.patch('/api/packages/:id', requireAuth, wrap(async (req, res) => {
     if ('is_cari_driver' in req.body) detailParts.push(`tag Cari Driver: ${req.body.is_cari_driver ? 'AKTIF' : 'NON-AKTIF'}`);
     if ('done_by' in req.body) detailParts.push(`diproses oleh: ${req.body.done_by.trim() || '—'}`);
     if ('pickup_type' in req.body) detailParts.push(`jenis ambilan -> ${req.body.pickup_type}`);
+    if (wantsDriver && req.body.confirm_driver === true) detailParts.push('data order TikTok dikonfirmasi');
     if (!detailParts.length) detailParts.push(`ubah ${sets.map(s => s.split('=')[0]).join(', ')}`);
     await logEvent(id, req.user, 'update', detailParts.join(' | '));
-    indexPackage(r.rows[0]);
+    const marketplace = wantsDriver || (checked && asked) ? await tiktok.finishDriverRequest(r.rows[0], checked) : null;
+    if (marketplace) await logEvent(id, req.user, `tiktok_cari_driver_${marketplace.mode}`, marketplace.message);
+    const saved = marketplace?.pkg || r.rows[0];
+    indexPackage(saved);
     notify(req.user?.id, devOf(req));
-    res.json(r.rows[0]);
+    res.json({ ...saved, ...(marketplace && { marketplace: { mode: marketplace.mode, message: marketplace.message } }) });
   } catch (e) {
     await cli.query('ROLLBACK');
     if (e.code === '23505' || String(e.message).includes('packages_pickup_code_key')) {
@@ -1952,6 +1990,74 @@ app.get('/api/dashboard/activity', requireAuth, requireRole('superadmin', 'admin
   res.json(r.rows);
 }));
 
+// ---- TikTok Shop ----
+// Marketplace Manager: daftar toko terhubung + link otorisasi per platform.
+app.get('/api/marketplace/shops', requireAuth, requireRole('superadmin'), wrap(async (_req, res) => {
+  const r = await pool.query(
+    `SELECT 'tiktok' AS platform, shop_id, name, region, code, access_expires_at, refresh_expires_at, updated_at,
+       health, health_error, last_check_at
+     FROM tiktok_shops ORDER BY name`);
+  res.json({
+    shops: r.rows,
+    platforms: {
+      // app secret tidak pernah dikirim ke klien, cukup penanda sudah terisi.
+      tiktok: { configured: tiktok.isConfigured(), authUrl: tiktok.authUrl(), appKey: tiktok.appKey(), hasSecret: tiktok.hasSecret() },
+      shopee: { configured: false, authUrl: '' },
+    },
+  });
+}));
+
+app.put('/api/marketplace/tiktok/settings', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const clean = (v) => String(v ?? '').trim().slice(0, 2000);
+  const body = { app_key: clean(req.body.app_key), app_secret: clean(req.body.app_secret), auth_url: clean(req.body.auth_url) };
+  if (body.auth_url && !/^https:\/\//i.test(body.auth_url)) {
+    return res.status(400).json({ error: 'Link otorisasi harus diawali https://' });
+  }
+  await tiktok.saveSettings(body);
+  res.json({ ok: true });
+}));
+
+// Cek toko ke TikTok lalu kabari klien. Dipakai job berkala & tombol "Cek Semua".
+const runMarketplaceChecks = (opts) => tiktok.runChecks(opts)
+  .then((ran) => { if (ran) emitToAll('marketplace:changed', {}); })
+  .catch((e) => console.error('[marketplace] cek toko gagal', e));
+
+// Background: 50+ toko bisa lebih lama dari timeout proxy. Klien menunggu event marketplace:changed.
+app.post('/api/marketplace/tiktok/check', requireAuth, requireRole('superadmin'), wrap(async (_req, res) => {
+  if (!tiktok.isConfigured()) return res.status(400).json({ error: 'App Key / App Secret TikTok belum diisi.' });
+  runMarketplaceChecks({ force: true });
+  res.status(202).json({ ok: true });
+}));
+
+app.post('/api/marketplace/tiktok/:shopId/check', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const shop = (await pool.query('SELECT * FROM tiktok_shops WHERE shop_id=$1', [req.params.shopId])).rows[0];
+  if (!shop) return res.status(404).json({ error: 'Toko tidak ditemukan' });
+  const health = await tiktok.checkShop(shop);
+  emitToAll('marketplace:changed', {});
+  res.json({ health });
+}));
+
+// TikTok me-redirect ke root web (?app_key=..&code=..); klien yang login meneruskan code ke sini.
+app.post('/api/marketplace/tiktok/connect', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const code = String(req.body.code || '');
+  if (!code) return res.status(400).json({ error: 'Auth code kosong' });
+  try {
+    const shops = await tiktok.connectShops(code);
+    emitToAll('marketplace:changed', {});
+    res.json({ shops });
+  } catch (e) {
+    if (e.httpCode) return res.status(e.httpCode).json({ error: e.message });
+    throw e;
+  }
+}));
+
+app.delete('/api/marketplace/tiktok/:shopId', requireAuth, requireRole('superadmin'), wrap(async (req, res) => {
+  const r = await pool.query('DELETE FROM tiktok_shops WHERE shop_id=$1 RETURNING name', [req.params.shopId]);
+  if (!r.rows[0]) return res.status(404).json({ error: 'Toko tidak ditemukan' });
+  emitToAll('marketplace:changed', {});
+  res.json({ ok: true });
+}));
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 // Reindex semua paket ke Meilisearch (superadmin only)
@@ -1964,4 +2070,25 @@ app.post('/api/admin/reindex', requireAuth, requireRole('superadmin'), wrap(asyn
 await migrate();
 await seedIfEmpty();
 await ensureIndex();
+await tiktok.loadSettings();
 server.listen(PORT, () => console.log(`API siap di http://localhost:${PORT}`));
+runMarketplaceChecks();
+setInterval(runMarketplaceChecks, 30 * 60 * 1000);
+// Permintaan driver yang terputus diulang tanpa menunggu klik lagi, hasilnya dikabarkan ke layar.
+const recoverDrivers = () => tiktok.recoverDriverRequests().then(async (outcomes) => {
+  for (const { pkg, mode, message } of outcomes) {
+    await logEvent(pkg.id, null, `tiktok_cari_driver_${mode}`, message);
+    notifyPackageUpdated(pkg);
+    emitToAll('marketplace:driver', { mode, message });
+  }
+}).catch((e) => console.error('[marketplace] pemulihan permintaan driver gagal', e));
+recoverDrivers();
+setInterval(recoverDrivers, 60 * 1000);
+// Paket yang sedang menunggu driver: isi nama driver begitu tersedia di tracking.
+setInterval(() => tiktok.syncDrivers().then(async (changed) => {
+  for (const { pkg, filled, refreshed } of changed) {
+    const detail = [filled && `driver: ${pkg.driver_info}`, refreshed && 'driver berganti | tag REFRESH: AKTIF'].filter(Boolean).join(' | ');
+    await logEvent(pkg.id, null, 'driver_otomatis', detail);
+    notifyPackageUpdated(pkg);
+  }
+}).catch((e) => console.error('[marketplace] sinkron driver gagal', e)), 3 * 60 * 1000);

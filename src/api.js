@@ -2,22 +2,27 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io } from 'socket.io-client';
+import { notice, confirmAsync } from './theme';
+
+export const MARKETPLACE_NOTICE = { auto: 'success', failed: 'error', expired: 'error' };
 
 // Menentukan alamat API otomatis:
-// - Web dev (expo :8081)  -> http://<host>:4000
+// - Web dev (expo :8081)  -> http://<host>:<DEV_API_PORT>
 // - Web production        -> origin yang sama (nginx mem-proxy /api)
 // - Android dev (Expo Go) -> IP laptop diambil dari hostUri Metro
 // - APK production        -> isi PROD_API di bawah saat deploy
 const PROD_API = 'https://apps-pickhub.cloud';
+// Port API saat dev; mesin dengan port bentrok mengisinya lewat .env.local.
+const DEV_API_PORT = process.env.EXPO_PUBLIC_API_PORT || '4000';
 
 export function apiBase() {
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     const { protocol, hostname, port, host } = window.location;
-    if (port === '8081' || port === '19006') return `http://${hostname}:4000`;
+    if (['8081', '8082', '19006'].includes(port)) return `http://${hostname}:${DEV_API_PORT}`;
     return `${protocol}//${host}`;
   }
   const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) return `http://${hostUri.split(':')[0]}:4000`;
+  if (hostUri) return `http://${hostUri.split(':')[0]}:${DEV_API_PORT}`;
   return PROD_API;
 }
 
@@ -109,6 +114,8 @@ async function req(method, path, body, skipAuth = false) {
       'X-Device-Id': getDeviceId(),
     },
     body: body ? JSON.stringify(body) : undefined,
+  }).catch(() => {
+    throw new Error('Koneksi ke server terputus. Tunggu sebentar, lalu muat ulang datanya.');
   });
   if (res.status === 401 && !skipAuth) onUnauthorized();
   if (!res.ok) {
@@ -116,6 +123,7 @@ async function req(method, path, body, skipAuth = false) {
     const e = new Error(err.error || `HTTP ${res.status}`);
     e.status = res.status;
     e.package = err.package;
+    e.driverConfirm = err.driverConfirm;
     throw e;
   }
   return res.json();
@@ -158,7 +166,22 @@ export const api = {
   },
   getPackage: (id) => req('GET', `/api/packages/${id}`),
   createPackage: (data) => req('POST', '/api/packages', data),
-  updatePackage: (id, data) => req('PATCH', `/api/packages/${id}`, data),
+  updatePackage: (id, data) => req('PATCH', `/api/packages/${id}`, data).catch(async (e) => {
+    // Paket input manual: staf mencocokkan data order dulu, baru driver diminta.
+    if (e.status !== 428) throw e;
+    if (!(await confirmAsync(e.driverConfirm.title, e.driverConfirm.message))) throw new Error('Dibatalkan, driver tidak diminta.');
+    return req('PATCH', `/api/packages/${id}`, { ...data, confirm_driver: true });
+  }).then((pkg) => {
+    // Hasil Cari Driver ke marketplace, berlaku dari layar mana pun tombolnya diklik.
+    if (pkg.marketplace) notice(pkg.marketplace.message, MARKETPLACE_NOTICE[pkg.marketplace.mode] || 'info');
+    return pkg;
+  }),
+  marketplaceShops: () => req('GET', '/api/marketplace/shops'),
+  connectTiktok: (code) => req('POST', '/api/marketplace/tiktok/connect', { code }),
+  removeMarketplaceShop: (platform, shopId) => req('DELETE', `/api/marketplace/${platform}/${shopId}`),
+  saveTiktokSettings: (data) => req('PUT', '/api/marketplace/tiktok/settings', data),
+  checkAllShops: () => req('POST', '/api/marketplace/tiktok/check'),
+  checkShop: (platform, shopId) => req('POST', `/api/marketplace/${platform}/${shopId}/check`),
   kanbanBoard: (q, filters) => api.listPackages('semua', q, { ...(filters || {}), kanban: '1' }),
   arrive: (invoice_no) => req('POST', '/api/packages/arrive', { invoice_no }),
   bulkArrive: (ids) => req('POST', '/api/packages/bulk-arrive', { ids }),

@@ -471,10 +471,13 @@ export default function PackageModal({ pkgId, user, onClose, onChanged }) {
         }
         const base = pkgRef.current || pkg;
         const res = await api.updatePackage(base.id, { [field]: nextVal, baseUpdatedAt: base.updated_at });
+        // Server bisa mematikan tanda ini kalau marketplace menolak.
+        if (field === 'is_cari_driver') setIsCariDriver(!!res.is_cari_driver);
         pkgRef.current = res;
         setPkg(res);
         onChanged?.();
       } catch (e) {
+        if (field === 'is_cari_driver') setIsCariDriver(!nextVal);
         if (!(await reloadOnConflict(e))) notice(e.message, 'error');
       }
     }

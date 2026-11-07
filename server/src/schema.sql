@@ -166,3 +166,48 @@ ALTER TABLE packages ADD COLUMN IF NOT EXISTS done_by TEXT NOT NULL DEFAULT '';
 
 -- Nama toko/seller dari kolom Customer CSV VEF.
 ALTER TABLE packages ADD COLUMN IF NOT EXISTS seller_name TEXT NOT NULL DEFAULT '';
+
+-- Toko TikTok Shop yang mengotorisasi app ISV (token per toko, di-refresh otomatis).
+CREATE TABLE IF NOT EXISTS tiktok_shops (
+  id SERIAL PRIMARY KEY,
+  shop_id TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  cipher TEXT NOT NULL,
+  access_token TEXT NOT NULL,
+  access_expires_at TIMESTAMPTZ NOT NULL,
+  refresh_token TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Info toko untuk menu Marketplace Manager.
+ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT '';
+ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS code TEXT NOT NULL DEFAULT '';
+ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS refresh_expires_at TIMESTAMPTZ;
+
+-- Hasil cek kesehatan toko ke TikTok: ok | problem | unknown (belum/gagal terverifikasi).
+ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS health TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS health_error TEXT NOT NULL DEFAULT '';
+ALTER TABLE tiktok_shops ADD COLUMN IF NOT EXISTS last_check_at TIMESTAMPTZ;
+
+-- Kredensial app & link otorisasi per platform, diatur dari menu Marketplace.
+CREATE TABLE IF NOT EXISTS marketplace_settings (
+  platform TEXT PRIMARY KEY,
+  app_key TEXT NOT NULL DEFAULT '',
+  app_secret TEXT NOT NULL DEFAULT '',
+  auth_url TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Toko TikTok pemilik order (terisi saat Cari Driver otomatis) dan nama driver
+-- terakhir yang terbaca dari tracking, untuk mendeteksi pergantian driver.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS tiktok_shop_id TEXT;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_auto_info TEXT NOT NULL DEFAULT '';
+
+-- Jumlah pencarian ulang driver yang sudah tercatat, supaya REFRESH hanya menyala sekali per pergantian.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_research_count INTEGER NOT NULL DEFAULT 0;
+
+-- Permintaan driver ke marketplace dicatat satu transaksi dengan statusnya, supaya
+-- bisa diulang kalau server mati sebelum sempat memanggil marketplace.
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_request_pending BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_request_at TIMESTAMPTZ;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS driver_request_lease_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_packages_driver_pending ON packages (driver_request_at) WHERE driver_request_pending;
